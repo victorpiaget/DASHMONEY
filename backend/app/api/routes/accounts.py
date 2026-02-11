@@ -10,6 +10,11 @@ from app.api.deps import get_account_repo, get_tx_repo
 from app.domain.signed_money import SignedMoney
 from app.domain.transaction import Transaction, TransactionKind
 from app.engine.running_balance import compute_running_balance_strict
+from app.api.schemas.transactions import TransactionResponse
+from app.domain.transaction import Transaction
+from app.api.schemas.transactions import AccountTransactionCreateRequest
+from app.api.schemas.transactions import TransactionResponse
+from app.services.transaction_query_service import TransactionQuery, apply_transaction_query
 
 from app.services.transaction_query_service import (  # <-- nouveau
     TransactionQuery,
@@ -46,10 +51,8 @@ def list_accounts():
         logger.exception("Failed to list accounts: %s", e)
         raise HTTPException(status_code=500, detail="Internal error")
 
-
-
-@router.get("/{account_id}/transactions")
-def list_transactions(
+@router.get("/{account_id}/transactions", response_model=list[TransactionResponse])
+def list_account_transactions(
     account_id: str,
 
     date_from: dt.date | None = Query(default=None),
@@ -63,122 +66,70 @@ def list_transactions(
 
     sort_by: str = Query(default="date", pattern="^(date|amount|kind|category|subcategory|label)$"),
     sort_dir: str = Query(default="asc", pattern="^(asc|desc)$"),
-):
+) -> list[TransactionResponse]:
     try:
         acc = get_account_repo().get_account(account_id)
-        txs = get_tx_repo().list(account_id=acc.id)
-
-        query = TransactionQuery(
-            date_from=date_from,
-            date_to=date_to,
-            kinds=set(kinds) if kinds else None,
-            categories=set([c.strip() for c in categories]) if categories else None,
-            subcategories=set([s.strip() for s in subcategories]) if subcategories else None,
-            q=q,
-            sort_by=sort_by,   # type: ignore[arg-type]
-            sort_dir=sort_dir, # type: ignore[arg-type]
-        )
-
-        txs = apply_transaction_query(txs, query)
-        return txs
-
     except KeyError:
         raise HTTPException(status_code=404, detail="Account not found")
-    except Exception as e:
-        logger.exception("Failed to list transactions: %s", e)
-        raise HTTPException(status_code=500, detail="Internal error")
 
-@router.post("/{account_id}/transactions")
-def add_transaction(
+    txs = get_tx_repo().list(account_id=acc.id)
+
+    query_obj = TransactionQuery(
+        date_from=date_from,
+        date_to=date_to,
+        kinds=set(kinds) if kinds else None,
+        categories=set(c.strip() for c in categories if c and c.strip()) if categories else None,
+        subcategories=set(s.strip() for s in subcategories if s and s.strip()) if subcategories else None,
+        q=q,
+        sort_by=sort_by,   # type: ignore[arg-type]
+        sort_dir=sort_dir, # type: ignore[arg-type]
+    )
+
+    txs = apply_transaction_query(txs, query_obj)
+    return [_to_response(t) for t in txs]   
+
+@router.post("/{account_id}/transactions", response_model=TransactionResponse, status_code=201)
+def create_account_transaction(
     account_id: str,
-    payload: dict,
-):
+    payload: AccountTransactionCreateRequest,
+) -> TransactionResponse:
     try:
         acc = get_account_repo().get_account(account_id)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Account not found")
 
-        date = dt.date.fromisoformat(payload["date"])
-        kind = TransactionKind(payload["kind"])
-        category = payload["category"]
-        subcategory = payload.get("subcategory")
-        label = payload.get("label")
+    # 1) SignedMoney: currency = currency du compte
+    try:
+        amount = SignedMoney.from_str(payload.amount, acc.currency)
+    except Exception as e:
+        raise HTTPException(status_code=422, detail=str(e))
 
-        amount = SignedMoney.from_str(payload["amount"], acc.currency)
+    # 2) sequence auto
+    tx_repo = get_tx_repo()
+    seq = tx_repo.next_sequence(acc.id, payload.date)
 
-        tx_repo = get_tx_repo()
-        seq = tx_repo.next_sequence(acc.id, date)
-
+    # 3) Transaction.create (domain rules)
+    try:
         tx = Transaction.create(
             account_id=acc.id,
-            date=date,
+            date=payload.date,
             sequence=seq,
             amount=amount,
-            kind=kind,
-            category=category,
-            subcategory=subcategory,
-            label=label,
+            kind=payload.kind,
+            category=payload.category,
+            subcategory=payload.subcategory,
+            label=payload.label,
         )
-
-        tx_repo.add(tx)
-        return tx
-
-    except KeyError:
-        raise HTTPException(status_code=404, detail="Account not found")
-    except (ValueError, TypeError):
-        raise HTTPException(status_code=422, detail="Invalid input")
     except Exception as e:
-        logger.exception("Failed to add transaction: %s", e)
-        raise HTTPException(status_code=500, detail="Internal error")
+        raise HTTPException(status_code=422, detail=str(e))
 
-
-@router.get("/{account_id}/transactions-with-balance")
-def list_transactions_with_balance(
-    account_id: str,
-
-    date_from: dt.date | None = Query(default=None),
-    date_to: dt.date | None = Query(default=None),
-
-    kinds: list[TransactionKind] | None = Query(default=None),
-    categories: list[str] | None = Query(default=None),
-    subcategories: list[str] | None = Query(default=None),
-
-    q: str | None = Query(default=None),
-
-    sort_by: str = Query(default="date", pattern="^(date|amount|kind|category|subcategory|label)$"),
-    sort_dir: str = Query(default="asc", pattern="^(asc|desc)$"),
-):
+    # 4) add
     try:
-        acc = get_account_repo().get_account(account_id)
-        txs = get_tx_repo().list(account_id=acc.id)
+        tx_repo.add(tx)
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e))
 
-        query = TransactionQuery(
-            date_from=date_from,
-            date_to=date_to,
-            kinds=set(kinds) if kinds else None,
-            categories=set([c.strip() for c in categories]) if categories else None,
-            subcategories=set([s.strip() for s in subcategories]) if subcategories else None,
-            q=q,
-            sort_by=sort_by,   # type: ignore[arg-type]
-            sort_dir=sort_dir, # type: ignore[arg-type]
-        )
-        txs = apply_transaction_query(txs, query)
-
-        out = compute_running_balance_strict(txs, opening_balance=acc.opening_balance)
-
-        return [
-            {
-                "transaction": item.transaction,
-                "balance_after": f"{item.balance_after.amount:.2f}",
-                "currency": str(item.balance_after.currency),
-            }
-            for item in out
-        ]
-
-    except KeyError:
-        raise HTTPException(status_code=404, detail="Account not found")
-    except Exception as e:
-        logger.exception("Failed to compute running balance: %s", e)
-        raise HTTPException(status_code=500, detail="Internal error")
-    
+    return _to_response(tx)
 
 @router.get("/{account_id}/budget-summary")
 def budget_summary(
@@ -231,3 +182,20 @@ def budget_summary(
     except Exception as e:
         logger.exception("Failed to compute budget summary: %s", e)
         raise HTTPException(status_code=500, detail="Internal error")
+
+
+def _to_response(tx: Transaction) -> TransactionResponse:
+    return TransactionResponse(
+        id=str(tx.id),
+        account_id=tx.account_id,
+        date=tx.date,
+        sequence=tx.sequence,
+        amount=str(tx.amount.amount),     # Decimal -> string
+        currency=tx.amount.currency,
+        kind=tx.kind,
+        category=tx.category,
+        subcategory=tx.subcategory,
+        label=tx.label,
+        created_at=tx.created_at,
+    )
+

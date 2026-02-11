@@ -7,16 +7,19 @@ from app.domain.money import Currency
 from app.domain.transaction import TransactionKind
 
 
-class TransactionCreateRequest(BaseModel):
-    account_id: str = Field(..., min_length=1)
+class AccountTransactionCreateRequest(BaseModel):
     date: date
-    amount: str = Field(..., min_length=1, pattern=r"^-?\d+(\.\d{1,2})?$", examples=["-12.34", "1000.00"],description="Signed amount as string, e.g. '-12.34' or '1000'")
-    currency: Currency
+    amount: str = Field(
+        ...,
+        min_length=1,
+        pattern=r"^-?\d+(\.\d{1,2})?$",
+        examples=["-12.34", "1000.00"],
+        description="Signed amount as string, e.g. '-12.34' or '1000'"
+    )
     kind: TransactionKind
     category: str = Field(..., min_length=1)
     subcategory: str | None = None
     label: str | None = None
-
 
 class TransactionResponse(BaseModel):
     id: str
