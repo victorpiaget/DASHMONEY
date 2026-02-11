@@ -10,7 +10,7 @@ from app.domain.transaction import TransactionKind
 class TransactionCreateRequest(BaseModel):
     account_id: str = Field(..., min_length=1)
     date: date
-    amount: str = Field(..., min_length=1, description="Signed amount as string, e.g. '-12.34' or '1000'")
+    amount: str = Field(..., min_length=1, pattern=r"^-?\d+(\.\d{1,2})?$", examples=["-12.34", "1000.00"],description="Signed amount as string, e.g. '-12.34' or '1000'")
     currency: Currency
     kind: TransactionKind
     category: str = Field(..., min_length=1)
