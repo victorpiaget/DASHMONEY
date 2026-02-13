@@ -19,3 +19,6 @@ class TransactionRepository(Protocol):
 
     def next_sequence(self, account_id: str, date: dt.date) -> int:
         ...
+    def delete(self, *, account_id: str, tx_id: UUID) -> bool:
+        """Return True if deleted, False if not found."""
+        ...

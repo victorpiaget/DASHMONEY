@@ -136,6 +136,14 @@ class JsonlTransactionRepository(TransactionRepository):
         if created_at.tzinfo is None:
             raise ValueError("created_at must be timezone-aware")
 
+        transfer_id_raw = data.get("transfer_id")
+        if transfer_id_raw is None:
+            transfer_id = None
+        else:
+            if not isinstance(transfer_id_raw, str) or not transfer_id_raw.strip():
+                raise ValueError("transfer_id must be null or non-empty string")
+            transfer_id = UUID(transfer_id_raw)
+
         return Transaction.create(
             id=UUID(id_str),
             account_id=account_id,
@@ -147,6 +155,7 @@ class JsonlTransactionRepository(TransactionRepository):
             subcategory=subcategory,
             label=label,
             created_at=created_at,
+            transfer_id=transfer_id,
         )
 
     @staticmethod
@@ -163,6 +172,7 @@ class JsonlTransactionRepository(TransactionRepository):
             "subcategory": tx.subcategory,
             "label": tx.label,
             "created_at": tx.created_at.isoformat(),
+            "transfer_id": str(tx.transfer_id) if tx.transfer_id else None,
         }
 
     @staticmethod
@@ -173,3 +183,31 @@ class JsonlTransactionRepository(TransactionRepository):
         if not isinstance(v, str):
             raise ValueError(f"field '{key}' must be a string")
         return v
+    def delete(self, *, account_id: str, tx_id: UUID) -> bool:
+        aid = account_id.strip()
+        if not aid:
+            return False
+
+        txs = self._read_all()
+
+        kept: list[Transaction] = []
+        deleted = False
+        for t in txs:
+            if (t.id == tx_id) and (t.account_id == aid) and (not deleted):
+                deleted = True
+                continue
+            kept.append(t)
+
+        if not deleted:
+            return False
+
+        # Réécriture complète du fichier (MVP)
+        tmp_path = self._path.with_suffix(self._path.suffix + ".tmp")
+        with tmp_path.open("w", encoding="utf-8", newline="\n") as f:
+            for tx in kept:
+                rec = self._to_record(tx)
+                line = json.dumps(rec, ensure_ascii=False, separators=(",", ":"))
+                f.write(line + "\n")
+
+        tmp_path.replace(self._path)
+        return True

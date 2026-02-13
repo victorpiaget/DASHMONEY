@@ -12,8 +12,7 @@ from app.domain.signed_money import SignedMoney
 class TransactionKind(str, Enum):
     INCOME = "INCOME"
     EXPENSE = "EXPENSE"
-    INVESTMENT = "INVESTMENT"
-    ADJUSTMENT = "ADJUSTMENT"
+    TRANSFER = "TRANSFER"
 
 
 @dataclass(frozen=True)
@@ -28,6 +27,7 @@ class Transaction:
     subcategory: Optional[str]
     label: Optional[str]
     created_at: dt.datetime
+    transfer_id: Optional[UUID] = None
 
     @staticmethod
     def create(
@@ -42,6 +42,7 @@ class Transaction:
         label: Optional[str] = None,
         id: Optional[UUID] = None,
         created_at: Optional[dt.datetime] = None,
+        transfer_id: Optional[UUID] = None,
     ) -> "Transaction":
         if not isinstance(account_id, str) or account_id.strip() == "":
             raise ValueError("account_id cannot be empty")
@@ -89,6 +90,8 @@ class Transaction:
             raise ValueError("INCOME transactions must have a positive amount")
         if kind == TransactionKind.EXPENSE and not (amt < 0):
             raise ValueError("EXPENSE transactions must have a negative amount")
+        if kind == TransactionKind.TRANSFER and amt == 0:
+            raise ValueError("TRANSFER amount cannot be zero")
 
         final_id = id or uuid4()
 
@@ -112,4 +115,5 @@ class Transaction:
             subcategory=norm_subcategory,
             label=norm_label,
             created_at=final_created_at,
+            transfer_id=transfer_id,
         )

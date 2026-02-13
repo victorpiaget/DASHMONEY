@@ -6,8 +6,8 @@ from pathlib import Path
 
 from app.domain.money import Currency
 from app.domain.signed_money import SignedMoney
-from app.repositories.account_repository import Account, AccountRepository
-
+from app.domain.account import Account
+from app.repositories.account_repository import AccountRepository
 
 class JsonAccountRepository(AccountRepository):
     def __init__(self, *, accounts_path: Path) -> None:
@@ -54,9 +54,6 @@ class JsonAccountRepository(AccountRepository):
                     opened_on=opened_on,
                 )
             )
-
-        if not out:
-            raise ValueError("accounts.json: accounts must contain at least one account")
 
         return out
 
@@ -109,3 +106,68 @@ class JsonAccountRepository(AccountRepository):
             return dt.date.fromisoformat(value)
         except ValueError as e:
             raise ValueError(f"accounts.json: {ctx} must be ISO date YYYY-MM-DD") from e
+    
+    def add(self, account: Account) -> None:
+        if not isinstance(account, Account):
+            raise TypeError("account must be an Account")
+
+        payload = self._read_or_init_accounts_file()
+        accounts = payload["accounts"]
+
+        # Unicité id
+        for acc in accounts:
+            if isinstance(acc, dict) and acc.get("id") == account.id:
+                raise ValueError(f"account id '{account.id}' already exists")
+
+        accounts.append(self._to_record(account))
+        self._write_accounts_file(payload)
+
+
+    def _read_or_init_accounts_file(self) -> dict:
+        if not self._path.exists():
+            # bootstrap contrôlé (pas silencieux côté métier: c'est volontaire ici)
+            return {"version": 1, "accounts": []}
+        return self._read_accounts_file()
+
+
+    def _write_accounts_file(self, payload: dict) -> None:
+        tmp_path = self._path.with_suffix(self._path.suffix + ".tmp")
+        tmp_path.write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        tmp_path.replace(self._path)
+
+
+
+    def delete(self, *, account_id: str) -> bool:
+        if not isinstance(account_id, str) or not account_id.strip():
+            return False
+        target = account_id.strip()
+
+        payload = self._read_accounts_file()
+        accounts = payload["accounts"]
+
+        before = len(accounts)
+        accounts2 = [
+            a for a in accounts
+            if not (isinstance(a, dict) and a.get("id") == target)
+        ]
+
+        if len(accounts2) == before:
+            return False
+
+        payload["accounts"] = accounts2
+        self._write_accounts_file(payload)
+        return True
+
+
+    @staticmethod
+    def _to_record(account: Account) -> dict:
+        return {
+            "id": account.id,
+            "name": account.name,
+            "currency": account.currency.value,
+            "opening_balance": str(account.opening_balance.amount),
+            "opened_on": account.opened_on.isoformat(),
+        }

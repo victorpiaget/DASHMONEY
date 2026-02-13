@@ -50,3 +50,13 @@ class InMemoryTransactionRepository:
                 if t.sequence > max_seq:
                     max_seq = t.sequence
         return max_seq + 1
+    def delete(self, *, account_id: str, tx_id: UUID) -> bool:
+        """
+        Supprime une transaction par id, mais seulement si elle appartient à account_id.
+        Retourne True si supprimée, False sinon.
+        """
+        for i, t in enumerate(self._items):
+            if t.id == tx_id and t.account_id == account_id:
+                del self._items[i]
+                return True
+        return False
