@@ -27,3 +27,16 @@ class NetWorthGroupedResponse(BaseModel):
     at: dt.date | None
     total: str
     groups: list[NetWorthGroupLine]
+
+class NetWorthTimeseriesGroup(BaseModel):
+    key: str
+    points: list[TimeSeriesPoint]
+
+
+class NetWorthTimeseriesGroupedResponse(BaseModel):
+    currency: str
+    date_from: dt.date
+    date_to: dt.date
+    granularity: str
+    total_points: list[TimeSeriesPoint]
+    groups: list[NetWorthTimeseriesGroup]

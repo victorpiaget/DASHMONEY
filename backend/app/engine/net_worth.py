@@ -116,3 +116,43 @@ def compute_net_worth_grouped(
         )
 
     return out
+
+
+def compute_net_worth_timeseries_grouped(
+    *,
+    accounts: list[Account],
+    transactions: list[Transaction],
+    date_from: dt.date,
+    date_to: dt.date,
+    granularity: Granularity,
+) -> tuple[list[dict], dict[str, list[dict]]]:
+    """
+    Retourne:
+      - total_points (list[dict])
+      - groups_points (dict[type -> list[dict]])
+    """
+    # total
+    total_points = compute_net_worth_timeseries(
+        accounts=accounts,
+        transactions=transactions,
+        date_from=date_from,
+        date_to=date_to,
+        granularity=granularity,
+    )
+
+    # groups
+    groups: dict[str, list[dict]] = {}
+    for t in AccountType:
+        group_accounts = [a for a in accounts if a.account_type == t]
+        if not group_accounts:
+            continue
+
+        groups[t.value] = compute_net_worth_timeseries(
+            accounts=group_accounts,
+            transactions=transactions,
+            date_from=date_from,
+            date_to=date_to,
+            granularity=granularity,
+        )
+
+    return total_points, groups
