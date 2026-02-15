@@ -1,78 +1,91 @@
-from dataclasses import dataclass
-from typing import Iterable, Dict
+from __future__ import annotations
+
+import datetime as dt
 from decimal import Decimal
 
-from app.domain.money import Money, Currency
-from app.domain.asset import Asset
-from app.domain.liability import Liability
-
-# ⚠️ Si tu déplaces SignedMoney dans domain (recommandé)
+from app.domain.account import Account
+from app.domain.transaction import Transaction
 from app.domain.signed_money import SignedMoney
-# sinon, si tu le laisses temporairement en engine :
-# from app.engine.signed_money import SignedMoney
-
-
-@dataclass(frozen=True)
-class NetWorthResult:
-    assets_total: Dict[Currency, Money]
-    liabilities_total: Dict[Currency, Money]
-    net_total: Dict[Currency, SignedMoney]
+from app.engine.account_balance import compute_balance
+from app.engine.account_timeseries import compute_timeseries, Granularity
 
 
 def compute_net_worth(
-    assets: Iterable[Asset],
-    liabilities: Iterable[Liability],
-) -> NetWorthResult:
+    *,
+    accounts: list[Account],
+    transactions: list[Transaction],
+    at: dt.date | None,
+) -> SignedMoney:
     """
-    Calcule la valeur nette à partir d'actifs et de dettes.
-
-    Règles :
-    - Aucune conversion de devise
-    - Calcul séparé par devise
-    - Fonction pure : mêmes entrées → mêmes sorties
+    Somme des balances de tous les comptes à la date `at`.
     """
 
-    # ✅ Decimal partout
-    assets_sum: Dict[Currency, Decimal] = {}
-    liabilities_sum: Dict[Currency, Decimal] = {}
+    total = Decimal("0")
+    currency = None
 
-    # 1️⃣ Agrégation des actifs
-    for asset in assets:
-        currency = asset.value.currency
-        if currency not in assets_sum:
-            assets_sum[currency] = Decimal("0.00")
+    for account in accounts:
+        account_txs = [t for t in transactions if t.account_id == account.id]
 
-        # asset.value.amount doit être Decimal maintenant
-        assets_sum[currency] += asset.value.amount
+        _, _, balance, _ = compute_balance(
+            opening_balance=account.opening_balance,
+            transactions=account_txs,
+            at=at,
+        )
 
-    # 2️⃣ Agrégation des dettes
-    for liability in liabilities:
-        currency = liability.balance.currency
-        if currency not in liabilities_sum:
-            liabilities_sum[currency] = Decimal("0.00")
+        total += balance.amount
 
-        liabilities_sum[currency] += liability.balance.amount
+        if currency is None:
+            currency = balance.currency
 
-    # 3️⃣ Construction des résultats finaux
-    assets_total: Dict[Currency, Money] = {}
-    liabilities_total: Dict[Currency, Money] = {}
-    net_total: Dict[Currency, SignedMoney] = {}
+    return SignedMoney(amount=total, currency=currency)
 
-    all_currencies = set(assets_sum.keys()) | set(liabilities_sum.keys())
 
-    for currency in all_currencies:
-        total_assets = assets_sum.get(currency, Decimal("0.00"))
-        total_liabilities = liabilities_sum.get(currency, Decimal("0.00"))
+def compute_net_worth_timeseries(
+    *,
+    accounts: list[Account],
+    transactions: list[Transaction],
+    date_from: dt.date,
+    date_to: dt.date,
+    granularity: Granularity,
+) -> list[dict]:
+    """
+    Agrège les timeseries de tous les comptes.
+    """
 
-        # Money normalise/quantize dans __post_init__
-        assets_total[currency] = Money(amount=total_assets, currency=currency)
-        liabilities_total[currency] = Money(amount=total_liabilities, currency=currency)
+    aggregated: dict[str, dict] = {}
 
-        net_amount = total_assets - total_liabilities
-        net_total[currency] = SignedMoney(amount=net_amount, currency=currency)
+    for account in accounts:
+        account_txs = [t for t in transactions if t.account_id == account.id]
 
-    return NetWorthResult(
-        assets_total=assets_total,
-        liabilities_total=liabilities_total,
-        net_total=net_total,
-    )
+        points = compute_timeseries(
+            opening_balance=account.opening_balance,
+            transactions=account_txs,
+            date_from=date_from,
+            date_to=date_to,
+            granularity=granularity,
+        )
+
+        for p in points:
+            bucket = p["bucket"]
+
+            if bucket not in aggregated:
+                aggregated[bucket] = {
+                    "income": Decimal("0"),
+                    "expense": Decimal("0"),
+                    "net": Decimal("0"),
+                    "balance_start": Decimal("0"),
+                    "balance_end": Decimal("0"),
+                }
+
+            aggregated[bucket]["income"] += p["income"]
+            aggregated[bucket]["expense"] += p["expense"]
+            aggregated[bucket]["net"] += p["net"]
+            aggregated[bucket]["balance_start"] += p["balance_start"]
+            aggregated[bucket]["balance_end"] += p["balance_end"]
+
+    # tri chronologique
+    ordered = []
+    for bucket in sorted(aggregated.keys()):
+        ordered.append({"bucket": bucket, **aggregated[bucket]})
+
+    return ordered
