@@ -1,5 +1,6 @@
 from pydantic import BaseModel, Field
 import datetime as dt
+from typing import Optional
 
 class AccountCreateRequest(BaseModel):
     id: str = Field(min_length=1)
@@ -44,3 +45,7 @@ class AccountTimeSeriesResponse(BaseModel):
     date_to: dt.date
     granularity: str
     points: list[TimeSeriesPoint]
+
+class AccountUpdateRequest(BaseModel):
+    name: Optional[str] = None
+    account_type: Optional[str] = None

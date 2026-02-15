@@ -7,7 +7,7 @@ import datetime as dt
 from fastapi import APIRouter, HTTPException, Response, Query
 
 from app.api.deps import get_account_repo, get_tx_repo
-from app.api.schemas.accounts import AccountCreateRequest, AccountResponse, AccountTimeSeriesResponse, TimeSeriesPoint
+from app.api.schemas.accounts import AccountCreateRequest, AccountResponse, AccountTimeSeriesResponse, TimeSeriesPoint,AccountUpdateRequest
 from app.domain.account import Account
 from app.domain.money import Currency
 from app.domain.signed_money import SignedMoney
@@ -22,6 +22,7 @@ from app.domain.transaction import Transaction, TransactionKind
 from app.api.routes.account_transactions import _tx_to_response
 
 from app.domain.account import AccountType
+
 
 
 logger = logging.getLogger(__name__)
@@ -192,6 +193,39 @@ def delete_account(account_id: str, cascade: bool = Query(default=True)) -> Resp
         raise HTTPException(status_code=404, detail="Account not found")
 
     return Response(status_code=204)
+
+
+@router.patch("/{account_id}", response_model=AccountResponse)
+def update_account(account_id: str, req: AccountUpdateRequest) -> AccountResponse:
+    repo = get_account_repo()
+
+    # exists?
+    try:
+        repo.get_account(account_id)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Account not found")
+
+    # parse account_type if provided
+    account_type = None
+    if req.account_type is not None:
+        try:
+            account_type = AccountType(req.account_type.strip())
+        except Exception:
+            raise HTTPException(status_code=422, detail="Invalid account_type")
+
+    try:
+        updated = repo.update(
+            account_id=account_id,
+            name=req.name,
+            account_type=account_type,
+        )
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Account not found")
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+
+    return _account_to_response(updated)
+
 
 
 @router.get("/{account_id}/balance", response_model=AccountBalanceResponse)

@@ -172,6 +172,33 @@ class JsonAccountRepository(AccountRepository):
         self._write_accounts_file(payload)
         return True
 
+    def update(self, *, account_id: str, name: str | None = None, account_type: AccountType | None = None) -> Account:
+        if not isinstance(account_id, str) or not account_id.strip():
+            raise ValueError("account_id cannot be empty")
+        target = account_id.strip()
+
+        payload = self._read_accounts_file()
+        accounts = payload["accounts"]
+
+        for acc in accounts:
+            if isinstance(acc, dict) and acc.get("id") == target:
+                # update fields
+                if name is not None:
+                    n = name.strip()
+                    if not n:
+                        raise ValueError("name cannot be empty")
+                    acc["name"] = n
+
+                if account_type is not None:
+                    acc["account_type"] = account_type.value
+
+                self._write_accounts_file(payload)
+                # return updated domain object
+                return self.get_account(target)
+
+        raise KeyError(f"unknown account_id '{target}'")
+
+
 
     @staticmethod
     def _to_record(account: Account) -> dict:
