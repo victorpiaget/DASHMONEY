@@ -2,6 +2,7 @@ from datetime import date
 from pydantic import BaseModel, Field
 from uuid import UUID
 from app.api.schemas.transactions import TransactionResponse
+import datetime as dt
 
 
 class TransferCreateRequest(BaseModel):
@@ -22,3 +23,16 @@ class TransferResponse(BaseModel):
     transfer_id: UUID
     from_transaction: TransactionResponse
     to_transaction: TransactionResponse
+
+
+class TransferUpdateRequest(BaseModel):
+    date: dt.date | None = None
+    amount: str | None = Field(
+        default=None,
+        min_length=1,
+        pattern=r"^-?\d+(\.\d{1,2})?$",
+        description="Positive amount as string (sign ignored). Must be > 0.",
+    )
+    category: str | None = None
+    subcategory: str | None = None
+    label: str | None = None

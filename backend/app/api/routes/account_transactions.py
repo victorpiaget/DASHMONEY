@@ -6,7 +6,7 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, Query, Response
 
 from app.api.deps import get_account_repo, get_tx_repo
-from app.api.schemas.transactions import AccountTransactionCreateRequest, TransactionResponse
+from app.api.schemas.transactions import AccountTransactionCreateRequest, TransactionResponse,TransactionUpdateRequest
 from app.domain.signed_money import SignedMoney
 from app.domain.transaction import Transaction, TransactionKind
 from app.services.transaction_query_service import TransactionQuery, apply_transaction_query
@@ -63,6 +63,47 @@ def delete_account_transaction(account_id: str, tx_id: UUID) -> Response:
         raise HTTPException(status_code=404, detail="Transaction not found")
 
     return Response(status_code=204)
+
+@router.patch("/{account_id}/transactions/{tx_id}", response_model=TransactionResponse)
+def update_account_transaction(account_id: str, tx_id: UUID, payload: TransactionUpdateRequest) -> TransactionResponse:
+    # account exists
+    try:
+        acc = get_account_repo().get_account(account_id)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Account not found")
+
+    tx_repo = get_tx_repo()
+
+    # tx exists
+    existing = tx_repo.get(tx_id)
+    if existing is None or existing.account_id != acc.id:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+
+    if existing.kind == TransactionKind.TRANSFER or existing.transfer_id is not None:
+        raise HTTPException(status_code=422, detail="Transfers must be updated via /transfers endpoint")
+    
+    amount = None
+    if payload.amount is not None:
+        # même logique que POST transaction
+        amount = SignedMoney.from_str(payload.amount, acc.currency)
+
+    try:
+        updated = tx_repo.update(
+            account_id=acc.id,
+            tx_id=tx_id,
+            category=payload.category,
+            subcategory=payload.subcategory,
+            label=payload.label,
+            date=payload.date,
+            amount=amount,
+            kind=payload.kind,
+        )
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+
+    return _tx_to_response(updated)
 
 
 @router.get("/{account_id}/transactions", response_model=list[TransactionResponse])

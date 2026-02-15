@@ -23,6 +23,9 @@ from app.api.routes.account_transactions import _tx_to_response
 
 from app.domain.account import AccountType
 
+from uuid import UUID
+from decimal import Decimal
+from app.api.schemas.transfers import TransferUpdateRequest
 
 
 logger = logging.getLogger(__name__)
@@ -100,6 +103,82 @@ def create_transfer(account_id: str, payload: TransferCreateRequest) -> Transfer
     # 6️⃣ Persister
     tx_repo.add(tx_from)
     tx_repo.add(tx_to)
+
+    return TransferResponse(
+        transfer_id=transfer_id,
+        from_transaction=_tx_to_response(tx_from),
+        to_transaction=_tx_to_response(tx_to),
+    )
+
+
+@router.delete("/{account_id}/transfers/{transfer_id}", status_code=204)
+def delete_transfer(account_id: str, transfer_id: UUID) -> None:
+    account_repo = get_account_repo()
+    tx_repo = get_tx_repo()
+
+    # 1) verify from account exists
+    try:
+        from_acc = account_repo.get_account(account_id)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="From account not found")
+
+    # 2) delete atomically in repo
+    try:
+        # optional: check belongs to from account
+        # we can do a quick read by listing and finding the negative leg
+        # but simplest: delete then verify is not possible; so we verify first:
+        legs = [t for t in tx_repo.list(account_id=from_acc.id) if t.transfer_id == transfer_id]
+        if not legs:
+            raise HTTPException(status_code=404, detail="Transfer not found for this from account")
+
+        tx_repo.delete_transfer(transfer_id=transfer_id)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Transfer not found")
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+
+
+@router.patch("/{account_id}/transfers/{transfer_id}", response_model=TransferResponse)
+def update_transfer(account_id: str, transfer_id: UUID, payload: TransferUpdateRequest) -> TransferResponse:
+    account_repo = get_account_repo()
+    tx_repo = get_tx_repo()
+
+    # 1️⃣ Vérifier compte "from" existe (comme POST)
+    try:
+        from_acc = account_repo.get_account(account_id)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="From account not found")
+
+    # 2️⃣ Charger les 2 legs via transfer_id (en lisant les tx du repo)
+    # On utilise le repo directement via update_transfer, mais on doit valider la currency avec une amount si fournie.
+    new_amount_pos = None
+    if payload.amount is not None:
+        try:
+            new_amount_pos = SignedMoney.from_str(payload.amount, from_acc.currency)
+        except Exception as e:
+            raise HTTPException(status_code=422, detail=str(e))
+        if new_amount_pos.amount <= 0:
+            raise HTTPException(status_code=422, detail="amount must be > 0")
+
+    # 3️⃣ Appliquer update atomique (2 legs)
+    try:
+        tx_from, tx_to = tx_repo.update_transfer(
+            transfer_id=transfer_id,
+            new_date=payload.date,
+            new_amount_pos=new_amount_pos,
+            category=payload.category,
+            subcategory=payload.subcategory,
+            label=payload.label,
+        )
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Transfer not found")
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+
+    # 4️⃣ Vérifier que le transfert appartient bien au compte from (cohérence d’API)
+    if tx_from.account_id != from_acc.id:
+        # tu as appelé /accounts/{account_id}/transfers/{transfer_id} avec un mauvais account_id
+        raise HTTPException(status_code=422, detail="transfer_id does not belong to this from account")
 
     return TransferResponse(
         transfer_id=transfer_id,

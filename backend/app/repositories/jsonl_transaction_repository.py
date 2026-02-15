@@ -4,6 +4,7 @@ import json
 import datetime as dt
 from pathlib import Path
 from uuid import UUID
+from decimal import Decimal
 
 from app.domain.money import Currency
 from app.domain.signed_money import SignedMoney
@@ -211,3 +212,249 @@ class JsonlTransactionRepository(TransactionRepository):
 
         tmp_path.replace(self._path)
         return True
+
+    def update(
+        self,
+        *,
+        account_id: str,
+        tx_id: UUID,
+        category: str | None = None,
+        subcategory: str | None = None,
+        label: str | None = None,
+        # V2 fields
+        date: dt.date | None = None,
+        amount: SignedMoney | None = None,
+        kind: TransactionKind | None = None,
+    ) -> Transaction:
+        aid = account_id.strip()
+        if not aid:
+            raise ValueError("account_id cannot be empty")
+
+        txs = self._read_all()
+
+        updated: Transaction | None = None
+        kept: list[Transaction] = []
+
+        for t in txs:
+            if (t.id == tx_id) and (t.account_id == aid) and (updated is None):
+                # --- Transfers: handled via a separate endpoint ---
+                if t.kind == TransactionKind.TRANSFER or t.transfer_id is not None:
+                    raise ValueError("Transfers must be updated via /transfers endpoint")
+
+                # --- new date + sequence ---
+                new_date = t.date
+                if date is not None:
+                    new_date = date
+
+                new_sequence = t.sequence
+                if date is not None and new_date != t.date:
+                    # sequence must be consistent within the new day
+                    new_sequence = self.next_sequence(account_id=aid, date=new_date)
+
+                # --- new kind ---
+                new_kind = t.kind
+                if kind is not None:
+                    if kind == TransactionKind.TRANSFER:
+                        raise ValueError("Cannot set kind to TRANSFER via transaction PATCH")
+                    new_kind = kind
+
+                # --- new amount ---
+                new_amount = t.amount
+                if amount is not None:
+                    new_amount = amount
+
+                # --- metadata (category/subcategory/label) ---
+                new_category = t.category
+                if category is not None:
+                    c = category.strip()
+                    if not c:
+                        raise ValueError("category cannot be empty")
+                    new_category = c
+
+                new_subcategory = t.subcategory
+                if subcategory is not None:
+                    s = subcategory.strip()
+                    if not s:
+                        raise ValueError("subcategory must be null or non-empty string")
+                    new_subcategory = s
+
+                new_label = t.label
+                if label is not None:
+                    l = label.strip()
+                    if not l:
+                        raise ValueError("label must be null or non-empty string")
+                    new_label = l
+
+                updated = Transaction.create(
+                    id=t.id,
+                    account_id=t.account_id,
+                    date=new_date,
+                    sequence=new_sequence,
+                    amount=new_amount,
+                    kind=new_kind,
+                    category=new_category,
+                    subcategory=new_subcategory,
+                    label=new_label,
+                    created_at=t.created_at,
+                    transfer_id=t.transfer_id,
+                )
+                kept.append(updated)
+            else:
+                kept.append(t)
+
+        if updated is None:
+            raise KeyError("Transaction not found")
+
+        # rewrite file (MVP like delete)
+        tmp_path = self._path.with_suffix(self._path.suffix + ".tmp")
+        with tmp_path.open("w", encoding="utf-8", newline="\n") as f:
+            for tx in kept:
+                rec = self._to_record(tx)
+                line = json.dumps(rec, ensure_ascii=False, separators=(",", ":"))
+                f.write(line + "\n")
+        tmp_path.replace(self._path)
+
+        return updated
+    
+
+    def update_transfer(
+        self,
+        *,
+        transfer_id: UUID,
+        new_date: dt.date | None = None,
+        new_amount_pos: SignedMoney | None = None,  # positive amount with correct currency
+        category: str | None = None,
+        subcategory: str | None = None,
+        label: str | None = None,
+    ) -> tuple[Transaction, Transaction]:
+        txs = self._read_all()
+
+        legs = [t for t in txs if t.transfer_id == transfer_id]
+        if len(legs) != 2:
+            raise KeyError("Transfer not found")
+
+        # Expect one negative (from) and one positive (to), both kind TRANSFER
+        for t in legs:
+            if t.kind != TransactionKind.TRANSFER:
+                raise ValueError("Invalid transfer: legs must be TRANSFER")
+
+        # Determine which is from/to by amount sign
+        tx_from = legs[0]
+        tx_to = legs[1]
+        if tx_from.amount.amount > 0 and tx_to.amount.amount < 0:
+            tx_from, tx_to = tx_to, tx_from
+
+        if tx_from.amount.amount >= 0 or tx_to.amount.amount <= 0:
+            raise ValueError("Invalid transfer: expected one negative and one positive amount")
+
+        # Apply updates
+        d_from = tx_from.date if new_date is None else new_date
+        d_to = tx_to.date if new_date is None else new_date
+
+        seq_from = tx_from.sequence
+        seq_to = tx_to.sequence
+        if new_date is not None and d_from != tx_from.date:
+            seq_from = self.next_sequence(account_id=tx_from.account_id, date=d_from)
+        if new_date is not None and d_to != tx_to.date:
+            seq_to = self.next_sequence(account_id=tx_to.account_id, date=d_to)
+
+        amt_from = tx_from.amount
+        amt_to = tx_to.amount
+        if new_amount_pos is not None:
+            # enforce same currency as existing transfer legs
+            if new_amount_pos.currency != tx_from.amount.currency or new_amount_pos.currency != tx_to.amount.currency:
+                raise ValueError("Currency mismatch in transfer update")
+            if new_amount_pos.amount <= 0:
+                raise ValueError("amount must be > 0")
+
+            amt_to = new_amount_pos
+            amt_from = SignedMoney(amount=-new_amount_pos.amount, currency=new_amount_pos.currency)
+
+        def pick(old: str | None, new: str | None, field: str) -> str | None:
+            if new is None:
+                return old
+            s = new.strip()
+            if not s:
+                raise ValueError(f"{field} must be null or non-empty string")
+            return s
+
+        cat_from = pick(tx_from.category, category, "category")
+        cat_to = pick(tx_to.category, category, "category")
+        sub_from = pick(tx_from.subcategory, subcategory, "subcategory")
+        sub_to = pick(tx_to.subcategory, subcategory, "subcategory")
+        lab_from = pick(tx_from.label, label, "label")
+        lab_to = pick(tx_to.label, label, "label")
+
+        updated_from = Transaction.create(
+            id=tx_from.id,
+            account_id=tx_from.account_id,
+            date=d_from,
+            sequence=seq_from,
+            amount=amt_from,
+            kind=tx_from.kind,
+            category=cat_from,
+            subcategory=sub_from,
+            label=lab_from,
+            created_at=tx_from.created_at,
+            transfer_id=tx_from.transfer_id,
+        )
+        updated_to = Transaction.create(
+            id=tx_to.id,
+            account_id=tx_to.account_id,
+            date=d_to,
+            sequence=seq_to,
+            amount=amt_to,
+            kind=tx_to.kind,
+            category=cat_to,
+            subcategory=sub_to,
+            label=lab_to,
+            created_at=tx_to.created_at,
+            transfer_id=tx_to.transfer_id,
+        )
+
+        # rewrite file with replacements
+        kept: list[Transaction] = []
+        for t in txs:
+            if t.id == updated_from.id:
+                kept.append(updated_from)
+            elif t.id == updated_to.id:
+                kept.append(updated_to)
+            else:
+                kept.append(t)
+
+        tmp_path = self._path.with_suffix(self._path.suffix + ".tmp")
+        with tmp_path.open("w", encoding="utf-8", newline="\n") as f:
+            for tx in kept:
+                rec = self._to_record(tx)
+                line = json.dumps(rec, ensure_ascii=False, separators=(",", ":"))
+                f.write(line + "\n")
+        tmp_path.replace(self._path)
+
+        return updated_from, updated_to
+    
+
+    def delete_transfer(self, *, transfer_id: UUID) -> tuple[UUID, UUID]:
+        txs = self._read_all()
+
+        legs = [t for t in txs if t.transfer_id == transfer_id]
+        if len(legs) != 2:
+            raise KeyError("Transfer not found")
+
+        # ensure both are TRANSFER
+        for t in legs:
+            if t.kind != TransactionKind.TRANSFER:
+                raise ValueError("Invalid transfer: legs must be TRANSFER")
+
+        ids_to_delete = {legs[0].id, legs[1].id}
+
+        kept = [t for t in txs if t.id not in ids_to_delete]
+
+        tmp_path = self._path.with_suffix(self._path.suffix + ".tmp")
+        with tmp_path.open("w", encoding="utf-8", newline="\n") as f:
+            for tx in kept:
+                rec = self._to_record(tx)
+                line = json.dumps(rec, ensure_ascii=False, separators=(",", ":"))
+                f.write(line + "\n")
+        tmp_path.replace(self._path)
+
+        return legs[0].id, legs[1].id

@@ -4,7 +4,10 @@ from typing import Protocol, Iterable, Optional
 import datetime as dt
 from uuid import UUID
 
-from app.domain.transaction import Transaction
+from app.domain.transaction import Transaction, TransactionKind
+from app.domain.signed_money import SignedMoney
+
+
 
 
 class TransactionRepository(Protocol):
@@ -21,4 +24,18 @@ class TransactionRepository(Protocol):
         ...
     def delete(self, *, account_id: str, tx_id: UUID) -> bool:
         """Return True if deleted, False if not found."""
+        ...
+
+    def update(
+        self,
+        *,
+        account_id: str,
+        tx_id: UUID,
+        category: str | None = None,
+        subcategory: str | None = None,
+        label: str | None = None,
+        date: dt.date | None = None,
+        amount: SignedMoney | None = None,
+        kind: TransactionKind | None = None,
+    ) -> Transaction:
         ...
