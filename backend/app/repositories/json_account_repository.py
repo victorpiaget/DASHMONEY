@@ -8,6 +8,7 @@ from app.domain.money import Currency
 from app.domain.signed_money import SignedMoney
 from app.domain.account import Account
 from app.repositories.account_repository import AccountRepository
+from app.domain.account import AccountType
 
 class JsonAccountRepository(AccountRepository):
     def __init__(self, *, accounts_path: Path) -> None:
@@ -45,6 +46,15 @@ class JsonAccountRepository(AccountRepository):
             opened_on_str = self._require_str(acc, "opened_on", ctx=f"accounts[{i}]").strip()
             opened_on = self._parse_date(opened_on_str, ctx=f"accounts[{i}].opened_on")
 
+            type_str = self._require_str(acc, "account_type", ctx=f"accounts[{i}]").strip()
+            if not type_str:
+                raise ValueError(f"accounts.json: accounts[{i}].account_type cannot be empty")
+
+            try:
+                account_type = AccountType(type_str)
+            except Exception:
+                raise ValueError(f"accounts.json: accounts[{i}].account_type invalid (got '{type_str}')")
+
             out.append(
                 Account(
                     id=acc_id,
@@ -52,6 +62,7 @@ class JsonAccountRepository(AccountRepository):
                     currency=currency,
                     opening_balance=opening_balance,
                     opened_on=opened_on,
+                    account_type=account_type,
                 )
             )
 
@@ -170,4 +181,5 @@ class JsonAccountRepository(AccountRepository):
             "currency": account.currency.value,
             "opening_balance": str(account.opening_balance.amount),
             "opened_on": account.opened_on.isoformat(),
+            "account_type": account.account_type.value,
         }

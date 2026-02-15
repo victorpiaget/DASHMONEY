@@ -4,11 +4,10 @@ import datetime as dt
 from fastapi import APIRouter, HTTPException, Query
 
 from app.api.deps import get_account_repo, get_tx_repo
-from app.api.schemas.net_worth import NetWorthResponse, NetWorthTimeseriesResponse
+from app.api.schemas.net_worth import NetWorthResponse, NetWorthTimeseriesResponse,NetWorthGroupedResponse,    NetWorthGroupLine
 from app.api.schemas.accounts import TimeSeriesPoint
-from app.engine.net_worth import compute_net_worth, compute_net_worth_timeseries
+from app.engine.net_worth import compute_net_worth, compute_net_worth_timeseries, compute_net_worth_grouped
 from app.engine.account_timeseries import pick_granularity
-
 
 router = APIRouter(prefix="/net-worth", tags=["net-worth"])
 
@@ -97,4 +96,32 @@ def get_net_worth_timeseries(
         date_to=date_to,
         granularity=g,
         points=points,
+    )
+
+@router.get("/grouped", response_model=NetWorthGroupedResponse)
+def get_net_worth_grouped(
+    at: dt.date | None = Query(default=None),
+) -> NetWorthGroupedResponse:
+    acc_repo = get_account_repo()
+    tx_repo = get_tx_repo()
+
+    accounts = acc_repo.list_accounts()
+    currency = _ensure_single_currency(accounts)
+
+    # On récupère toutes les transactions (par compte) puis on agrège via le moteur
+    all_txs = []
+    for acc in accounts:
+        all_txs.extend(tx_repo.list(account_id=acc.id))
+
+    total = compute_net_worth(accounts=accounts, transactions=all_txs, at=at)
+    groups = compute_net_worth_grouped(accounts=accounts, transactions=all_txs, at=at)
+
+    return NetWorthGroupedResponse(
+        currency=currency,
+        at=at,
+        total=str(total.amount),
+        groups=[
+            NetWorthGroupLine(key=k, net_worth=str(v.amount))
+            for k, v in sorted(groups.items())
+        ],
     )

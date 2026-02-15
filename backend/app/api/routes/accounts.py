@@ -21,6 +21,8 @@ from app.domain.transaction import Transaction, TransactionKind
 
 from app.api.routes.account_transactions import _tx_to_response
 
+from app.domain.account import AccountType
+
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/accounts", tags=["accounts"])
@@ -119,6 +121,12 @@ def create_account(req: AccountCreateRequest) -> AccountResponse:
         opening_balance = SignedMoney.from_str(req.opening_balance.strip(), currency)
     except Exception:
         raise HTTPException(status_code=422, detail="Invalid opening_balance format")
+    
+    # account type
+    try:
+        account_type = AccountType(req.account_type.strip())
+    except Exception:
+        raise HTTPException(status_code=422, detail="Invalid account_type")
 
     # domain object
     try:
@@ -128,6 +136,7 @@ def create_account(req: AccountCreateRequest) -> AccountResponse:
             currency=currency,
             opening_balance=opening_balance,
             opened_on=req.opened_on,
+            account_type=account_type,
         )
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
@@ -273,6 +282,7 @@ def _account_to_response(acc: Account) -> AccountResponse:
         currency=str(acc.currency),
         opening_balance=str(acc.opening_balance),
         opened_on=acc.opened_on,
+        account_type=acc.account_type.value,
     )
 
 

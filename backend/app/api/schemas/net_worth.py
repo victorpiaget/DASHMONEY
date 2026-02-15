@@ -16,3 +16,14 @@ class NetWorthTimeseriesResponse(BaseModel):
     date_to: dt.date
     granularity: str
     points: list[TimeSeriesPoint]
+
+class NetWorthGroupLine(BaseModel):
+    key: str          # ex: "SAVINGS"
+    net_worth: str    # Decimal en string
+
+
+class NetWorthGroupedResponse(BaseModel):
+    currency: str
+    at: dt.date | None
+    total: str
+    groups: list[NetWorthGroupLine]

@@ -8,6 +8,7 @@ from app.domain.transaction import Transaction
 from app.domain.signed_money import SignedMoney
 from app.engine.account_balance import compute_balance
 from app.engine.account_timeseries import compute_timeseries, Granularity
+from app.domain.account import AccountType
 
 
 def compute_net_worth(
@@ -89,3 +90,29 @@ def compute_net_worth_timeseries(
         ordered.append({"bucket": bucket, **aggregated[bucket]})
 
     return ordered
+
+
+def compute_net_worth_grouped(
+    *,
+    accounts: list[Account],
+    transactions: list[Transaction],
+    at: dt.date | None,
+) -> dict[str, SignedMoney]:
+    """
+    Retourne un mapping {AccountType -> net worth}.
+    Réutilise compute_net_worth (pas de duplication).
+    """
+    out: dict[str, SignedMoney] = {}
+
+    for t in AccountType:
+        group_accounts = [a for a in accounts if a.account_type == t]
+        if not group_accounts:
+            continue
+
+        out[t.value] = compute_net_worth(
+            accounts=group_accounts,
+            transactions=transactions,
+            at=at,
+        )
+
+    return out

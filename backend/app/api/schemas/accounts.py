@@ -7,6 +7,7 @@ class AccountCreateRequest(BaseModel):
     currency: str = Field(min_length=1)          # "EUR"
     opening_balance: str = Field(min_length=1)   # "0.00 EUR" ou format attendu par SignedMoney
     opened_on: dt.date
+    account_type: str = "CHECKING"
 
 
 class AccountResponse(BaseModel):
@@ -15,6 +16,7 @@ class AccountResponse(BaseModel):
     currency: str
     opening_balance: str
     opened_on: dt.date
+    account_type: str
     
 
 class AccountBalanceResponse(BaseModel):

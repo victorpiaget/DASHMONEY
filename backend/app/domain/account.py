@@ -3,6 +3,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 from decimal import Decimal
 import datetime as dt
+from enum import Enum
+
+class AccountType(str, Enum):
+    CHECKING = "CHECKING"
+    SAVINGS = "SAVINGS"
+    INVESTMENT = "INVESTMENT"
+    OTHER = "OTHER"
+
 
 
 @dataclass(frozen=True, slots=True)
@@ -17,6 +25,7 @@ class Account:
     currency: str  # MVP: "EUR", "USD", etc.
     opening_balance: Decimal
     opened_on: dt.date
+    account_type: AccountType = AccountType.CHECKING
 
     def __post_init__(self) -> None:
         # Petites validations "métier" minimales (MVP)
@@ -26,3 +35,4 @@ class Account:
             raise ValueError("account.name must be non-empty")
         if not self.currency or not self.currency.strip():
             raise ValueError("account.currency must be non-empty")
+        
