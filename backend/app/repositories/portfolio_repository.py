@@ -1,0 +1,13 @@
+from __future__ import annotations
+
+from typing import Protocol
+from uuid import UUID
+
+from app.domain.portfolio import Portfolio
+
+
+class PortfolioRepository(Protocol):
+    def list(self) -> list[Portfolio]: ...
+    def get(self, portfolio_id: UUID) -> Portfolio: ...
+    def add(self, portfolio: Portfolio) -> None: ...
+    def delete(self, *, portfolio_id: UUID) -> bool: ...
