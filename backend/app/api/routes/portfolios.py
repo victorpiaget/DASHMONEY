@@ -7,7 +7,7 @@ from uuid import UUID
 from app.api.deps import get_portfolio_repo, get_portfolio_snapshot_repo,get_account_repo
 from app.api.schemas.portfolios import (
     PortfolioCreate, PortfolioOut,
-    PortfolioSnapshotCreate, PortfolioSnapshotOut
+    PortfolioSnapshotCreate, PortfolioSnapshotOut, PortfolioUpdateRequest
 )
 from app.domain.money import Currency, Money
 from app.domain.portfolio import Portfolio, PortfolioSnapshot, PortfolioType
@@ -73,14 +73,14 @@ def create_portfolio(payload: PortfolioCreate):
                 name=name.strip(),
                 currency=currency,
                 opening_balance=opening_balance,
-                opened_on=opened_on,
+                opened_on=opened_on,              # ✅ on utilise l'argument (date du portfolio)
                 account_type=AccountType.OTHER,
             )
         except Exception as e:
             raise HTTPException(status_code=422, detail=f"cannot create pass-through account: {e}")
 
         try:
-            repo.add(account)  # <-- c'est bien add() dans ton repo :contentReference[oaicite:3]{index=3}
+            repo.add(account)  # <-- c'est bien add() dans ton repo
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"failed to persist pass-through account: {e}")
 
@@ -104,6 +104,43 @@ def create_portfolio(payload: PortfolioCreate):
         cash_account_id=p.cash_account_id,
     )
 
+@router.patch("/{portfolio_id}", response_model=PortfolioOut)
+def update_portfolio(portfolio_id: UUID, req: PortfolioUpdateRequest) -> PortfolioOut:
+    repo = get_portfolio_repo()
+
+    # exists?
+    try:
+        repo.get(portfolio_id)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="portfolio not found")
+
+    # parse portfolio_type if provided
+    ptype = None
+    if req.portfolio_type is not None:
+        try:
+            ptype = PortfolioType(req.portfolio_type.strip())
+        except Exception:
+            raise HTTPException(status_code=422, detail="Invalid portfolio_type")
+
+    try:
+        updated = repo.update(
+            portfolio_id=portfolio_id,
+            name=req.name,
+            portfolio_type=ptype,
+        )
+    except KeyError:
+        raise HTTPException(status_code=404, detail="portfolio not found")
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+
+    return PortfolioOut(
+        id=updated.id,
+        name=updated.name,
+        currency=updated.currency.value,
+        portfolio_type=updated.portfolio_type.value,
+        opened_on=updated.opened_on,
+        cash_account_id=updated.cash_account_id,
+    )
 
 @router.delete("/{portfolio_id}")
 def delete_portfolio(portfolio_id: UUID):

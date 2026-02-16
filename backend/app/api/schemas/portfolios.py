@@ -34,3 +34,7 @@ class PortfolioSnapshotOut(BaseModel):
     value: str
     currency: str
     note: Optional[str] = None
+
+class PortfolioUpdateRequest(BaseModel):
+    name: Optional[str] = None
+    portfolio_type: Optional[str] = None

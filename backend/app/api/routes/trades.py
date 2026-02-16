@@ -4,6 +4,7 @@ import datetime as dt
 from decimal import Decimal
 from fastapi import APIRouter, HTTPException, Query
 from uuid import UUID
+from fastapi import Query
 
 from app.api.deps import get_portfolio_repo, get_instrument_repo, get_trade_repo, get_account_repo, get_tx_repo
 from app.api.schemas.trades import TradeCreate, TradeOut, PositionOut, TradePatch
@@ -11,6 +12,7 @@ from app.domain.trade import Trade, TradeSide
 from app.domain.transaction import Transaction, TransactionKind
 from app.domain.signed_money import SignedMoney
 from app.engine.portfolio_positions import compute_positions
+from app.engine.trade_query import TradeQuery, apply_trade_query
 
 
 router = APIRouter(prefix="/portfolios/{portfolio_id}/trades", tags=["trades"])
@@ -149,7 +151,16 @@ def create_trade(portfolio_id: UUID, payload: TradeCreate) -> TradeOut:
 
 
 @router.get("", response_model=list[TradeOut])
-def list_trades(portfolio_id: UUID):
+def list_trades(
+    portfolio_id: UUID,
+    date_from: dt.date | None = Query(default=None),
+    date_to: dt.date | None = Query(default=None),
+    sides: list[str] | None = Query(default=None),
+    symbols: list[str] | None = Query(default=None),
+    q: str | None = Query(default=None),
+    sort_by: str = Query(default="date", pattern="^(date|quantity|price|fees|side|instrument_symbol|label)$"),
+    sort_dir: str = Query(default="asc", pattern="^(asc|desc)$"),
+) -> list[TradeOut]:
     p_repo = get_portfolio_repo()
     t_repo = get_trade_repo()
 
@@ -158,7 +169,20 @@ def list_trades(portfolio_id: UUID):
     except KeyError:
         raise HTTPException(status_code=404, detail="portfolio not found")
 
-    return [_trade_to_out(t) for t in t_repo.list(portfolio_id=portfolio_id)]
+    trades = t_repo.list(portfolio_id=portfolio_id)
+
+    query_obj = TradeQuery(
+        date_from=date_from,
+        date_to=date_to,
+        sides=set(s.strip().upper() for s in sides if s and s.strip()) if sides else None,
+        symbols=set(s.strip().upper() for s in symbols if s and s.strip()) if symbols else None,
+        q=q,
+        sort_by=sort_by,    # type: ignore[arg-type]
+        sort_dir=sort_dir,  # type: ignore[arg-type]
+    )
+
+    trades = apply_trade_query(trades, query_obj)
+    return [_trade_to_out(t) for t in trades]
 
 
 @router.patch("/{trade_id}", response_model=TradeOut)

@@ -109,6 +109,38 @@ class JsonPortfolioRepository(PortfolioRepository):
         tmp.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         tmp.replace(self._path)
 
+    def update(
+        self,
+        *,
+        portfolio_id,
+        name: str | None = None,
+        portfolio_type: PortfolioType | None = None,
+    ) -> Portfolio:
+        payload = self._read_or_init()   # ✔ méthode existante
+        items = payload["portfolios"]   # ✔ clé correcte
+
+        pid = str(portfolio_id)
+
+        for rec in items:
+            if isinstance(rec, dict) and str(rec.get("id")) == pid:
+
+                if name is not None:
+                    n = name.strip()
+                    if not n:
+                        raise ValueError("name cannot be empty")
+                    rec["name"] = n
+
+                if portfolio_type is not None:
+                    rec["portfolio_type"] = portfolio_type.value
+
+                # écriture disque
+                self._write(payload)
+
+                # ✔ reconstruction propre via get()
+                return self.get(portfolio_id)
+
+        raise KeyError("portfolio not found")
+
     @staticmethod
     def _req_str(obj: dict, key: str, *, ctx: str) -> str:
         if key not in obj:
@@ -117,6 +149,8 @@ class JsonPortfolioRepository(PortfolioRepository):
         if not isinstance(v, str):
             raise ValueError(f"portfolios.json: {ctx}.{key} must be a string")
         return v
+    
+
 
     @staticmethod
     def _to_record(p: Portfolio) -> dict:
