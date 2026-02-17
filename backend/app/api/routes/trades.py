@@ -107,6 +107,26 @@ def create_trade(portfolio_id: UUID, payload: TradeCreate) -> TradeOut:
     except Exception as e:
         raise HTTPException(status_code=422, detail=f"invalid numeric field: {e}")
 
+# --- SELL > position protection ---
+    if side == TradeSide.SELL:
+        existing_trades = t_repo.list(portfolio_id=p.id)
+
+        from app.engine.portfolio_positions import compute_positions
+
+        positions = compute_positions(
+            trades=existing_trades,
+            portfolio_id=p.id,
+            as_of=payload.date,
+        )
+
+        current_qty = positions.get(inst.symbol.upper(), Decimal("0"))
+
+        if qty > current_qty:
+            raise HTTPException(
+                status_code=422,
+                detail=f"insufficient position: trying to sell {qty} but only {current_qty} available",
+            )
+
     # cash amount (SignedMoney)
     gross = qty * price
     if side == TradeSide.BUY:
@@ -225,6 +245,31 @@ def patch_trade(portfolio_id: UUID, trade_id: UUID, payload: TradePatch) -> Trad
     fees = patch.get("fees", base.fees)
     date = patch.get("date", base.date)
 
+# --- SELL > position protection ---
+    if side == TradeSide.SELL:
+        existing_trades = t_repo.list(portfolio_id=p.id)
+
+        # on retire le trade courant pour recalculer la position "avant update"
+        existing_trades = [t for t in existing_trades if t.id != base.id]
+
+        from app.engine.portfolio_positions import compute_positions
+
+        positions = compute_positions(
+            trades=existing_trades,
+            portfolio_id=p.id,
+            as_of=date,
+        )
+
+        current_qty = positions.get(base.instrument_symbol.upper(), Decimal("0"))
+
+        if qty > current_qty:
+            raise HTTPException(
+                status_code=422,
+                detail=f"insufficient position: trying to sell {qty} but only {current_qty} available",
+            )
+
+
+
     gross = qty * price
     net = -(gross + fees) if side == TradeSide.BUY else (gross - fees)
     cash_amount = SignedMoney(amount=net, currency=p.currency)
@@ -236,6 +281,8 @@ def patch_trade(portfolio_id: UUID, trade_id: UUID, payload: TradePatch) -> Trad
         cash_amount=cash_amount,
         label=patch.get("label", base.label) or f"{side.value} {base.instrument_symbol}",
     )
+
+
 
     # delete old cash tx (best effort)
     if base.linked_cash_tx_id is not None:
