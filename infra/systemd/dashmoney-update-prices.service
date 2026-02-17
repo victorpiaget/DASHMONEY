@@ -1,0 +1,8 @@
+[Unit]
+Description=DashMoney - Update daily prices (one-shot)
+After=network.target dashmoney-backend.service
+Wants=dashmoney-backend.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/dashmoney-update-prices.sh
