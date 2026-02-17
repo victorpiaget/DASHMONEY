@@ -12,6 +12,7 @@ from app.repositories.jsonl_portfolio_snapshot_repository import JsonlPortfolioS
 
 from app.repositories.json_instrument_repository import JsonInstrumentRepository
 from app.repositories.jsonl_trade_repository import JsonlTradeRepository
+from app.repositories.jsonl_price_repository import JsonlPriceRepository
 
 
 @lru_cache
@@ -46,3 +47,8 @@ def get_instrument_repo() -> JsonInstrumentRepository:
 def get_trade_repo() -> JsonlTradeRepository:
     settings = get_settings()
     return JsonlTradeRepository(trades_path=settings.data_dir / "trades.jsonl")
+
+@lru_cache
+def get_price_repo() -> JsonlPriceRepository:
+    settings = get_settings()
+    return JsonlPriceRepository(prices_path=settings.data_dir / "prices.jsonl")
