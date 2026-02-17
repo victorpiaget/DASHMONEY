@@ -1,7 +1,7 @@
 from __future__ import annotations
+import os
 
 from functools import lru_cache
-from pathlib import Path
 
 from app.settings import get_settings
 from app.repositories.json_account_repository import JsonAccountRepository
@@ -13,6 +13,7 @@ from app.repositories.jsonl_portfolio_snapshot_repository import JsonlPortfolioS
 from app.repositories.json_instrument_repository import JsonInstrumentRepository
 from app.repositories.jsonl_trade_repository import JsonlTradeRepository
 from app.repositories.jsonl_price_repository import JsonlPriceRepository
+from app.repositories.sql_price_repository import SqlPriceRepository
 
 
 @lru_cache
@@ -50,5 +51,10 @@ def get_trade_repo() -> JsonlTradeRepository:
 
 @lru_cache
 def get_price_repo() -> JsonlPriceRepository:
+    # If DASHMONEY_DATABASE_URL is set -> use SQL repo (Postgres/SQLite)
+    db_url = os.getenv("DASHMONEY_DATABASE_URL")
+    if db_url and db_url.strip():
+        return SqlPriceRepository()
+
     settings = get_settings()
     return JsonlPriceRepository(prices_path=settings.data_dir / "prices.jsonl")
