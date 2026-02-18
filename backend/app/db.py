@@ -37,13 +37,13 @@ def new_session() -> Session:
 
 
 def init_db() -> None:
-    from app.repositories.sql_price_repository import PricePointRow
-    from app.repositories.sql_account_repository import AccountRow
-    from app.repositories.sql_transaction_repository import TransactionRow
-    from app.repositories.sql_instrument_repository import InstrumentRow
-    from app.repositories.sql_trade_repository import TradeRow
-    from app.repositories.sql_portfolio_repository import PortfolioRow
-    from app.repositories.sql_portfolio_snapshot_repository import PortfolioSnapshotRow
+    """
+    Ensure database connectivity.
 
+    Schema management is handled by Alembic migrations.
+    This function MUST NOT create or modify tables.
+    """
     engine = get_engine()
-    Base.metadata.create_all(engine)
+    # Simple connectivity check (fail-fast)
+    with engine.connect() as conn:
+        conn.exec_driver_sql("SELECT 1")
