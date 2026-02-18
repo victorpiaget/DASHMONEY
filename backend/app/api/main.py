@@ -1,4 +1,9 @@
+import os
+
 from fastapi import FastAPI
+
+from app.db import init_db
+
 from app.api.routes.health import router as health_router
 from app.api.routes.net_worth import router as net_worth_router
 from app.api.routes.accounts import router as accounts_router
@@ -14,6 +19,14 @@ from app.api.routes.prices import router as prices_router
 
 
 app = FastAPI(title="DASHMONEY API", version="0.1.0")
+
+@app.on_event("startup")
+def _startup_sql_only() -> None:
+    db_url = os.getenv("DASHMONEY_DATABASE_URL", "").strip()
+    if not db_url:
+        raise RuntimeError("DASHMONEY_DATABASE_URL is required (SQL-only mode).")
+    # Fail fast if DB unreachable + ensure tables exist
+    init_db()
 
 app.include_router(health_router)
 app.include_router(net_worth_router)

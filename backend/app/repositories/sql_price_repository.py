@@ -4,16 +4,16 @@ import datetime as dt
 from decimal import Decimal
 
 from sqlalchemy import Date, DateTime, Integer, Numeric, String, select
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import init_db, new_session
+from app.db_base import Base
 from app.domain.money import Currency
 from app.domain.price_point import PricePoint
 from app.repositories.price_repository import PriceRepository
 
 
-class Base(DeclarativeBase):
-    pass
+
 
 
 class PricePointRow(Base):

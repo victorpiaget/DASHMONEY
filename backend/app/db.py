@@ -7,33 +7,24 @@ from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import sessionmaker, Session
 
-from app.settings import get_settings
+
+from app.db_base import Base
 
 
-def _default_sqlite_url() -> str:
-    # fallback dev: backend/data/dashmoney.db
-    settings = get_settings()
-    db_path = settings.data_dir / "dashmoney.db"
-    return f"sqlite:///{db_path.as_posix()}"
+
 
 
 def get_database_url() -> str:
-    env = os.getenv("DASHMONEY_DATABASE_URL")
-    if env and env.strip():
-        return env.strip()
-    return _default_sqlite_url()
+    env = os.getenv("DASHMONEY_DATABASE_URL", "").strip()
+    if not env:
+        raise RuntimeError("DASHMONEY_DATABASE_URL is required (SQL-only mode).")
+    return env
 
 
 @lru_cache
 def get_engine() -> Engine:
     url = get_database_url()
-
-    # sqlite needs check_same_thread for FastAPI sync access
-    connect_args = {}
-    if url.startswith("sqlite:///"):
-        connect_args = {"check_same_thread": False}
-
-    return create_engine(url, future=True, connect_args=connect_args)
+    return create_engine(url, future=True)
 
 
 @lru_cache
@@ -46,8 +37,13 @@ def new_session() -> Session:
 
 
 def init_db() -> None:
-    # import here to avoid circular imports
-    from app.repositories.sql_price_repository import Base  # noqa
+    from app.repositories.sql_price_repository import PricePointRow
+    from app.repositories.sql_account_repository import AccountRow
+    from app.repositories.sql_transaction_repository import TransactionRow
+    from app.repositories.sql_instrument_repository import InstrumentRow
+    from app.repositories.sql_trade_repository import TradeRow
+    from app.repositories.sql_portfolio_repository import PortfolioRow
+    from app.repositories.sql_portfolio_snapshot_repository import PortfolioSnapshotRow
 
     engine = get_engine()
     Base.metadata.create_all(engine)
