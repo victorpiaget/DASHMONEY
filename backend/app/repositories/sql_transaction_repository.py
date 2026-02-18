@@ -4,7 +4,18 @@ import datetime as dt
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import Date, DateTime, Integer, Numeric, String, select, func
+from sqlalchemy import (
+    Date,
+    DateTime,
+    Integer,
+    Numeric,
+    String,
+    ForeignKey,
+    UniqueConstraint,
+    select,
+    func,
+)
+
 from sqlalchemy.orm import Mapped, mapped_column, Session
 
 from app.db import init_db, new_session
@@ -18,9 +29,18 @@ from app.repositories.transaction_repository import TransactionRepository
 
 class TransactionRow(Base):
     __tablename__ = "transactions"
+    __table_args__ = (
+        UniqueConstraint("account_id", "date", "sequence", name="uq_tx_account_date_seq"),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
-    account_id: Mapped[str] = mapped_column(String(64), index=True, nullable=False)
+    account_id: Mapped[str] = mapped_column(
+        String(64),
+        ForeignKey("accounts.id", ondelete="RESTRICT"),
+        index=True,
+        nullable=False,
+    )
+
     day: Mapped[dt.date] = mapped_column("date", Date, index=True, nullable=False)
     sequence: Mapped[int] = mapped_column(Integer, nullable=False)
     amount: Mapped[Decimal] = mapped_column(Numeric(24, 10), nullable=False)
