@@ -3,7 +3,7 @@ from __future__ import annotations
 import datetime as dt
 from uuid import UUID
 
-from sqlalchemy import Date, String, select
+from sqlalchemy import Date, String, select, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import init_db, new_session
@@ -21,7 +21,12 @@ class PortfolioRow(Base):
     currency: Mapped[str] = mapped_column(String(8), nullable=False)
     portfolio_type: Mapped[str] = mapped_column(String(32), nullable=False)
     opened_on: Mapped[dt.date] = mapped_column(Date, nullable=False)
-    cash_account_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    cash_account_id: Mapped[str] = mapped_column(
+        String(64),
+        ForeignKey("accounts.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+
 
 
 class SqlPortfolioRepository(PortfolioRepository):

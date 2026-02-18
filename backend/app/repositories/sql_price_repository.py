@@ -3,7 +3,7 @@ from __future__ import annotations
 import datetime as dt
 from decimal import Decimal
 
-from sqlalchemy import Date, DateTime, Integer, Numeric, String, select
+from sqlalchemy import Date, DateTime, Integer, Numeric, String, select, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import init_db, new_session
@@ -20,7 +20,13 @@ class PricePointRow(Base):
     __tablename__ = "price_points"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    symbol: Mapped[str] = mapped_column(String(32), index=True, nullable=False)
+    symbol: Mapped[str] = mapped_column(
+        String(32),
+        ForeignKey("instruments.symbol", ondelete="RESTRICT"),
+        index=True,
+        nullable=False,
+    )
+
     day: Mapped[dt.date] = mapped_column(Date, index=True, nullable=False)
     price: Mapped[Decimal] = mapped_column(Numeric(24, 10), nullable=False)
     currency: Mapped[str] = mapped_column(String(8), nullable=False)

@@ -4,7 +4,7 @@ import datetime as dt
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import Date, Numeric, String, select
+from sqlalchemy import Date, Numeric, String, select, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import init_db, new_session
@@ -18,7 +18,13 @@ class PortfolioSnapshotRow(Base):
     __tablename__ = "portfolio_snapshots"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
-    portfolio_id: Mapped[str] = mapped_column(String(36), index=True, nullable=False)
+    portfolio_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("portfolios.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
+
     day: Mapped[dt.date] = mapped_column("date", Date, index=True, nullable=False)
     value: Mapped[Decimal] = mapped_column(Numeric(24, 10), nullable=False)
     currency: Mapped[str] = mapped_column(String(8), nullable=False)

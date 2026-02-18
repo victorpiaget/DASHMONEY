@@ -4,7 +4,7 @@ import datetime as dt
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import Date, String, Numeric, select
+from sqlalchemy import Date, String, Numeric, select, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import init_db, new_session
@@ -18,16 +18,29 @@ class TradeRow(Base):
     __tablename__ = "trades"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
-    portfolio_id: Mapped[str] = mapped_column(String(36), index=True, nullable=False)
+    portfolio_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("portfolios.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
     day: Mapped[dt.date] = mapped_column("date", Date, index=True, nullable=False)
     side: Mapped[str] = mapped_column(String(16), nullable=False)
-    instrument_symbol: Mapped[str] = mapped_column(String(32), nullable=False)
+    instrument_symbol: Mapped[str] = mapped_column(
+        String(32),
+        ForeignKey("instruments.symbol", ondelete="RESTRICT"),
+        nullable=False,
+    )
     quantity: Mapped[Decimal] = mapped_column(Numeric(24, 10), nullable=False)
     price: Mapped[Decimal] = mapped_column(Numeric(24, 10), nullable=False)
     fees: Mapped[Decimal] = mapped_column(Numeric(24, 10), nullable=False)
     currency: Mapped[str] = mapped_column(String(8), nullable=False)
     label: Mapped[str | None] = mapped_column(String(256), nullable=True)
-    linked_cash_tx_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    linked_cash_tx_id: Mapped[str | None] = mapped_column(
+        String(36),
+        ForeignKey("transactions.id", ondelete="SET NULL"),
+        nullable=True,
+    )
 
 
 class SqlTradeRepository(TradeRepository):
