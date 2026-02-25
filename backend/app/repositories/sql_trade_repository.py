@@ -12,6 +12,9 @@ from app.db_base import Base
 from app.domain.money import Currency
 from app.domain.trade import Trade, TradeSide
 from app.repositories.trade_repository import TradeRepository
+from app.identity.defaults import DEFAULT_PROFILE_ID
+from app.repositories.sql_identity_models import ProfileRow  # noqa: F401
+
 
 
 class TradeRow(Base):
@@ -41,6 +44,12 @@ class TradeRow(Base):
         ForeignKey("transactions.id", ondelete="SET NULL"),
         nullable=True,
     )
+    profile_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("profiles.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
 
 
 class SqlTradeRepository(TradeRepository):
@@ -63,6 +72,8 @@ class SqlTradeRepository(TradeRepository):
     def list(self, *, portfolio_id: UUID | None = None) -> list[Trade]:
         with new_session() as s:
             stmt = select(TradeRow)
+            stmt = stmt.where(TradeRow.profile_id == DEFAULT_PROFILE_ID)
+
             if portfolio_id is not None:
                 stmt = stmt.where(TradeRow.portfolio_id == str(portfolio_id))
 
@@ -81,6 +92,8 @@ class SqlTradeRepository(TradeRepository):
                 .where(TradeRow.portfolio_id == str(portfolio_id))
                 .where(TradeRow.day >= date_from)
                 .where(TradeRow.day <= date_to)
+                .where(TradeRow.profile_id == DEFAULT_PROFILE_ID)
+
             )
 
             rows = s.execute(stmt).scalars().all()
@@ -93,6 +106,9 @@ class SqlTradeRepository(TradeRepository):
     def get(self, trade_id: UUID) -> Trade:
         with new_session() as s:
             row = s.get(TradeRow, str(trade_id))
+            if row is None or row.profile_id != DEFAULT_PROFILE_ID:
+                raise KeyError("trade not found")
+
             if row is None:
                 raise KeyError("trade not found")
             return self._to_domain(row)
@@ -102,6 +118,9 @@ class SqlTradeRepository(TradeRepository):
     def delete(self, *, trade_id: UUID) -> bool:
         with new_session() as s:
             row = s.get(TradeRow, str(trade_id))
+            if row is None or row.profile_id != DEFAULT_PROFILE_ID:
+                return False
+
             if row is None:
                 return False
             s.delete(row)
@@ -113,6 +132,9 @@ class SqlTradeRepository(TradeRepository):
     def update(self, *, trade_id: UUID, patch: dict) -> Trade:
         with new_session() as s:
             row = s.get(TradeRow, str(trade_id))
+            if row is None or row.profile_id != DEFAULT_PROFILE_ID:
+                raise KeyError("trade not found")
+            
             if row is None:
                 raise KeyError("trade not found")
 
@@ -154,6 +176,8 @@ class SqlTradeRepository(TradeRepository):
             currency=t.currency.value,
             label=t.label,
             linked_cash_tx_id=str(t.linked_cash_tx_id) if t.linked_cash_tx_id else None,
+            profile_id=DEFAULT_PROFILE_ID,
+
         )
 
     @staticmethod

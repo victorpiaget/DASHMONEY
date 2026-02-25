@@ -12,6 +12,9 @@ from app.db_base import Base
 from app.domain.money import Currency, Money
 from app.domain.portfolio import PortfolioSnapshot
 from app.repositories.portfolio_snapshot_repository import PortfolioSnapshotRepository
+from app.identity.defaults import DEFAULT_PROFILE_ID
+from app.repositories.sql_identity_models import ProfileRow  # noqa: F401
+
 
 
 class PortfolioSnapshotRow(Base):
@@ -29,6 +32,12 @@ class PortfolioSnapshotRow(Base):
     value: Mapped[Decimal] = mapped_column(Numeric(24, 10), nullable=False)
     currency: Mapped[str] = mapped_column(String(8), nullable=False)
     note: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    profile_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("profiles.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
 
 
 class SqlPortfolioSnapshotRepository(PortfolioSnapshotRepository):
@@ -47,6 +56,8 @@ class SqlPortfolioSnapshotRepository(PortfolioSnapshotRepository):
     def list(self, portfolio_id: UUID | None = None) -> list[PortfolioSnapshot]:
         with new_session() as s:
             stmt = select(PortfolioSnapshotRow)
+            stmt = stmt.where(PortfolioSnapshotRow.profile_id == DEFAULT_PROFILE_ID)
+
             if portfolio_id is not None:
                 stmt = stmt.where(PortfolioSnapshotRow.portfolio_id == str(portfolio_id))
 
@@ -65,6 +76,8 @@ class SqlPortfolioSnapshotRepository(PortfolioSnapshotRepository):
                 .where(PortfolioSnapshotRow.portfolio_id == str(portfolio_id))
                 .where(PortfolioSnapshotRow.day >= date_from)
                 .where(PortfolioSnapshotRow.day <= date_to)
+                .where(PortfolioSnapshotRow.profile_id == DEFAULT_PROFILE_ID)
+
             )
             rows = s.execute(stmt).scalars().all()
             snaps = [self._to_domain(r) for r in rows]
@@ -80,6 +93,8 @@ class SqlPortfolioSnapshotRepository(PortfolioSnapshotRepository):
             value=Decimal(str(snap.value.amount)),
             currency=snap.value.currency.value,
             note=snap.note,
+            profile_id=DEFAULT_PROFILE_ID,
+
         )
 
     @staticmethod

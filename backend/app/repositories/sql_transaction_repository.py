@@ -18,6 +18,9 @@ from sqlalchemy import (
 
 from sqlalchemy.orm import Mapped, mapped_column, Session
 
+from app.identity.defaults import DEFAULT_PROFILE_ID
+
+
 from app.db import init_db, new_session
 from app.db_base import Base
 from app.domain.money import Currency
@@ -25,7 +28,7 @@ from app.domain.signed_money import SignedMoney
 from app.domain.transaction import Transaction, TransactionKind
 from app.repositories.account_repository import AccountRepository
 from app.repositories.transaction_repository import TransactionRepository
-
+from app.repositories.sql_identity_models import ProfileRow  # noqa: F401
 
 class TransactionRow(Base):
     __tablename__ = "transactions"
@@ -51,6 +54,12 @@ class TransactionRow(Base):
     label: Mapped[str | None] = mapped_column(String(256), nullable=True)
     created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), index=True, nullable=False)
     transfer_id: Mapped[str | None] = mapped_column(String(36), index=True, nullable=True)
+    profile_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("profiles.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
 
 
 class SqlTransactionRepository(TransactionRepository):
@@ -81,6 +90,8 @@ class SqlTransactionRepository(TransactionRepository):
             if account_id is not None:
                 aid = account_id.strip()
                 stmt = stmt.where(TransactionRow.account_id == aid)
+                stmt = stmt.where(TransactionRow.profile_id == DEFAULT_PROFILE_ID)
+
 
             rows = s.execute(stmt).scalars().all()
             txs = [self._to_domain(r) for r in rows]
@@ -90,7 +101,10 @@ class SqlTransactionRepository(TransactionRepository):
     def get(self, tx_id: UUID) -> Transaction | None:
         with new_session() as s:
             row = s.get(TransactionRow, str(tx_id))
-            return self._to_domain(row) if row else None
+            if row is None or row.profile_id != DEFAULT_PROFILE_ID:
+                return None
+            return self._to_domain(row)
+
 
     def next_sequence(self, account_id: str, date: dt.date) -> int:
         aid = account_id.strip()
@@ -104,6 +118,9 @@ class SqlTransactionRepository(TransactionRepository):
 
         with new_session() as s:
             row = s.get(TransactionRow, str(tx_id))
+            if row is None or row.profile_id != DEFAULT_PROFILE_ID:
+                return False
+
             if row is None:
                 return False
             if row.account_id != aid:
@@ -131,6 +148,10 @@ class SqlTransactionRepository(TransactionRepository):
 
         with new_session() as s:
             row = s.get(TransactionRow, str(tx_id))
+            if row is None or row.profile_id != DEFAULT_PROFILE_ID or row.account_id != aid:
+                raise KeyError("Transaction not found")
+
+
             if row is None or row.account_id != aid:
                 raise KeyError("Transaction not found")
 
@@ -191,7 +212,10 @@ class SqlTransactionRepository(TransactionRepository):
         with new_session() as s:
             tid = str(transfer_id)
             rows = s.execute(
-                select(TransactionRow).where(TransactionRow.transfer_id == tid)
+            select(TransactionRow)
+            .where(TransactionRow.transfer_id == tid)
+            .where(TransactionRow.profile_id == DEFAULT_PROFILE_ID)
+
             ).scalars().all()
             if len(rows) != 2:
                 raise KeyError("Transfer not found")
@@ -291,6 +315,8 @@ class SqlTransactionRepository(TransactionRepository):
             select(func.max(TransactionRow.sequence))
             .where(TransactionRow.account_id == account_id)
             .where(TransactionRow.day == date)
+            .where(TransactionRow.profile_id == DEFAULT_PROFILE_ID)
+
         )
         max_seq = s.execute(stmt).scalar_one_or_none()
         return int(max_seq or 0) + 1
@@ -310,6 +336,8 @@ class SqlTransactionRepository(TransactionRepository):
             label=tx.label,
             created_at=tx.created_at,
             transfer_id=str(tx.transfer_id) if tx.transfer_id else None,
+            profile_id=DEFAULT_PROFILE_ID,
+
         )
 
     @staticmethod

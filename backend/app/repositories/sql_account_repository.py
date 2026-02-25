@@ -3,7 +3,7 @@ from __future__ import annotations
 import datetime as dt
 from decimal import Decimal
 
-from sqlalchemy import Date, Numeric, String, select
+from sqlalchemy import Date, Numeric, String, select, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import init_db, new_session
@@ -12,6 +12,9 @@ from app.domain.account import Account, AccountType
 from app.domain.money import Currency
 from app.domain.signed_money import SignedMoney
 from app.repositories.account_repository import AccountRepository
+from app.identity.defaults import DEFAULT_PROFILE_ID
+from app.repositories.sql_identity_models import ProfileRow  # noqa: F401
+
 
 
 class AccountRow(Base):
@@ -23,6 +26,12 @@ class AccountRow(Base):
     opening_balance: Mapped[Decimal] = mapped_column(Numeric(24, 10), nullable=False)
     opened_on: Mapped[dt.date] = mapped_column(Date, nullable=False)
     account_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    profile_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("profiles.id", ondelete="RESTRICT"),
+        index=True,
+        nullable=False,
+    )
 
 
 class SqlAccountRepository(AccountRepository):
@@ -41,8 +50,11 @@ class SqlAccountRepository(AccountRepository):
     def list_accounts(self) -> list[Account]:
         with new_session() as s:
             rows = s.execute(
-                select(AccountRow).order_by(AccountRow.id.asc())
+                select(AccountRow)
+                .where(AccountRow.profile_id == DEFAULT_PROFILE_ID)
+                .order_by(AccountRow.id.asc())
             ).scalars().all()
+
             return [self._to_domain(r) for r in rows]
 
     def get_account(self, account_id: str) -> Account:
@@ -52,7 +64,7 @@ class SqlAccountRepository(AccountRepository):
 
         with new_session() as s:
             row = s.get(AccountRow, target)
-            if row is None:
+            if row is None or row.profile_id != DEFAULT_PROFILE_ID:
                 raise KeyError(f"unknown account_id '{target}'")
             return self._to_domain(row)
 
@@ -72,6 +84,7 @@ class SqlAccountRepository(AccountRepository):
                 opening_balance=Decimal(str(account.opening_balance.amount)),
                 opened_on=account.opened_on,
                 account_type=account.account_type.value,
+                profile_id=DEFAULT_PROFILE_ID,
             )
             s.add(row)
             s.commit()
@@ -132,4 +145,5 @@ class SqlAccountRepository(AccountRepository):
             opening_balance=opening,
             opened_on=row.opened_on,
             account_type=AccountType(row.account_type),
+            
         )

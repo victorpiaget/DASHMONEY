@@ -29,6 +29,14 @@ if config.config_file_name is not None:
 from app.db_base import Base
 target_metadata = Base.metadata
 
+from app.repositories.sql_identity_models import (  # noqa: F401
+    UserRow,
+    WorkspaceRow,
+    WorkspaceMembershipRow,
+    ProfileRow,
+    ProfileAccessRow,
+)
+
 # Ensure all models are registered on Base.metadata for autogenerate
 from app.repositories.sql_account_repository import AccountRow  # noqa: F401
 from app.repositories.sql_transaction_repository import TransactionRow  # noqa: F401
@@ -37,6 +45,8 @@ from app.repositories.sql_trade_repository import TradeRow  # noqa: F401
 from app.repositories.sql_portfolio_repository import PortfolioRow  # noqa: F401
 from app.repositories.sql_portfolio_snapshot_repository import PortfolioSnapshotRow  # noqa: F401
 from app.repositories.sql_price_repository import PricePointRow  # noqa: F401
+
+
 
 
 # other values from the config, defined by the needs of env.py,

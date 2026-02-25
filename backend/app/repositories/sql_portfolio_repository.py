@@ -11,6 +11,9 @@ from app.db_base import Base
 from app.domain.money import Currency
 from app.domain.portfolio import Portfolio, PortfolioType
 from app.repositories.portfolio_repository import PortfolioRepository
+from app.identity.defaults import DEFAULT_PROFILE_ID
+from app.repositories.sql_identity_models import ProfileRow  # noqa: F401
+
 
 
 class PortfolioRow(Base):
@@ -26,6 +29,12 @@ class PortfolioRow(Base):
         ForeignKey("accounts.id", ondelete="RESTRICT"),
         nullable=False,
     )
+    profile_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("profiles.id", ondelete="RESTRICT"),
+        index=True,
+        nullable=False,
+    )
 
 
 
@@ -38,7 +47,10 @@ class SqlPortfolioRepository(PortfolioRepository):
 
     def list(self) -> list[Portfolio]:
         with new_session() as s:
-            rows = s.execute(select(PortfolioRow)).scalars().all()
+            rows = s.execute(
+                select(PortfolioRow).where(PortfolioRow.profile_id == DEFAULT_PROFILE_ID)
+            ).scalars().all()
+
             return [self._to_domain(r) for r in rows]
 
     # -------- get --------
@@ -46,8 +58,9 @@ class SqlPortfolioRepository(PortfolioRepository):
     def get(self, portfolio_id: UUID) -> Portfolio:
         with new_session() as s:
             row = s.get(PortfolioRow, str(portfolio_id))
-            if row is None:
+            if row is None or row.profile_id != DEFAULT_PROFILE_ID:
                 raise KeyError(f"unknown portfolio_id '{portfolio_id}'")
+
             return self._to_domain(row)
 
     # -------- add --------
@@ -110,6 +123,8 @@ class SqlPortfolioRepository(PortfolioRepository):
             portfolio_type=p.portfolio_type.value,
             opened_on=p.opened_on,
             cash_account_id=p.cash_account_id,
+            profile_id=DEFAULT_PROFILE_ID,
+
         )
 
     @staticmethod
