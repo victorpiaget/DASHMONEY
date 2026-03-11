@@ -2,17 +2,17 @@ from __future__ import annotations
 
 import datetime as dt
 from decimal import Decimal
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from uuid import UUID
-from fastapi import Query
 
-from app.api.deps import get_portfolio_repo, get_instrument_repo, get_trade_repo, get_account_repo, get_tx_repo
+from app.api.deps import get_portfolio_repo, get_instrument_repo, get_trade_repo, get_account_repo, get_tx_repo, get_request_context
 from app.api.schemas.trades import TradeCreate, TradeOut, PositionOut, TradePatch
 from app.domain.trade import Trade, TradeSide
 from app.domain.transaction import Transaction, TransactionKind
 from app.domain.signed_money import SignedMoney
 from app.engine.portfolio_positions import compute_positions
 from app.engine.trade_query import TradeQuery, apply_trade_query
+from app.identity.request_context import RequestContext
 
 
 router = APIRouter(prefix="/portfolios/{portfolio_id}/trades", tags=["trades"])
@@ -20,16 +20,9 @@ router = APIRouter(prefix="/portfolios/{portfolio_id}/trades", tags=["trades"])
 
 def _trade_to_out(t: Trade) -> TradeOut:
     return TradeOut(
-        id=t.id,
-        portfolio_id=t.portfolio_id,
-        date=t.date,
-        side=t.side.value,
-        instrument_symbol=t.instrument_symbol,
-        quantity=str(t.quantity),
-        price=str(t.price),
-        fees=str(t.fees),
-        currency=t.currency.value,
-        label=t.label,
+        id=t.id, portfolio_id=t.portfolio_id, date=t.date, side=t.side.value,
+        instrument_symbol=t.instrument_symbol, quantity=str(t.quantity), price=str(t.price),
+        fees=str(t.fees), currency=t.currency.value, label=t.label,
         linked_cash_tx_id=t.linked_cash_tx_id,
     )
 
@@ -40,7 +33,7 @@ def _create_cash_mirror_tx(
     date: dt.date,
     cash_amount: SignedMoney,
     label: str | None,
-    profile_id: str | None = None,
+    profile_id: str,
 ) -> Transaction:
     acc_repo = get_account_repo()
     tx_repo = get_tx_repo()
@@ -51,19 +44,12 @@ def _create_cash_mirror_tx(
         raise HTTPException(status_code=500, detail="cash pass-through account missing (should not happen)")
 
     seq = tx_repo.next_sequence(acc.id, date, profile_id=profile_id)
-
     kind = TransactionKind.INCOME if cash_amount.amount > 0 else TransactionKind.EXPENSE
 
     try:
         tx = Transaction.create(
-            account_id=acc.id,
-            date=date,
-            sequence=seq,
-            amount=cash_amount,
-            kind=kind,
-            category="INVEST",
-            subcategory=None,
-            label=label,
+            account_id=acc.id, date=date, sequence=seq, amount=cash_amount,
+            kind=kind, category="INVEST", subcategory=None, label=label,
         )
     except Exception as e:
         raise HTTPException(status_code=422, detail=str(e))
@@ -73,28 +59,28 @@ def _create_cash_mirror_tx(
 
 
 @router.post("", response_model=TradeOut, status_code=201)
-def create_trade(portfolio_id: UUID, payload: TradeCreate, profile_id: str | None = Query(default=None)) -> TradeOut:
+def create_trade(
+    portfolio_id: UUID,
+    payload: TradeCreate,
+    ctx: RequestContext = Depends(get_request_context),
+) -> TradeOut:
     p_repo = get_portfolio_repo()
     i_repo = get_instrument_repo()
     t_repo = get_trade_repo()
 
-    # portfolio
     try:
-        p = p_repo.get(portfolio_id, profile_id=profile_id)
+        p = p_repo.get(portfolio_id, profile_id=ctx.profile_id)
     except KeyError:
         raise HTTPException(status_code=404, detail="portfolio not found")
 
-    # instrument exists
     try:
         inst = i_repo.get(payload.instrument_symbol)
     except KeyError:
         raise HTTPException(status_code=404, detail="instrument not found")
 
-    # currency check: pricing currency must match portfolio currency (MVP)
     if inst.currency != p.currency:
         raise HTTPException(status_code=422, detail="instrument currency must match portfolio currency (MVP)")
 
-    # parse decimals
     try:
         side = TradeSide(payload.side.strip())
         qty = Decimal(payload.quantity)
@@ -103,73 +89,47 @@ def create_trade(portfolio_id: UUID, payload: TradeCreate, profile_id: str | Non
     except Exception as e:
         raise HTTPException(status_code=422, detail=f"invalid numeric field: {e}")
 
-# --- SELL > position protection ---
     if side == TradeSide.SELL:
         existing_trades = t_repo.list(portfolio_id=p.id)
-
-        from app.engine.portfolio_positions import compute_positions
-
-        positions = compute_positions(
-            trades=existing_trades,
-            portfolio_id=p.id,
-            as_of=payload.date,
-        )
-
+        positions = compute_positions(trades=existing_trades, portfolio_id=p.id, as_of=payload.date)
         current_qty = positions.get(inst.symbol.upper(), Decimal("0"))
-
         if qty > current_qty:
             raise HTTPException(
                 status_code=422,
                 detail=f"insufficient position: trying to sell {qty} but only {current_qty} available",
             )
 
-    # cash amount (SignedMoney)
     gross = qty * price
-    if side == TradeSide.BUY:
-        net = -(gross + fees)
-    else:
-        net = (gross - fees)
-
+    net = -(gross + fees) if side == TradeSide.BUY else (gross - fees)
     cash_amount = SignedMoney(amount=net, currency=p.currency)
 
     tx = _create_cash_mirror_tx(
-        cash_account_id=p.cash_account_id,
-        date=payload.date,
-        cash_amount=cash_amount,
-        label=payload.label or f"{side.value} {inst.symbol}",
-        profile_id=profile_id,
+        cash_account_id=p.cash_account_id, date=payload.date,
+        cash_amount=cash_amount, label=payload.label or f"{side.value} {inst.symbol}",
+        profile_id=ctx.profile_id,
     )
 
-    # create trade with linked tx id
     try:
         trade = Trade.create(
-            portfolio_id=p.id,
-            date=payload.date,
-            side=side,
-            instrument_symbol=inst.symbol,
-            quantity=qty,
-            price=price,
-            fees=fees,
-            currency=p.currency,
-            label=payload.label,
-            linked_cash_tx_id=tx.id,
+            portfolio_id=p.id, date=payload.date, side=side,
+            instrument_symbol=inst.symbol, quantity=qty, price=price, fees=fees,
+            currency=p.currency, label=payload.label, linked_cash_tx_id=tx.id,
         )
     except Exception as e:
-        # best effort rollback: delete created tx
         try:
             get_tx_repo().delete(account_id=p.cash_account_id, tx_id=tx.id)
         except Exception:
             pass
         raise HTTPException(status_code=422, detail=str(e))
 
-    t_repo.add(trade, profile_id=profile_id)
+    t_repo.add(trade, profile_id=ctx.profile_id)
     return _trade_to_out(trade)
 
 
 @router.get("", response_model=list[TradeOut])
 def list_trades(
     portfolio_id: UUID,
-    profile_id: str | None = Query(default=None),
+    ctx: RequestContext = Depends(get_request_context),
     date_from: dt.date | None = Query(default=None),
     date_to: dt.date | None = Query(default=None),
     sides: list[str] | None = Query(default=None),
@@ -182,20 +142,17 @@ def list_trades(
     t_repo = get_trade_repo()
 
     try:
-        p_repo.get(portfolio_id, profile_id=profile_id)
+        p_repo.get(portfolio_id, profile_id=ctx.profile_id)
     except KeyError:
         raise HTTPException(status_code=404, detail="portfolio not found")
 
-    trades = t_repo.list(portfolio_id=portfolio_id, profile_id=profile_id)
+    trades = t_repo.list(portfolio_id=portfolio_id, profile_id=ctx.profile_id)
 
     query_obj = TradeQuery(
-        date_from=date_from,
-        date_to=date_to,
+        date_from=date_from, date_to=date_to,
         sides=set(s.strip().upper() for s in sides if s and s.strip()) if sides else None,
         symbols=set(s.strip().upper() for s in symbols if s and s.strip()) if symbols else None,
-        q=q,
-        sort_by=sort_by,    # type: ignore[arg-type]
-        sort_dir=sort_dir,  # type: ignore[arg-type]
+        q=q, sort_by=sort_by, sort_dir=sort_dir,  # type: ignore[arg-type]
     )
 
     trades = apply_trade_query(trades, query_obj)
@@ -203,12 +160,17 @@ def list_trades(
 
 
 @router.patch("/{trade_id}", response_model=TradeOut)
-def patch_trade(portfolio_id: UUID, trade_id: UUID, payload: TradePatch, profile_id: str | None = Query(default=None)) -> TradeOut:
+def patch_trade(
+    portfolio_id: UUID,
+    trade_id: UUID,
+    payload: TradePatch,
+    ctx: RequestContext = Depends(get_request_context),
+) -> TradeOut:
     p_repo = get_portfolio_repo()
     t_repo = get_trade_repo()
 
     try:
-        p = p_repo.get(portfolio_id, profile_id=profile_id)
+        p = p_repo.get(portfolio_id, profile_id=ctx.profile_id)
     except KeyError:
         raise HTTPException(status_code=404, detail="portfolio not found")
 
@@ -235,53 +197,33 @@ def patch_trade(portfolio_id: UUID, trade_id: UUID, payload: TradePatch, profile
     if payload.label is not None:
         patch["label"] = payload.label
 
-    # If anything affecting cash changes, update the linked cash tx too (MVP simple: create new tx + delete old)
     side = patch.get("side", base.side)
     qty = patch.get("quantity", base.quantity)
     price = patch.get("price", base.price)
     fees = patch.get("fees", base.fees)
     date = patch.get("date", base.date)
 
-# --- SELL > position protection ---
     if side == TradeSide.SELL:
         existing_trades = t_repo.list(portfolio_id=p.id)
-
-        # on retire le trade courant pour recalculer la position "avant update"
         existing_trades = [t for t in existing_trades if t.id != base.id]
-
-        from app.engine.portfolio_positions import compute_positions
-
-        positions = compute_positions(
-            trades=existing_trades,
-            portfolio_id=p.id,
-            as_of=date,
-        )
-
+        positions = compute_positions(trades=existing_trades, portfolio_id=p.id, as_of=date)
         current_qty = positions.get(base.instrument_symbol.upper(), Decimal("0"))
-
         if qty > current_qty:
             raise HTTPException(
                 status_code=422,
                 detail=f"insufficient position: trying to sell {qty} but only {current_qty} available",
             )
 
-
-
     gross = qty * price
     net = -(gross + fees) if side == TradeSide.BUY else (gross - fees)
     cash_amount = SignedMoney(amount=net, currency=p.currency)
 
     new_tx = _create_cash_mirror_tx(
-        cash_account_id=p.cash_account_id,
-        date=date,
-        cash_amount=cash_amount,
+        cash_account_id=p.cash_account_id, date=date, cash_amount=cash_amount,
         label=patch.get("label", base.label) or f"{side.value} {base.instrument_symbol}",
-        profile_id=profile_id,
+        profile_id=ctx.profile_id,
     )
 
-
-
-    # delete old cash tx (best effort)
     if base.linked_cash_tx_id is not None:
         try:
             get_tx_repo().delete(account_id=p.cash_account_id, tx_id=base.linked_cash_tx_id)
@@ -296,29 +238,31 @@ def patch_trade(portfolio_id: UUID, trade_id: UUID, payload: TradePatch, profile
 
 
 @router.delete("/{trade_id}", status_code=204)
-def delete_trade(portfolio_id: UUID, trade_id: UUID, profile_id: str | None = Query(default=None)) -> None:
+def delete_trade(
+    portfolio_id: UUID,
+    trade_id: UUID,
+    ctx: RequestContext = Depends(get_request_context),
+) -> None:
     p_repo = get_portfolio_repo()
     t_repo = get_trade_repo()
 
     try:
-        p = p_repo.get(portfolio_id, profile_id=profile_id)
+        p = p_repo.get(portfolio_id, profile_id=ctx.profile_id)
     except KeyError:
         raise HTTPException(status_code=404, detail="portfolio not found")
 
     try:
-        trade = t_repo.get(trade_id, profile_id=profile_id)
+        trade = t_repo.get(trade_id, profile_id=ctx.profile_id)
     except KeyError:
         raise HTTPException(status_code=404, detail="trade not found")
 
     if trade.portfolio_id != p.id:
         raise HTTPException(status_code=422, detail="trade does not belong to this portfolio")
 
-    # delete trade (tombstone)
-    ok = t_repo.delete(trade_id=trade_id, profile_id=profile_id)
+    ok = t_repo.delete(trade_id=trade_id, profile_id=ctx.profile_id)
     if not ok:
         raise HTTPException(status_code=404, detail="trade not found")
 
-    # delete linked cash tx
     if trade.linked_cash_tx_id is not None:
         try:
             get_tx_repo().delete(account_id=p.cash_account_id, tx_id=trade.linked_cash_tx_id)
@@ -326,7 +270,6 @@ def delete_trade(portfolio_id: UUID, trade_id: UUID, profile_id: str | None = Qu
             pass
 
 
-# Positions endpoint (same file, different router for simplicity)
 pos_router = APIRouter(prefix="/portfolios/{portfolio_id}", tags=["positions"])
 
 
@@ -334,17 +277,17 @@ pos_router = APIRouter(prefix="/portfolios/{portfolio_id}", tags=["positions"])
 def get_positions(
     portfolio_id: UUID,
     as_of: dt.date | None = Query(default=None),
-    profile_id: str | None = Query(default=None),
+    ctx: RequestContext = Depends(get_request_context),
 ):
     p_repo = get_portfolio_repo()
     t_repo = get_trade_repo()
 
     try:
-        p_repo.get(portfolio_id, profile_id=profile_id)
+        p_repo.get(portfolio_id, profile_id=ctx.profile_id)
     except KeyError:
         raise HTTPException(status_code=404, detail="portfolio not found")
 
-    trades = t_repo.list(portfolio_id=portfolio_id, profile_id=profile_id)
+    trades = t_repo.list(portfolio_id=portfolio_id, profile_id=ctx.profile_id)
     pos = compute_positions(trades=trades, portfolio_id=portfolio_id, as_of=as_of)
 
     return [PositionOut(instrument_symbol=sym, quantity=str(qty)) for sym, qty in sorted(pos.items())]

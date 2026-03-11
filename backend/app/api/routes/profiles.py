@@ -1,8 +1,9 @@
 from __future__ import annotations
 from dataclasses import asdict
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
-from app.api.deps import get_profile_repo, get_workspace_repo
+from app.api.deps import get_current_user, get_profile_repo, get_workspace_repo
+from app.domain.user import User
 from app.api.schemas.profiles import (
     ProfileCreateRequest,
     ProfileResponse,
@@ -53,7 +54,11 @@ def list_profiles(workspace_id: str) -> list[ProfileResponse]:
 
 
 @router.post("/{workspace_id}/profiles", status_code=201, response_model=ProfileResponse)
-def create_profile(workspace_id: str, payload: ProfileCreateRequest) -> ProfileResponse:
+def create_profile(
+    workspace_id: str,
+    payload: ProfileCreateRequest,
+    user: User = Depends(get_current_user),
+) -> ProfileResponse:
     repo = get_profile_repo()
     try:
         p = repo.create_profile(workspace_id=workspace_id, display_name=payload.display_name)
@@ -61,6 +66,7 @@ def create_profile(workspace_id: str, payload: ProfileCreateRequest) -> ProfileR
         raise HTTPException(status_code=422, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=409, detail=str(e))
+    repo.grant_profile_access(user_id=user.id, profile_id=p.id, permission="OWNER")
     return ProfileResponse(**asdict(p))
 
 

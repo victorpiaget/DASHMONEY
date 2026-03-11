@@ -9,7 +9,7 @@ from app.domain.profile import Profile
 from app.domain.workspace import Workspace
 from app.repositories.profile_repository import ProfileRepository
 from app.repositories.workspace_repository import WorkspaceRepository
-from app.repositories.sql_identity_models import ProfileRow, WorkspaceRow
+from app.repositories.sql_identity_models import ProfileAccessRow, ProfileRow, WorkspaceRow
 
 
 class SqlWorkspaceRepository(WorkspaceRepository):
@@ -109,6 +109,28 @@ class SqlProfileRepository(ProfileRepository):
             s.delete(row)
             s.commit()
             return True
+
+    def grant_profile_access(self, *, user_id: str, profile_id: str, permission: str = "OWNER") -> None:
+        with new_session() as s:
+            existing = s.execute(
+                select(ProfileAccessRow).where(
+                    ProfileAccessRow.profile_id == profile_id,
+                    ProfileAccessRow.user_id == user_id,
+                )
+            ).scalar_one_or_none()
+            if existing is None:
+                s.add(ProfileAccessRow(profile_id=profile_id, user_id=user_id, permission=permission))
+                s.commit()
+
+    def has_profile_access(self, *, user_id: str, profile_id: str) -> bool:
+        with new_session() as s:
+            row = s.execute(
+                select(ProfileAccessRow).where(
+                    ProfileAccessRow.profile_id == profile_id,
+                    ProfileAccessRow.user_id == user_id,
+                )
+            ).scalar_one_or_none()
+            return row is not None
 
     @staticmethod
     def _to_domain(row: ProfileRow) -> Profile:

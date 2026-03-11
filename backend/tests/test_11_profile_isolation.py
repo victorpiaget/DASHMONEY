@@ -24,14 +24,14 @@ def _create_profile(client, display_name="Other Profile"):
 
 
 def _create_account(client, account_id, *, profile_id=None, currency="EUR", opening="0.00"):
-    r = client.post("/accounts", json={
+    params = {"profile_id": profile_id} if profile_id else {}
+    r = client.post("/accounts", params=params, json={
         "id": account_id,
         "name": f"Account {account_id}",
         "currency": currency,
         "opening_balance": opening,
         "opened_on": "2026-01-01",
         "account_type": "CHECKING",
-        "profile_id": profile_id,
     })
     assert r.status_code == 201, r.text
     return r.json()

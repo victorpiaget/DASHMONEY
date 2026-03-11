@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import datetime as dt
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from uuid import UUID
 
-from app.api.deps import get_portfolio_repo, get_portfolio_snapshot_repo,get_account_repo
+from app.api.deps import get_portfolio_repo, get_portfolio_snapshot_repo, get_account_repo, get_request_context
 from app.api.schemas.portfolios import (
     PortfolioCreate, PortfolioOut,
     PortfolioSnapshotCreate, PortfolioSnapshotOut, PortfolioUpdateRequest
@@ -15,46 +15,47 @@ from app.domain.portfolio import Portfolio, PortfolioSnapshot, PortfolioType
 from app.domain.account import Account, AccountType
 
 from app.domain.signed_money import SignedMoney
+from app.identity.request_context import RequestContext
 from decimal import Decimal
 
 router = APIRouter(prefix="/portfolios", tags=["portfolios"])
 
 
 @router.get("", response_model=list[PortfolioOut])
-def list_portfolios(profile_id: str | None = Query(default=None)):
+def list_portfolios(ctx: RequestContext = Depends(get_request_context)):
     repo = get_portfolio_repo()
-    out = []
-    for p in repo.list(profile_id=profile_id):
-        out.append(PortfolioOut(
-            id=p.id,
-            name=p.name,
-            currency=p.currency.value,
-            portfolio_type=p.portfolio_type.value,
-            opened_on=p.opened_on,
+    return [
+        PortfolioOut(
+            id=p.id, name=p.name, currency=p.currency.value,
+            portfolio_type=p.portfolio_type.value, opened_on=p.opened_on,
             cash_account_id=p.cash_account_id,
-        ))
-    return out
+        )
+        for p in repo.list(profile_id=ctx.profile_id)
+    ]
 
 
 @router.get("/{portfolio_id}", response_model=PortfolioOut)
-def get_portfolio(portfolio_id: UUID, profile_id: str | None = Query(default=None)) -> PortfolioOut:
+def get_portfolio(
+    portfolio_id: UUID,
+    ctx: RequestContext = Depends(get_request_context),
+) -> PortfolioOut:
     repo = get_portfolio_repo()
     try:
-        p = repo.get(portfolio_id, profile_id=profile_id)
+        p = repo.get(portfolio_id, profile_id=ctx.profile_id)
     except KeyError:
         raise HTTPException(status_code=404, detail="portfolio not found")
     return PortfolioOut(
-        id=p.id,
-        name=p.name,
-        currency=p.currency.value,
-        portfolio_type=p.portfolio_type.value,
-        opened_on=p.opened_on,
+        id=p.id, name=p.name, currency=p.currency.value,
+        portfolio_type=p.portfolio_type.value, opened_on=p.opened_on,
         cash_account_id=p.cash_account_id,
     )
 
 
 @router.post("", response_model=PortfolioOut)
-def create_portfolio(payload: PortfolioCreate, profile_id: str | None = Query(default=None)):
+def create_portfolio(
+    payload: PortfolioCreate,
+    ctx: RequestContext = Depends(get_request_context),
+):
     repo = get_portfolio_repo()
 
     try:
@@ -67,71 +68,57 @@ def create_portfolio(payload: PortfolioCreate, profile_id: str | None = Query(de
     except Exception as e:
         raise HTTPException(status_code=422, detail=str(e))
 
-
-    def create_account_if_missing(*, account_id: str, name: str, currency, opened_on: dt.date, profile_id: str | None = None) -> None:
-        """
-        Crée un compte passerelle si absent.
-        Compatible avec ton domain Account (dataclass) et ton JsonAccountRepository.add().
-        """
-        repo = get_account_repo()
-
+    def create_account_if_missing(*, account_id: str, name: str, currency, opened_on: dt.date) -> None:
+        acc_repo = get_account_repo()
         try:
-            repo.get_account(account_id, profile_id=profile_id)
+            acc_repo.get_account(account_id, profile_id=ctx.profile_id)
             return
         except KeyError:
             pass
 
-        # opening_balance must be SignedMoney, opened_on is required
         opening_balance = SignedMoney(amount=Decimal("0.00"), currency=currency)
 
         try:
             account = Account(
-                id=account_id.strip(),
-                name=name.strip(),
-                currency=currency,
-                opening_balance=opening_balance,
-                opened_on=opened_on,              # ✅ on utilise l'argument (date du portfolio)
+                id=account_id.strip(), name=name.strip(), currency=currency,
+                opening_balance=opening_balance, opened_on=opened_on,
                 account_type=AccountType.OTHER,
             )
         except Exception as e:
             raise HTTPException(status_code=422, detail=f"cannot create pass-through account: {e}")
 
         try:
-            repo.add(account, profile_id=profile_id)  # <-- c'est bien add() dans ton repo
+            acc_repo.add(account, profile_id=ctx.profile_id)
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"failed to persist pass-through account: {e}")
 
-
     create_account_if_missing(
-        account_id=p.cash_account_id,
-        name=f"Passerelle - {p.name}",
-        currency=p.currency,
-        opened_on=p.opened_on,
-        profile_id=profile_id,
+        account_id=p.cash_account_id, name=f"Passerelle - {p.name}",
+        currency=p.currency, opened_on=p.opened_on,
     )
 
-    repo.add(p, profile_id=profile_id)
+    repo.add(p, profile_id=ctx.profile_id)
 
     return PortfolioOut(
-        id=p.id,
-        name=p.name,
-        currency=p.currency.value,
-        portfolio_type=p.portfolio_type.value,
-        opened_on=p.opened_on,
+        id=p.id, name=p.name, currency=p.currency.value,
+        portfolio_type=p.portfolio_type.value, opened_on=p.opened_on,
         cash_account_id=p.cash_account_id,
     )
 
+
 @router.patch("/{portfolio_id}", response_model=PortfolioOut)
-def update_portfolio(portfolio_id: UUID, req: PortfolioUpdateRequest, profile_id: str | None = Query(default=None)) -> PortfolioOut:
+def update_portfolio(
+    portfolio_id: UUID,
+    req: PortfolioUpdateRequest,
+    ctx: RequestContext = Depends(get_request_context),
+) -> PortfolioOut:
     repo = get_portfolio_repo()
 
-    # exists?
     try:
-        repo.get(portfolio_id, profile_id=profile_id)
+        repo.get(portfolio_id, profile_id=ctx.profile_id)
     except KeyError:
         raise HTTPException(status_code=404, detail="portfolio not found")
 
-    # parse portfolio_type if provided
     ptype = None
     if req.portfolio_type is not None:
         try:
@@ -141,10 +128,8 @@ def update_portfolio(portfolio_id: UUID, req: PortfolioUpdateRequest, profile_id
 
     try:
         updated = repo.update(
-            portfolio_id=portfolio_id,
-            name=req.name,
-            portfolio_type=ptype,
-            profile_id=profile_id,
+            portfolio_id=portfolio_id, name=req.name,
+            portfolio_type=ptype, profile_id=ctx.profile_id,
         )
     except KeyError:
         raise HTTPException(status_code=404, detail="portfolio not found")
@@ -152,30 +137,35 @@ def update_portfolio(portfolio_id: UUID, req: PortfolioUpdateRequest, profile_id
         raise HTTPException(status_code=422, detail=str(e))
 
     return PortfolioOut(
-        id=updated.id,
-        name=updated.name,
-        currency=updated.currency.value,
-        portfolio_type=updated.portfolio_type.value,
-        opened_on=updated.opened_on,
+        id=updated.id, name=updated.name, currency=updated.currency.value,
+        portfolio_type=updated.portfolio_type.value, opened_on=updated.opened_on,
         cash_account_id=updated.cash_account_id,
     )
 
+
 @router.delete("/{portfolio_id}")
-def delete_portfolio(portfolio_id: UUID, profile_id: str | None = Query(default=None)):
+def delete_portfolio(
+    portfolio_id: UUID,
+    ctx: RequestContext = Depends(get_request_context),
+):
     repo = get_portfolio_repo()
-    ok = repo.delete(portfolio_id=portfolio_id, profile_id=profile_id)
+    ok = repo.delete(portfolio_id=portfolio_id, profile_id=ctx.profile_id)
     if not ok:
         raise HTTPException(status_code=404, detail="portfolio not found")
     return {"deleted": True}
 
 
 @router.post("/{portfolio_id}/snapshots", response_model=PortfolioSnapshotOut)
-def add_snapshot(portfolio_id: UUID, payload: PortfolioSnapshotCreate, profile_id: str | None = Query(default=None)):
+def add_snapshot(
+    portfolio_id: UUID,
+    payload: PortfolioSnapshotCreate,
+    ctx: RequestContext = Depends(get_request_context),
+):
     p_repo = get_portfolio_repo()
     s_repo = get_portfolio_snapshot_repo()
 
     try:
-        portfolio = p_repo.get(portfolio_id, profile_id=profile_id)
+        portfolio = p_repo.get(portfolio_id, profile_id=ctx.profile_id)
     except KeyError:
         raise HTTPException(status_code=404, detail="portfolio not found")
 
@@ -185,24 +175,17 @@ def add_snapshot(portfolio_id: UUID, payload: PortfolioSnapshotCreate, profile_i
         if cur != portfolio.currency:
             raise HTTPException(status_code=422, detail="snapshot currency must match portfolio currency")
         snap = PortfolioSnapshot.create(
-            portfolio_id=portfolio_id,
-            date=payload.date,
-            value=value,
-            note=payload.note,
+            portfolio_id=portfolio_id, date=payload.date, value=value, note=payload.note,
         )
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(status_code=422, detail=str(e))
 
-    s_repo.add(snap, profile_id=profile_id)
+    s_repo.add(snap, profile_id=ctx.profile_id)
     return PortfolioSnapshotOut(
-        id=snap.id,
-        portfolio_id=snap.portfolio_id,
-        date=snap.date,
-        value=f"{snap.value.amount:.2f}",
-        currency=snap.value.currency.value,
-        note=snap.note,
+        id=snap.id, portfolio_id=snap.portfolio_id, date=snap.date,
+        value=f"{snap.value.amount:.2f}", currency=snap.value.currency.value, note=snap.note,
     )
 
 
@@ -211,17 +194,17 @@ def list_snapshots(
     portfolio_id: UUID,
     date_from: dt.date | None = Query(default=None, alias="from"),
     date_to: dt.date | None = Query(default=None, alias="to"),
-    profile_id: str | None = Query(default=None),
+    ctx: RequestContext = Depends(get_request_context),
 ):
     p_repo = get_portfolio_repo()
     s_repo = get_portfolio_snapshot_repo()
 
     try:
-        p_repo.get(portfolio_id, profile_id=profile_id)
+        p_repo.get(portfolio_id, profile_id=ctx.profile_id)
     except KeyError:
         raise HTTPException(status_code=404, detail="portfolio not found")
 
-    snaps = s_repo.list(portfolio_id=portfolio_id, profile_id=profile_id)
+    snaps = s_repo.list(portfolio_id=portfolio_id, profile_id=ctx.profile_id)
     if date_from is not None:
         snaps = [s for s in snaps if s.date >= date_from]
     if date_to is not None:
@@ -229,12 +212,8 @@ def list_snapshots(
 
     return [
         PortfolioSnapshotOut(
-            id=s.id,
-            portfolio_id=s.portfolio_id,
-            date=s.date,
-            value=f"{s.value.amount:.2f}",
-            currency=s.value.currency.value,
-            note=s.note,
+            id=s.id, portfolio_id=s.portfolio_id, date=s.date,
+            value=f"{s.value.amount:.2f}", currency=s.value.currency.value, note=s.note,
         )
         for s in snaps
     ]

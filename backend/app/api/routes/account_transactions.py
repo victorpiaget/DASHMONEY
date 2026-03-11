@@ -3,13 +3,13 @@ from __future__ import annotations
 import datetime as dt
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Query, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 
-from app.api.deps import get_account_repo, get_tx_repo
-from app.api.schemas.transactions import AccountTransactionCreateRequest, TransactionResponse,TransactionUpdateRequest
+from app.api.deps import get_account_repo, get_tx_repo, get_request_context
+from app.api.schemas.transactions import AccountTransactionCreateRequest, TransactionResponse, TransactionUpdateRequest
 from app.domain.signed_money import SignedMoney
 from app.domain.transaction import Transaction, TransactionKind
-from app.identity.profile_scope import resolve_profile_id
+from app.identity.request_context import RequestContext
 from app.services.transaction_query_service import TransactionQuery, apply_transaction_query
 
 router = APIRouter(prefix="/accounts", tags=["transactions"])
@@ -19,12 +19,10 @@ router = APIRouter(prefix="/accounts", tags=["transactions"])
 def create_account_transaction(
     account_id: str,
     payload: AccountTransactionCreateRequest,
-    profile_id: str | None = Query(default=None),
+    ctx: RequestContext = Depends(get_request_context),
 ) -> TransactionResponse:
-    pid = resolve_profile_id(profile_id)
-
     try:
-        acc = get_account_repo().get_account(account_id, profile_id=pid)
+        acc = get_account_repo().get_account(account_id, profile_id=ctx.profile_id)
     except KeyError:
         raise HTTPException(status_code=404, detail="Account not found")
 
@@ -34,7 +32,7 @@ def create_account_transaction(
         raise HTTPException(status_code=422, detail=str(e))
 
     tx_repo = get_tx_repo()
-    seq = tx_repo.next_sequence(acc.id, payload.date, profile_id=pid)
+    seq = tx_repo.next_sequence(acc.id, payload.date, profile_id=ctx.profile_id)
 
     try:
         tx = Transaction.create(
@@ -51,7 +49,7 @@ def create_account_transaction(
         raise HTTPException(status_code=422, detail=str(e))
 
     try:
-        tx_repo.add(tx, profile_id=pid)
+        tx_repo.add(tx, profile_id=ctx.profile_id)
     except ValueError as e:
         raise HTTPException(status_code=409, detail=str(e))
 
@@ -59,31 +57,32 @@ def create_account_transaction(
 
 
 @router.delete("/{account_id}/transactions/{tx_id}", status_code=204)
-def delete_account_transaction(account_id: str, tx_id: UUID, profile_id: str | None = Query(default=None)) -> Response:
-    pid = resolve_profile_id(profile_id)
-
+def delete_account_transaction(
+    account_id: str,
+    tx_id: UUID,
+    ctx: RequestContext = Depends(get_request_context),
+) -> Response:
     try:
-        acc = get_account_repo().get_account(account_id, profile_id=pid)
+        acc = get_account_repo().get_account(account_id, profile_id=ctx.profile_id)
     except KeyError:
         raise HTTPException(status_code=404, detail="Account not found")
 
-    deleted = get_tx_repo().delete(account_id=acc.id, tx_id=tx_id, profile_id=pid)
+    deleted = get_tx_repo().delete(account_id=acc.id, tx_id=tx_id, profile_id=ctx.profile_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Transaction not found")
 
     return Response(status_code=204)
+
 
 @router.patch("/{account_id}/transactions/{tx_id}", response_model=TransactionResponse)
 def patch_account_transaction(
     account_id: str,
     tx_id: UUID,
     payload: TransactionUpdateRequest,
-    profile_id: str | None = Query(default=None),
+    ctx: RequestContext = Depends(get_request_context),
 ) -> TransactionResponse:
-    pid = resolve_profile_id(profile_id)
-
     try:
-        acc = get_account_repo().get_account(account_id, profile_id=pid)
+        acc = get_account_repo().get_account(account_id, profile_id=ctx.profile_id)
     except KeyError:
         raise HTTPException(status_code=404, detail="Account not found")
 
@@ -104,7 +103,7 @@ def patch_account_transaction(
         updated = tx_repo.update(
             account_id=acc.id,
             tx_id=tx_id,
-            profile_id=pid,
+            profile_id=ctx.profile_id,
             category=payload.category,
             subcategory=payload.subcategory,
             label=payload.label,
@@ -123,7 +122,7 @@ def patch_account_transaction(
 @router.get("/{account_id}/transactions", response_model=list[TransactionResponse])
 def list_account_transactions(
     account_id: str,
-    profile_id: str | None = Query(default=None),
+    ctx: RequestContext = Depends(get_request_context),
     date_from: dt.date | None = Query(default=None),
     date_to: dt.date | None = Query(default=None),
     kinds: list[TransactionKind] | None = Query(default=None),
@@ -133,14 +132,12 @@ def list_account_transactions(
     sort_by: str = Query(default="date", pattern="^(date|amount|kind|category|subcategory|label)$"),
     sort_dir: str = Query(default="asc", pattern="^(asc|desc)$"),
 ) -> list[TransactionResponse]:
-    pid = resolve_profile_id(profile_id)
-
     try:
-        acc = get_account_repo().get_account(account_id, profile_id=pid)
+        acc = get_account_repo().get_account(account_id, profile_id=ctx.profile_id)
     except KeyError:
         raise HTTPException(status_code=404, detail="Account not found")
 
-    txs = get_tx_repo().list(account_id=acc.id, profile_id=pid)
+    txs = get_tx_repo().list(account_id=acc.id, profile_id=ctx.profile_id)
 
     query_obj = TransactionQuery(
         date_from=date_from,
@@ -156,6 +153,7 @@ def list_account_transactions(
     txs = apply_transaction_query(txs, query_obj)
     return [_tx_to_response(t) for t in txs]
 
+
 def _tx_to_response(tx: Transaction) -> TransactionResponse:
     return TransactionResponse(
         id=str(tx.id),
@@ -163,11 +161,11 @@ def _tx_to_response(tx: Transaction) -> TransactionResponse:
         date=tx.date,
         sequence=tx.sequence,
         amount=str(tx.amount.amount),
-        currency=tx.amount.currency.value,  # renvoie "EUR" stable
+        currency=tx.amount.currency.value,
         kind=tx.kind,
         category=tx.category,
         subcategory=tx.subcategory,
         label=tx.label,
         created_at=tx.created_at,
-        transfer_id=tx.transfer_id,  # <-- NOUVEAU (UUID ou None)
+        transfer_id=tx.transfer_id,
     )

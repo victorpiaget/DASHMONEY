@@ -3,13 +3,14 @@ import datetime as dt
 from typing import Optional
 
 class AccountCreateRequest(BaseModel):
+    model_config = {"extra": "ignore"}
+
     id: str = Field(min_length=1)
     name: str = Field(min_length=1)
     currency: str = Field(min_length=1)          # "EUR"
     opening_balance: str = Field(min_length=1)   # "0.00 EUR" ou format attendu par SignedMoney
     opened_on: dt.date
     account_type: str = "CHECKING"
-    profile_id: Optional[str] = None
 
 
 class AccountResponse(BaseModel):

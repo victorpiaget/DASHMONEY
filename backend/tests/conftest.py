@@ -1,18 +1,27 @@
 # backend/tests/conftest.py
 import os
+os.environ.setdefault("DASHMONEY_SECRET_KEY", "test-secret-key-for-tests-only")
 
 import pytest
 from sqlalchemy import select, text
 
 from app.db import get_engine, get_session_factory
 from app.db_base import Base
+from app.identity.auth import hash_password
 from app.identity.defaults import (
     DEFAULT_PROFILE_ID,
     DEFAULT_PROFILE_NAME,
+    DEFAULT_PROFILE2_ID,
+    DEFAULT_PROFILE2_NAME,
+    DEFAULT_TEST_PASSWORD,
     DEFAULT_USER_EMAIL,
     DEFAULT_USER_ID,
+    DEFAULT_USER2_EMAIL,
+    DEFAULT_USER2_ID,
     DEFAULT_WORKSPACE_ID,
     DEFAULT_WORKSPACE_NAME,
+    DEFAULT_WORKSPACE2_ID,
+    DEFAULT_WORKSPACE2_NAME,
 )
 from app.repositories.sql_identity_models import (
     ProfileAccessRow,
@@ -21,6 +30,9 @@ from app.repositories.sql_identity_models import (
     WorkspaceMembershipRow,
     WorkspaceRow,
 )
+
+# Pre-compute once — bcrypt is intentionally slow, no need to re-hash 114 times
+_HASHED_TEST_PASSWORD = hash_password(DEFAULT_TEST_PASSWORD)
 
 
 def _import_models() -> None:
@@ -44,7 +56,7 @@ def _seed_default_identity() -> None:
                 UserRow(
                     id=DEFAULT_USER_ID,
                     email=DEFAULT_USER_EMAIL,
-                    password_hash="TEST_ONLY",
+                    password_hash=_HASHED_TEST_PASSWORD,
                     is_disabled=False,
                 )
             )
@@ -104,8 +116,71 @@ def _seed_default_identity() -> None:
                 )
             )
 
+        # --- User 2 : workspace + profil isolés ---
+        if s.get(UserRow, DEFAULT_USER2_ID) is None:
+            s.add(
+                UserRow(
+                    id=DEFAULT_USER2_ID,
+                    email=DEFAULT_USER2_EMAIL,
+                    password_hash=_HASHED_TEST_PASSWORD,
+                    is_disabled=False,
+                )
+            )
+
+        if s.get(WorkspaceRow, DEFAULT_WORKSPACE2_ID) is None:
+            s.add(
+                WorkspaceRow(
+                    id=DEFAULT_WORKSPACE2_ID,
+                    name=DEFAULT_WORKSPACE2_NAME,
+                )
+            )
+
+        s.flush()
+
+        if s.get(ProfileRow, DEFAULT_PROFILE2_ID) is None:
+            s.add(
+                ProfileRow(
+                    id=DEFAULT_PROFILE2_ID,
+                    workspace_id=DEFAULT_WORKSPACE2_ID,
+                    display_name=DEFAULT_PROFILE2_NAME,
+                )
+            )
+
+        s.flush()
+
+        membership2 = s.execute(
+            select(WorkspaceMembershipRow).where(
+                WorkspaceMembershipRow.workspace_id == DEFAULT_WORKSPACE2_ID,
+                WorkspaceMembershipRow.user_id == DEFAULT_USER2_ID,
+            )
+        ).scalar_one_or_none()
+        if membership2 is None:
+            s.add(
+                WorkspaceMembershipRow(
+                    workspace_id=DEFAULT_WORKSPACE2_ID,
+                    user_id=DEFAULT_USER2_ID,
+                    role="OWNER",
+                )
+            )
+
+        access2 = s.execute(
+            select(ProfileAccessRow).where(
+                ProfileAccessRow.profile_id == DEFAULT_PROFILE2_ID,
+                ProfileAccessRow.user_id == DEFAULT_USER2_ID,
+            )
+        ).scalar_one_or_none()
+        if access2 is None:
+            s.add(
+                ProfileAccessRow(
+                    profile_id=DEFAULT_PROFILE2_ID,
+                    user_id=DEFAULT_USER2_ID,
+                    permission="OWNER",
+                )
+            )
+
         s.commit()
-        
+
+
 @pytest.fixture(scope="session")
 def db_url() -> str:
     url = os.getenv("DASHMONEY_TEST_DATABASE_URL", "").strip()
@@ -146,10 +221,35 @@ def db_reset(db_engine) -> None:
     _seed_default_identity()
 
 
+@pytest.fixture(scope="session")
+def auth_headers(db_schema) -> dict:
+    from fastapi.testclient import TestClient
+    from app.api.main import app
+
+    with TestClient(app) as c:
+        resp = c.post("/auth/login", json={"email": DEFAULT_USER_EMAIL, "password": DEFAULT_TEST_PASSWORD})
+        assert resp.status_code == 200, f"Login failed: {resp.text}"
+        token = resp.json()["access_token"]
+    return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture(scope="session")
+def auth_headers_user2(db_schema) -> dict:
+    from fastapi.testclient import TestClient
+    from app.api.main import app
+
+    with TestClient(app) as c:
+        resp = c.post("/auth/login", json={"email": DEFAULT_USER2_EMAIL, "password": DEFAULT_TEST_PASSWORD})
+        assert resp.status_code == 200, f"Login user2 failed: {resp.text}"
+        token = resp.json()["access_token"]
+    return {"Authorization": f"Bearer {token}"}
+
+
 @pytest.fixture()
-def client(db_engine, db_url: str):
+def client(db_engine, db_url: str, auth_headers: dict):
     from fastapi.testclient import TestClient
     from app.api.main import app
 
     with TestClient(app) as test_client:
+        test_client.headers.update(auth_headers)
         yield test_client

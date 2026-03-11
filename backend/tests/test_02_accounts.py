@@ -43,9 +43,8 @@ def test_accounts_are_isolated_by_profile_id(client):
         "opening_balance": "50.00",
         "opened_on": "2026-01-02",
         "account_type": "CHECKING",
-        "profile_id": other_profile_id,
     }
-    r = client.post("/accounts", json=payload)
+    r = client.post("/accounts", json=payload, params={"profile_id": other_profile_id})
     assert r.status_code == 201
 
     # list in default profile => must NOT include ACC_B

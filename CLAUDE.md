@@ -89,7 +89,23 @@ Variables d'environnement nécessaires (PowerShell) :
 ```powershell
 $env:DASHMONEY_DATABASE_URL="postgresql+psycopg://dashmoney:dashmoney@localhost:5432/dashmoney"
 $env:DASHMONEY_TEST_DATABASE_URL="postgresql+psycopg://dashmoney:dashmoney@localhost:5432/dashmoney_test"
+$env:DASHMONEY_SECRET_KEY="<clé-secrète-32-octets-minimum>"
 ```
+
+---
+
+## Authentification JWT
+
+Toute l'API est protégée par JWT (`Authorization: Bearer <token>`).
+
+- `POST /auth/register` → crée un utilisateur
+- `POST /auth/login` → retourne `{access_token (15min), refresh_token (30j)}`
+- `POST /auth/refresh` → rotation : révoque l'ancien, émet un nouveau pair
+- `POST /auth/logout` → révoque le refresh token
+
+**Refresh tokens** : stockés hashés (SHA-256) en base dans la table `refresh_tokens`. Si un token révoqué est réutilisé → tous les tokens de l'user sont révoqués (détection de vol).
+
+**`DASHMONEY_SECRET_KEY`** : variable d'environnement obligatoire pour signer les JWT. Lève `RuntimeError` au démarrage si absente.
 
 ---
 
@@ -97,11 +113,13 @@ $env:DASHMONEY_TEST_DATABASE_URL="postgresql+psycopg://dashmoney:dashmoney@local
 
 Chaque ressource appartient à un `profile_id`.
 
-- Si `profile_id` est absent d'une requête → `resolve_profile_id()` retourne `DEFAULT_PROFILE_ID`
-- `DEFAULT_PROFILE_ID` est défini dans `identity/defaults.py`
-- Tous les endpoints CRUD doivent respecter ce scoping (read + write + delete)
+- Chaque requête est authentifiée → `get_request_context` vérifie que l'user a accès au profil demandé
+- Si `profile_id` est absent du query param → `resolve_profile_id()` retourne `DEFAULT_PROFILE_ID`
+- La vérification se fait via la table `profile_access` (méthode `has_profile_access`)
+- Tous les endpoints CRUD utilisent `ctx: RequestContext = Depends(get_request_context)`
 
 **Règle d'or** : un endpoint ne peut jamais lire/modifier/supprimer une ressource d'un autre profil.
+Un user ne peut accéder qu'aux profils pour lesquels il a une entrée dans `profile_access`.
 
 ---
 
@@ -121,7 +139,8 @@ Chaque ressource appartient à un `profile_id`.
 - `_to_row(obj, profile_id: str)` : `profile_id` passé explicitement, jamais hardcodé
 
 ### Routes API
-- Toujours exposer `profile_id: str | None = Query(default=None)` sur les endpoints qui touchent des ressources
+- Toujours utiliser `ctx: RequestContext = Depends(get_request_context)` sur les endpoints qui touchent des ressources
+- `profile_id` vient du query param (optionnel) — **jamais** du body
 - Utiliser `Decimal` (jamais `float`) pour les montants
 - Montants sérialisés en `str` dans les réponses JSON (évite les erreurs de précision)
 
@@ -135,13 +154,14 @@ Chaque ressource appartient à un `profile_id`.
 ## État actuel du projet (mars 2026)
 
 ### Ce qui est stable
-- Domain objects (Account, Transaction, Trade, Portfolio, etc.)
+- Domain objects (Account, Transaction, Trade, Portfolio, User, RefreshToken, etc.)
 - Engine de calcul (balance, timeseries, net worth)
 - Repositories SQL avec Alembic
-- Système identity/profils (Workspace → Profile)
-- Tests d'intégration (**114 tests**, base PostgreSQL dédiée)
-- **Profile scoping complet sur toute l'API** (accounts, transactions, net worth, portfolios, trades, imports, budgets)
-- `on_event` migré vers `lifespan` FastAPI
+- Système identity/profils (Workspace → Profile) + authentification JWT complète
+- Tests d'intégration (**127 tests**, base PostgreSQL dédiée)
+- **Authentification JWT sur toute l'API** — access token 15min, refresh token 30j avec rotation
+- **Profile scoping complet** vérifié par `profile_access` à chaque requête
+- Multi-user réel avec isolation stricte entre workspaces
 
 ### Prochaines étapes identifiées
 - Frontend (à définir)
@@ -151,11 +171,14 @@ Chaque ressource appartient à un `profile_id`.
 - `profile_id` est retourné dans toutes les réponses API de type AccountResponse (explicite)
 - `profile_id` n'est PAS dans les domain objects (séparation domaine / persistance)
 - Le `profile_id` dans les réponses est passé explicitement au mapper `_account_to_response(account, *, profile_id: str)`
-- `resolve_profile_id()` est appelé au niveau de la route (pas dans le repo) — pattern uniforme sur toute l'API
+- `RequestContext(user_id, profile_id)` est l'unique point d'entrée du contexte dans les routes
+- `resolve_profile_id()` est appelé dans `get_request_context` (pas dans les repos)
 - `_to_row(obj, profile_id: str)` reçoit `profile_id` en paramètre explicite — pas de `DEFAULT_PROFILE_ID` hardcodé dans les mappers
 - `SqlTransactionRepository` est indépendant de `AccountRepository` — pas de dépendance injectée
 - Toutes les interfaces repo utilisent `Protocol` (plus de ABC)
 - `update()` est présent dans toutes les interfaces Protocol (AccountRepository, PortfolioRepository)
+- Refresh tokens : stockés hashés (SHA-256), rotation systématique, révocation en cascade sur réutilisation
+- `passlib` retiré — on utilise `bcrypt` directement pour le hachage des mots de passe
 
 ---
 
@@ -176,10 +199,14 @@ Chaque ressource appartient à un `profile_id`.
 | Fichier | Rôle |
 |---|---|
 | `backend/app/api/main.py` | Point d'entrée FastAPI, enregistrement des routers |
-| `backend/app/api/deps.py` | Injection de dépendances (repos via `lru_cache`) |
-| `backend/app/identity/defaults.py` | IDs par défaut (DEFAULT_PROFILE_ID, etc.) |
+| `backend/app/api/deps.py` | Injection de dépendances + `get_current_user` + `get_request_context` |
+| `backend/app/api/routes/auth.py` | `POST /auth/login|register|refresh|logout` |
+| `backend/app/identity/auth.py` | JWT + bcrypt + refresh token helpers |
+| `backend/app/identity/request_context.py` | `RequestContext(user_id, profile_id)` |
+| `backend/app/identity/defaults.py` | IDs par défaut (user1, user2, profils, workspaces) |
 | `backend/app/identity/profile_scope.py` | `resolve_profile_id()` |
+| `backend/app/repositories/sql_identity_models.py` | Modèles SQLAlchemy (User, Workspace, Profile, RefreshToken…) |
 | `backend/app/db.py` | Config SQLAlchemy (engine, session) |
 | `backend/app/db_base.py` | `Base` déclarative SQLAlchemy |
-| `backend/tests/conftest.py` | Fixtures pytest (drop/create tables + seed identité) |
+| `backend/tests/conftest.py` | Fixtures pytest (seed user1+user2, auth_headers, client) |
 | `backend/migrations/` | Migrations Alembic |
