@@ -38,6 +38,12 @@ def compute_net_worth(
         if currency is None:
             currency = balance.currency
 
+    # Cas aucun compte → net worth = 0 EUR par défaut
+    if currency is None:
+        from app.domain.money import Currency
+
+        return SignedMoney.zero(Currency.EUR)
+
     return SignedMoney(amount=total, currency=currency)
 
 

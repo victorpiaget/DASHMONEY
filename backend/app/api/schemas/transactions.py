@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import datetime as dt
 from pydantic import BaseModel, Field
+from uuid import UUID  # <-- ajoute ça en haut
 
 from app.domain.money import Currency
 from app.domain.transaction import TransactionKind
@@ -34,6 +35,7 @@ class TransactionResponse(BaseModel):
     subcategory: str | None
     label: str | None
     created_at: dt.datetime
+    transfer_id: UUID | None = None
 
 
 class TransactionUpdateRequest(BaseModel):

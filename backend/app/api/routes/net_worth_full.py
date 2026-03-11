@@ -22,21 +22,24 @@ def _ensure_single_currency(accounts) -> str:
 
 
 @router.get("", response_model=NetWorthFullResponse)
-def get_net_worth_full(at: dt.date | None = Query(default=None)) -> NetWorthFullResponse:
+def get_net_worth_full(
+    at: dt.date | None = Query(default=None),
+    profile_id: str | None = Query(default=None),
+) -> NetWorthFullResponse:
     acc_repo = get_account_repo()
     tx_repo = get_tx_repo()
     p_repo = get_portfolio_repo()
     s_repo = get_portfolio_snapshot_repo()
 
-    accounts = acc_repo.list_accounts()
+    accounts = acc_repo.list_accounts(profile_id=profile_id)
     currency = _ensure_single_currency(accounts)
 
     all_txs = []
     for acc in accounts:
-        all_txs.extend(tx_repo.list(account_id=acc.id))
+        all_txs.extend(tx_repo.list(account_id=acc.id, profile_id=profile_id))
 
-    portfolios = p_repo.list()
-    snaps = s_repo.list()
+    portfolios = p_repo.list(profile_id=profile_id)
+    snaps = s_repo.list(profile_id=profile_id)
 
     nw = compute_net_worth_full(
         accounts=accounts,

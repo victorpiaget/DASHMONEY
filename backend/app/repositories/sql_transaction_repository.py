@@ -19,6 +19,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, Session
 
 from app.identity.defaults import DEFAULT_PROFILE_ID
+from app.identity.profile_scope import resolve_profile_id
 
 
 from app.db import init_db, new_session
@@ -68,8 +69,9 @@ class SqlTransactionRepository(TransactionRepository):
         self._accounts = tx_account_repo
         init_db()
 
-    def add(self, tx: Transaction) -> None:
-        acc = self._accounts.get_account(tx.account_id)
+    def add(self, tx: Transaction, *, profile_id: str | None = None) -> None:
+        pid = resolve_profile_id(profile_id)
+        acc = self._accounts.get_account(tx.account_id, profile_id=pid)
         if tx.amount.currency != acc.currency:
             raise ValueError(
                 f"currency mismatch for account '{tx.account_id}': "
@@ -81,16 +83,19 @@ class SqlTransactionRepository(TransactionRepository):
             if existing is not None:
                 raise ValueError(f"Transaction with id {tx.id} already exists")
 
-            s.add(self._to_row(tx))
+            row = self._to_row(tx)
+            row.profile_id = pid
+            s.add(row)
             s.commit()
 
-    def list(self, account_id: str | None = None) -> list[Transaction]:
+    def list(self, account_id: str | None = None, *, profile_id: str | None = None) -> list[Transaction]:
+        pid = resolve_profile_id(profile_id)
         with new_session() as s:
             stmt = select(TransactionRow)
+            stmt = stmt.where(TransactionRow.profile_id == pid)
             if account_id is not None:
                 aid = account_id.strip()
                 stmt = stmt.where(TransactionRow.account_id == aid)
-                stmt = stmt.where(TransactionRow.profile_id == DEFAULT_PROFILE_ID)
 
 
             rows = s.execute(stmt).scalars().all()
@@ -98,27 +103,31 @@ class SqlTransactionRepository(TransactionRepository):
             txs.sort(key=lambda t: (t.date, t.sequence))
             return txs
 
-    def get(self, tx_id: UUID) -> Transaction | None:
+    def get(self, tx_id: UUID, *, profile_id: str | None = None) -> Transaction | None:
+        pid = resolve_profile_id(profile_id)
         with new_session() as s:
             row = s.get(TransactionRow, str(tx_id))
-            if row is None or row.profile_id != DEFAULT_PROFILE_ID:
+            if row is None or row.profile_id != pid:
                 return None
             return self._to_domain(row)
 
 
-    def next_sequence(self, account_id: str, date: dt.date) -> int:
+    def next_sequence(self, account_id: str, date: dt.date, *, profile_id: str | None = None) -> int:
+        pid = resolve_profile_id(profile_id)
         aid = account_id.strip()
         with new_session() as s:
-            return self._next_sequence_in_session(s, account_id=aid, date=date)
+            # sequence is per (account,date) already; profile is enforced by account ownership upstream
+            return self._next_sequence_in_session(s, account_id=aid, date=date, profile_id=pid)
 
-    def delete(self, *, account_id: str, tx_id: UUID) -> bool:
+    def delete(self, *, account_id: str, tx_id: UUID, profile_id: str | None = None) -> bool:
+        pid = resolve_profile_id(profile_id)
         aid = account_id.strip()
         if not aid:
             return False
 
         with new_session() as s:
             row = s.get(TransactionRow, str(tx_id))
-            if row is None or row.profile_id != DEFAULT_PROFILE_ID:
+            if row is None or row.profile_id != pid:
                 return False
 
             if row is None:
@@ -135,6 +144,7 @@ class SqlTransactionRepository(TransactionRepository):
         *,
         account_id: str,
         tx_id: UUID,
+        profile_id: str | None = None,
         category: str | None = None,
         subcategory: str | None = None,
         label: str | None = None,
@@ -142,13 +152,14 @@ class SqlTransactionRepository(TransactionRepository):
         amount: SignedMoney | None = None,
         kind: TransactionKind | None = None,
     ) -> Transaction:
+        pid = resolve_profile_id(profile_id)
         aid = account_id.strip()
         if not aid:
             raise ValueError("account_id cannot be empty")
 
         with new_session() as s:
             row = s.get(TransactionRow, str(tx_id))
-            if row is None or row.profile_id != DEFAULT_PROFILE_ID or row.account_id != aid:
+            if row is None or row.profile_id != pid or row.account_id != aid:
                 raise KeyError("Transaction not found")
 
 
@@ -159,7 +170,7 @@ class SqlTransactionRepository(TransactionRepository):
                 raise ValueError("Transfers must be updated via /transfers endpoint")
 
             if date is not None and date != row.day:
-                row.sequence = self._next_sequence_in_session(s, account_id=aid, date=date)
+                row.sequence = self._next_sequence_in_session(s, account_id=aid, date=date, profile_id=pid)
                 row.day = date
 
             if kind is not None:
@@ -168,7 +179,7 @@ class SqlTransactionRepository(TransactionRepository):
                 row.kind = kind.value
 
             if amount is not None:
-                acc = self._accounts.get_account(aid)
+                acc = self._accounts.get_account(aid, profile_id=pid)
                 if amount.currency != acc.currency:
                     raise ValueError(
                         f"currency mismatch for account '{aid}': "
@@ -208,13 +219,15 @@ class SqlTransactionRepository(TransactionRepository):
         category: str | None = None,
         subcategory: str | None = None,
         label: str | None = None,
+        profile_id: str | None = None,
     ) -> tuple[Transaction, Transaction]:
+        pid = resolve_profile_id(profile_id)
         with new_session() as s:
             tid = str(transfer_id)
             rows = s.execute(
             select(TransactionRow)
             .where(TransactionRow.transfer_id == tid)
-            .where(TransactionRow.profile_id == DEFAULT_PROFILE_ID)
+            .where(TransactionRow.profile_id == pid)
 
             ).scalars().all()
             if len(rows) != 2:
@@ -241,11 +254,11 @@ class SqlTransactionRepository(TransactionRepository):
             if new_date is not None:
                 if new_date != row_from.day:
                     row_from.sequence = self._next_sequence_in_session(
-                        s, account_id=row_from.account_id, date=new_date
+                        s, account_id=row_from.account_id, date=new_date, profile_id=pid
                     )
                 if new_date != row_to.day:
                     row_to.sequence = self._next_sequence_in_session(
-                        s, account_id=row_to.account_id, date=new_date
+                        s, account_id=row_to.account_id, date=new_date, profile_id=pid
                     )
                 row_from.day = new_date
                 row_to.day = new_date
@@ -254,8 +267,8 @@ class SqlTransactionRepository(TransactionRepository):
                 if new_amount_pos.amount <= 0:
                     raise ValueError("amount must be > 0")
 
-                acc_from = self._accounts.get_account(row_from.account_id)
-                acc_to = self._accounts.get_account(row_to.account_id)
+                acc_from = self._accounts.get_account(row_from.account_id, profile_id=pid)
+                acc_to = self._accounts.get_account(row_to.account_id, profile_id=pid)
                 if (
                     new_amount_pos.currency != acc_from.currency
                     or new_amount_pos.currency != acc_to.currency
@@ -288,11 +301,12 @@ class SqlTransactionRepository(TransactionRepository):
 
             return self._to_domain(row_from), self._to_domain(row_to)
 
-    def delete_transfer(self, *, transfer_id: UUID) -> tuple[UUID, UUID]:
+    def delete_transfer(self, *, transfer_id: UUID, profile_id: str | None = None) -> tuple[UUID, UUID]:
+        pid = resolve_profile_id(profile_id)
         with new_session() as s:
             tid = str(transfer_id)
             rows = s.execute(
-                select(TransactionRow).where(TransactionRow.transfer_id == tid)
+                select(TransactionRow).where(TransactionRow.transfer_id == tid).where(TransactionRow.profile_id == pid)
             ).scalars().all()
             if len(rows) != 2:
                 raise KeyError("Transfer not found")
@@ -310,12 +324,12 @@ class SqlTransactionRepository(TransactionRepository):
             return id1, id2
 
     @staticmethod
-    def _next_sequence_in_session(s: Session, *, account_id: str, date: dt.date) -> int:
+    def _next_sequence_in_session(s: Session, *, account_id: str, date: dt.date, profile_id: str) -> int:
         stmt = (
             select(func.max(TransactionRow.sequence))
             .where(TransactionRow.account_id == account_id)
             .where(TransactionRow.day == date)
-            .where(TransactionRow.profile_id == DEFAULT_PROFILE_ID)
+            .where(TransactionRow.profile_id == profile_id)
 
         )
         max_seq = s.execute(stmt).scalar_one_or_none()

@@ -12,6 +12,7 @@ from app.domain.money import Currency
 from app.domain.portfolio import Portfolio, PortfolioType
 from app.repositories.portfolio_repository import PortfolioRepository
 from app.identity.defaults import DEFAULT_PROFILE_ID
+from app.identity.profile_scope import resolve_profile_id
 from app.repositories.sql_identity_models import ProfileRow  # noqa: F401
 
 
@@ -45,40 +46,46 @@ class SqlPortfolioRepository(PortfolioRepository):
 
     # -------- list --------
 
-    def list(self) -> list[Portfolio]:
+    def list(self, *, profile_id: str | None = None) -> list[Portfolio]:
+        pid = resolve_profile_id(profile_id)
         with new_session() as s:
             rows = s.execute(
-                select(PortfolioRow).where(PortfolioRow.profile_id == DEFAULT_PROFILE_ID)
+                select(PortfolioRow).where(PortfolioRow.profile_id == pid)
             ).scalars().all()
 
             return [self._to_domain(r) for r in rows]
 
     # -------- get --------
 
-    def get(self, portfolio_id: UUID) -> Portfolio:
+    def get(self, portfolio_id: UUID, *, profile_id: str | None = None) -> Portfolio:
+        pid = resolve_profile_id(profile_id)
         with new_session() as s:
             row = s.get(PortfolioRow, str(portfolio_id))
-            if row is None or row.profile_id != DEFAULT_PROFILE_ID:
+            if row is None or row.profile_id != pid:
                 raise KeyError(f"unknown portfolio_id '{portfolio_id}'")
 
             return self._to_domain(row)
 
     # -------- add --------
 
-    def add(self, portfolio: Portfolio) -> None:
+    def add(self, portfolio: Portfolio, *, profile_id: str | None = None) -> None:
+        pid = resolve_profile_id(profile_id)
         with new_session() as s:
             if s.get(PortfolioRow, str(portfolio.id)) is not None:
                 raise ValueError(f"portfolio id '{portfolio.id}' already exists")
 
-            s.add(self._to_row(portfolio))
+            row = self._to_row(portfolio)
+            row.profile_id = pid
+            s.add(row)
             s.commit()
 
     # -------- delete --------
 
-    def delete(self, *, portfolio_id: UUID) -> bool:
+    def delete(self, *, portfolio_id: UUID, profile_id: str | None = None) -> bool:
+        pid = resolve_profile_id(profile_id)
         with new_session() as s:
             row = s.get(PortfolioRow, str(portfolio_id))
-            if row is None:
+            if row is None or row.profile_id != pid:
                 return False
             s.delete(row)
             s.commit()

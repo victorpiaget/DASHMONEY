@@ -53,11 +53,12 @@ def _filter_accounts_by_type(accounts, selected: set[AccountType] | None):
 def get_net_worth(
     at: dt.date | None = Query(default=None),
     types: str | None = Query(default=None, description="CSV of account types, e.g. CHECKING,SAVINGS"),
+    profile_id: str | None = Query(default=None),
 ) -> NetWorthResponse:
     acc_repo = get_account_repo()
     tx_repo = get_tx_repo()
 
-    accounts = acc_repo.list_accounts()
+    accounts = acc_repo.list_accounts(profile_id=profile_id)
     selected = _parse_types(types)
     accounts = _filter_accounts_by_type(accounts, selected)
     currency = _ensure_single_currency(accounts)
@@ -65,7 +66,7 @@ def get_net_worth(
     # On récupère toutes les transactions (par compte) puis on agrège via le moteur
     all_txs = []
     for acc in accounts:
-        all_txs.extend(tx_repo.list(account_id=acc.id))
+        all_txs.extend(tx_repo.list(account_id=acc.id, profile_id=profile_id))
 
     nw = compute_net_worth(
         accounts=accounts,
@@ -86,6 +87,7 @@ def get_net_worth_timeseries(
     date_to: dt.date = Query(..., alias="to"),
     granularity: str = Query(default="auto", pattern="^(auto|daily|weekly|monthly|yearly)$"),
     types: str | None = Query(default=None, description="CSV of account types, e.g. CHECKING,SAVINGS"),
+    profile_id: str | None = Query(default=None),
 ) -> NetWorthTimeseriesResponse:
     if date_from > date_to:
         raise HTTPException(status_code=422, detail="from must be <= to")
@@ -93,14 +95,14 @@ def get_net_worth_timeseries(
     acc_repo = get_account_repo()
     tx_repo = get_tx_repo()
 
-    accounts = acc_repo.list_accounts()
+    accounts = acc_repo.list_accounts(profile_id=profile_id)
     selected = _parse_types(types)
     accounts = _filter_accounts_by_type(accounts, selected)
     currency = _ensure_single_currency(accounts)
 
     all_txs = []
     for acc in accounts:
-        all_txs.extend(tx_repo.list(account_id=acc.id))
+        all_txs.extend(tx_repo.list(account_id=acc.id, profile_id=profile_id))
 
     g = pick_granularity(date_from, date_to) if granularity == "auto" else granularity
 

@@ -9,6 +9,7 @@ from app.repositories.sql_trade_repository import SqlTradeRepository
 from app.repositories.sql_portfolio_repository import SqlPortfolioRepository
 from app.repositories.sql_portfolio_snapshot_repository import SqlPortfolioSnapshotRepository
 from app.repositories.sql_price_repository import SqlPriceRepository
+from app.repositories.sql_identity_repository import SqlProfileRepository, SqlWorkspaceRepository
 
 
 @lru_cache
@@ -40,3 +41,12 @@ def get_trade_repo():
 @lru_cache
 def get_price_repo():
     return SqlPriceRepository()
+
+@lru_cache
+def get_workspace_repo():
+    return SqlWorkspaceRepository()
+
+
+@lru_cache
+def get_profile_repo():
+    return SqlProfileRepository()

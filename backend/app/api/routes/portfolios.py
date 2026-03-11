@@ -21,10 +21,10 @@ router = APIRouter(prefix="/portfolios", tags=["portfolios"])
 
 
 @router.get("", response_model=list[PortfolioOut])
-def list_portfolios():
+def list_portfolios(profile_id: str | None = Query(default=None)):
     repo = get_portfolio_repo()
     out = []
-    for p in repo.list():
+    for p in repo.list(profile_id=profile_id):
         out.append(PortfolioOut(
             id=p.id,
             name=p.name,
@@ -36,8 +36,22 @@ def list_portfolios():
     return out
 
 
+@router.get("/{portfolio_id}", response_model=PortfolioOut)
+def get_portfolio(portfolio_id: UUID, profile_id: str | None = Query(default=None)) -> PortfolioOut:
+    repo = get_portfolio_repo()
+    p = repo.get(portfolio_id, profile_id=profile_id)
+    return PortfolioOut(
+        id=p.id,
+        name=p.name,
+        currency=p.currency.value,
+        portfolio_type=p.portfolio_type.value,
+        opened_on=p.opened_on,
+        cash_account_id=p.cash_account_id,
+    )
+
+
 @router.post("", response_model=PortfolioOut)
-def create_portfolio(payload: PortfolioCreate):
+def create_portfolio(payload: PortfolioCreate, profile_id: str | None = Query(default=None)):
     repo = get_portfolio_repo()
 
     try:
@@ -51,7 +65,7 @@ def create_portfolio(payload: PortfolioCreate):
         raise HTTPException(status_code=422, detail=str(e))
 
 
-    def create_account_if_missing(*, account_id: str, name: str, currency, opened_on: dt.date) -> None:
+    def create_account_if_missing(*, account_id: str, name: str, currency, opened_on: dt.date, profile_id: str | None = None) -> None:
         """
         Crée un compte passerelle si absent.
         Compatible avec ton domain Account (dataclass) et ton JsonAccountRepository.add().
@@ -59,7 +73,7 @@ def create_portfolio(payload: PortfolioCreate):
         repo = get_account_repo()
 
         try:
-            repo.get_account(account_id)
+            repo.get_account(account_id, profile_id=profile_id)
             return
         except KeyError:
             pass
@@ -80,12 +94,12 @@ def create_portfolio(payload: PortfolioCreate):
             raise HTTPException(status_code=422, detail=f"cannot create pass-through account: {e}")
 
         try:
-            repo.add(account)  # <-- c'est bien add() dans ton repo
+            repo.add(account, profile_id=profile_id)  # <-- c'est bien add() dans ton repo
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"failed to persist pass-through account: {e}")
 
 
-    repo.add(p)
+    repo.add(p, profile_id=profile_id)
 
     
     create_account_if_missing(
@@ -93,6 +107,7 @@ def create_portfolio(payload: PortfolioCreate):
         name=f"Passerelle - {p.name}",
         currency=p.currency,
         opened_on=p.opened_on,
+        profile_id=profile_id,
     )
 
     return PortfolioOut(
@@ -105,12 +120,12 @@ def create_portfolio(payload: PortfolioCreate):
     )
 
 @router.patch("/{portfolio_id}", response_model=PortfolioOut)
-def update_portfolio(portfolio_id: UUID, req: PortfolioUpdateRequest) -> PortfolioOut:
+def update_portfolio(portfolio_id: UUID, req: PortfolioUpdateRequest, profile_id: str | None = Query(default=None)) -> PortfolioOut:
     repo = get_portfolio_repo()
 
     # exists?
     try:
-        repo.get(portfolio_id)
+        repo.get(portfolio_id, profile_id=profile_id)
     except KeyError:
         raise HTTPException(status_code=404, detail="portfolio not found")
 
@@ -143,9 +158,9 @@ def update_portfolio(portfolio_id: UUID, req: PortfolioUpdateRequest) -> Portfol
     )
 
 @router.delete("/{portfolio_id}")
-def delete_portfolio(portfolio_id: UUID):
+def delete_portfolio(portfolio_id: UUID, profile_id: str | None = Query(default=None)):
     repo = get_portfolio_repo()
-    ok = repo.delete(portfolio_id=portfolio_id)
+    ok = repo.delete(portfolio_id=portfolio_id, profile_id=profile_id)
     if not ok:
         raise HTTPException(status_code=404, detail="portfolio not found")
     return {"deleted": True}

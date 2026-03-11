@@ -32,19 +32,23 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/accounts", tags=["accounts"])
 
 @router.post("/{account_id}/transfers", response_model=TransferResponse, status_code=201)
-def create_transfer(account_id: str, payload: TransferCreateRequest) -> TransferResponse:
+def create_transfer(
+    account_id: str,
+    payload: TransferCreateRequest,
+    profile_id: str | None = Query(default=None),
+) -> TransferResponse:
 
     account_repo = get_account_repo()
     tx_repo = get_tx_repo()
 
     # 1️⃣ Vérifier comptes
     try:
-        from_acc = account_repo.get_account(account_id)
+        from_acc = account_repo.get_account(account_id, profile_id=profile_id)
     except KeyError:
         raise HTTPException(status_code=404, detail="From account not found")
 
     try:
-        to_acc = account_repo.get_account(payload.to_account_id)
+        to_acc = account_repo.get_account(payload.to_account_id, profile_id=profile_id)
     except KeyError:
         raise HTTPException(status_code=404, detail="To account not found")
 
@@ -69,8 +73,8 @@ def create_transfer(account_id: str, payload: TransferCreateRequest) -> Transfer
     transfer_id = uuid4()
 
     # 4️⃣ Séquences
-    seq_from = tx_repo.next_sequence(from_acc.id, payload.date)
-    seq_to = tx_repo.next_sequence(to_acc.id, payload.date)
+    seq_from = tx_repo.next_sequence(from_acc.id, payload.date, profile_id=profile_id)
+    seq_to = tx_repo.next_sequence(to_acc.id, payload.date, profile_id=profile_id)
 
     # 5️⃣ Créer transactions
     try:
@@ -101,8 +105,8 @@ def create_transfer(account_id: str, payload: TransferCreateRequest) -> Transfer
         raise HTTPException(status_code=422, detail=str(e))
 
     # 6️⃣ Persister
-    tx_repo.add(tx_from)
-    tx_repo.add(tx_to)
+    tx_repo.add(tx_from, profile_id=profile_id)
+    tx_repo.add(tx_to, profile_id=profile_id)
 
     return TransferResponse(
         transfer_id=transfer_id,
@@ -112,13 +116,13 @@ def create_transfer(account_id: str, payload: TransferCreateRequest) -> Transfer
 
 
 @router.delete("/{account_id}/transfers/{transfer_id}", status_code=204)
-def delete_transfer(account_id: str, transfer_id: UUID) -> None:
+def delete_transfer(account_id: str, transfer_id: UUID, profile_id: str | None = Query(default=None)) -> None:
     account_repo = get_account_repo()
     tx_repo = get_tx_repo()
 
     # 1) verify from account exists
     try:
-        from_acc = account_repo.get_account(account_id)
+        from_acc = account_repo.get_account(account_id, profile_id=profile_id)
     except KeyError:
         raise HTTPException(status_code=404, detail="From account not found")
 
@@ -127,11 +131,11 @@ def delete_transfer(account_id: str, transfer_id: UUID) -> None:
         # optional: check belongs to from account
         # we can do a quick read by listing and finding the negative leg
         # but simplest: delete then verify is not possible; so we verify first:
-        legs = [t for t in tx_repo.list(account_id=from_acc.id) if t.transfer_id == transfer_id]
+        legs = [t for t in tx_repo.list(account_id=from_acc.id, profile_id=profile_id) if t.transfer_id == transfer_id]
         if not legs:
             raise HTTPException(status_code=404, detail="Transfer not found for this from account")
 
-        tx_repo.delete_transfer(transfer_id=transfer_id)
+        tx_repo.delete_transfer(transfer_id=transfer_id, profile_id=profile_id)
     except KeyError:
         raise HTTPException(status_code=404, detail="Transfer not found")
     except ValueError as e:
@@ -139,13 +143,18 @@ def delete_transfer(account_id: str, transfer_id: UUID) -> None:
 
 
 @router.patch("/{account_id}/transfers/{transfer_id}", response_model=TransferResponse)
-def update_transfer(account_id: str, transfer_id: UUID, payload: TransferUpdateRequest) -> TransferResponse:
+def update_transfer(
+    account_id: str,
+    transfer_id: UUID,
+    payload: TransferUpdateRequest,
+    profile_id: str | None = Query(default=None),
+) -> TransferResponse:
     account_repo = get_account_repo()
     tx_repo = get_tx_repo()
 
     # 1️⃣ Vérifier compte "from" existe (comme POST)
     try:
-        from_acc = account_repo.get_account(account_id)
+        from_acc = account_repo.get_account(account_id, profile_id=profile_id)
     except KeyError:
         raise HTTPException(status_code=404, detail="From account not found")
 
@@ -169,6 +178,7 @@ def update_transfer(account_id: str, transfer_id: UUID, payload: TransferUpdateR
             category=payload.category,
             subcategory=payload.subcategory,
             label=payload.label,
+            profile_id=profile_id,
         )
     except KeyError:
         raise HTTPException(status_code=404, detail="Transfer not found")
@@ -189,7 +199,7 @@ def update_transfer(account_id: str, transfer_id: UUID, payload: TransferUpdateR
 @router.post("", status_code=201, response_model=AccountResponse)
 def create_account(req: AccountCreateRequest) -> AccountResponse:
     repo = get_account_repo()
-
+    profile_id = (req.profile_id or "").strip() or None
     # currency
     try:
         currency = Currency(req.currency.strip())
@@ -230,7 +240,10 @@ def create_account(req: AccountCreateRequest) -> AccountResponse:
 
     # persist
     try:
-        repo.add(account)
+        if profile_id is not None:
+            repo.add_for_profile(account, profile_id=profile_id)
+        else:
+            repo.add(account)
     except FileNotFoundError as e:
         raise HTTPException(status_code=500, detail=str(e))
     except ValueError as e:
@@ -240,10 +253,13 @@ def create_account(req: AccountCreateRequest) -> AccountResponse:
 
 
 @router.get("", response_model=list[AccountResponse])
-def list_accounts() -> list[AccountResponse]:
+def list_accounts(profile_id: str | None = Query(default=None)) -> list[AccountResponse]:
     try:
         repo = get_account_repo()
-        accounts = repo.list_accounts()
+        if profile_id is None:
+            accounts = repo.list_accounts()
+        else:
+            accounts = repo.list_accounts_by_profile(profile_id=profile_id)
         return [_account_to_response(a) for a in accounts]
     except Exception as e:
         logger.exception("Failed to list accounts: %s", e)
@@ -388,15 +404,13 @@ def account_timeseries(
 
 
 
-def _account_to_response(acc: Account) -> AccountResponse:
+def _account_to_response(a: Account) -> AccountResponse:
     return AccountResponse(
-        id=acc.id,
-        name=acc.name,
-        currency=str(acc.currency),
-        opening_balance=str(acc.opening_balance),
-        opened_on=acc.opened_on,
-        account_type=acc.account_type.value,
+        id=a.id,
+        name=a.name,
+        currency=a.currency.value,                 # <-- FIX : value, pas Currency.EUR
+        opening_balance=str(a.opening_balance.amount),
+        opened_on=a.opened_on,
+        account_type=a.account_type.value,         # <-- idem si AccountType est un Enum
+        profile_id=getattr(a, "profile_id", None), # si présent dans certains cas
     )
-
-
-

@@ -16,6 +16,7 @@ from app.api.routes.net_worth_full import router as net_worth_full_router
 from app.api.routes.instruments import router as instruments_router
 from app.api.routes.trades import router as trades_router, pos_router as positions_router
 from app.api.routes.prices import router as prices_router
+from app.api.routes.profiles import router as workspaces_router, profiles_router
 
 
 app = FastAPI(title="DASHMONEY API", version="0.1.0")
@@ -41,3 +42,5 @@ app.include_router(instruments_router)
 app.include_router(trades_router)
 app.include_router(positions_router)
 app.include_router(prices_router)
+app.include_router(workspaces_router)
+app.include_router(profiles_router)

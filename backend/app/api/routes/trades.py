@@ -77,7 +77,7 @@ def _create_cash_mirror_tx(
 
 
 @router.post("", response_model=TradeOut, status_code=201)
-def create_trade(portfolio_id: UUID, payload: TradeCreate) -> TradeOut:
+def create_trade(portfolio_id: UUID, payload: TradeCreate, profile_id: str | None = Query(default=None)) -> TradeOut:
     p_repo = get_portfolio_repo()
     i_repo = get_instrument_repo()
     t_repo = get_trade_repo()
@@ -166,13 +166,14 @@ def create_trade(portfolio_id: UUID, payload: TradeCreate) -> TradeOut:
             pass
         raise HTTPException(status_code=422, detail=str(e))
 
-    t_repo.add(trade)
+    t_repo.add(trade, profile_id=profile_id)
     return _trade_to_out(trade)
 
 
 @router.get("", response_model=list[TradeOut])
 def list_trades(
     portfolio_id: UUID,
+    profile_id: str | None = Query(default=None),
     date_from: dt.date | None = Query(default=None),
     date_to: dt.date | None = Query(default=None),
     sides: list[str] | None = Query(default=None),
@@ -189,7 +190,7 @@ def list_trades(
     except KeyError:
         raise HTTPException(status_code=404, detail="portfolio not found")
 
-    trades = t_repo.list(portfolio_id=portfolio_id)
+    trades = t_repo.list(portfolio_id=portfolio_id, profile_id=profile_id)
 
     query_obj = TradeQuery(
         date_from=date_from,
@@ -299,7 +300,7 @@ def patch_trade(portfolio_id: UUID, trade_id: UUID, payload: TradePatch) -> Trad
 
 
 @router.delete("/{trade_id}", status_code=204)
-def delete_trade(portfolio_id: UUID, trade_id: UUID) -> None:
+def delete_trade(portfolio_id: UUID, trade_id: UUID, profile_id: str | None = Query(default=None)) -> None:
     p_repo = get_portfolio_repo()
     t_repo = get_trade_repo()
 
@@ -309,7 +310,7 @@ def delete_trade(portfolio_id: UUID, trade_id: UUID) -> None:
         raise HTTPException(status_code=404, detail="portfolio not found")
 
     try:
-        trade = t_repo.get(trade_id)
+        trade = t_repo.get(trade_id, profile_id=profile_id)
     except KeyError:
         raise HTTPException(status_code=404, detail="trade not found")
 
@@ -317,7 +318,7 @@ def delete_trade(portfolio_id: UUID, trade_id: UUID) -> None:
         raise HTTPException(status_code=422, detail="trade does not belong to this portfolio")
 
     # delete trade (tombstone)
-    ok = t_repo.delete(trade_id=trade_id)
+    ok = t_repo.delete(trade_id=trade_id, profile_id=profile_id)
     if not ok:
         raise HTTPException(status_code=404, detail="trade not found")
 

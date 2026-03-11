@@ -11,18 +11,18 @@ from app.domain.signed_money import SignedMoney
 
 
 class TransactionRepository(Protocol):
-    def add(self, tx: Transaction) -> None:
+    def add(self, tx: Transaction, *, profile_id: str | None = None) -> None:
         ...
 
-    def list(self, account_id: Optional[str] = None) -> list[Transaction]:
+    def list(self, account_id: Optional[str] = None, *, profile_id: str | None = None) -> list[Transaction]:
         ...
 
-    def get(self, tx_id: UUID) -> Transaction | None:
+    def get(self, tx_id: UUID, *, profile_id: str | None = None) -> Transaction | None:
         ...
 
-    def next_sequence(self, account_id: str, date: dt.date) -> int:
+    def next_sequence(self, account_id: str, date: dt.date, *, profile_id: str | None = None) -> int:
         ...
-    def delete(self, *, account_id: str, tx_id: UUID) -> bool:
+    def delete(self, *, account_id: str, tx_id: UUID, profile_id: str | None = None) -> bool:
         """Return True if deleted, False if not found."""
         ...
 
@@ -31,6 +31,7 @@ class TransactionRepository(Protocol):
         *,
         account_id: str,
         tx_id: UUID,
+        profile_id: str | None = None,
         category: str | None = None,
         subcategory: str | None = None,
         label: str | None = None,
@@ -38,4 +39,21 @@ class TransactionRepository(Protocol):
         amount: SignedMoney | None = None,
         kind: TransactionKind | None = None,
     ) -> Transaction:
+        ...
+
+    # Transfers (2 legs)
+    def update_transfer(
+        self,
+        *,
+        transfer_id: UUID,
+        new_date: dt.date | None = None,
+        new_amount_pos: SignedMoney | None = None,
+        category: str | None = None,
+        subcategory: str | None = None,
+        label: str | None = None,
+        profile_id: str | None = None,
+    ) -> tuple[Transaction, Transaction]:
+        ...
+
+    def delete_transfer(self, *, transfer_id: UUID, profile_id: str | None = None) -> tuple[UUID, UUID]:
         ...

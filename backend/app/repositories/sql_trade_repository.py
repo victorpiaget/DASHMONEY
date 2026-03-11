@@ -13,6 +13,7 @@ from app.domain.money import Currency
 from app.domain.trade import Trade, TradeSide
 from app.repositories.trade_repository import TradeRepository
 from app.identity.defaults import DEFAULT_PROFILE_ID
+from app.identity.profile_scope import resolve_profile_id
 from app.repositories.sql_identity_models import ProfileRow  # noqa: F401
 
 
@@ -59,20 +60,24 @@ class SqlTradeRepository(TradeRepository):
 
     # -------- add --------
 
-    def add(self, trade: Trade) -> None:
+    def add(self, trade: Trade, *, profile_id: str | None = None) -> None:
+        pid = resolve_profile_id(profile_id)
         with new_session() as s:
             if s.get(TradeRow, str(trade.id)) is not None:
                 raise ValueError(f"trade {trade.id} already exists")
 
-            s.add(self._to_row(trade))
+            row = self._to_row(trade)
+            row.profile_id = pid
+            s.add(row)
             s.commit()
 
     # -------- list --------
 
-    def list(self, *, portfolio_id: UUID | None = None) -> list[Trade]:
+    def list(self, *, portfolio_id: UUID | None = None, profile_id: str | None = None) -> list[Trade]:
+        pid = resolve_profile_id(profile_id)
         with new_session() as s:
             stmt = select(TradeRow)
-            stmt = stmt.where(TradeRow.profile_id == DEFAULT_PROFILE_ID)
+            stmt = stmt.where(TradeRow.profile_id == pid)
 
             if portfolio_id is not None:
                 stmt = stmt.where(TradeRow.portfolio_id == str(portfolio_id))
@@ -82,7 +87,8 @@ class SqlTradeRepository(TradeRepository):
             trades.sort(key=lambda t: (t.date, str(t.id)))  # align JSONL :contentReference[oaicite:5]{index=5}
             return trades
 
-    def list_between(self, *, portfolio_id: UUID, date_from: dt.date, date_to: dt.date) -> list[Trade]:
+    def list_between(self, *, portfolio_id: UUID, date_from: dt.date, date_to: dt.date, profile_id: str | None = None) -> list[Trade]:
+        pid = resolve_profile_id(profile_id)
         if date_from > date_to:
             raise ValueError("date_from must be <= date_to")
 
@@ -92,7 +98,7 @@ class SqlTradeRepository(TradeRepository):
                 .where(TradeRow.portfolio_id == str(portfolio_id))
                 .where(TradeRow.day >= date_from)
                 .where(TradeRow.day <= date_to)
-                .where(TradeRow.profile_id == DEFAULT_PROFILE_ID)
+                .where(TradeRow.profile_id == pid)
 
             )
 
@@ -103,10 +109,11 @@ class SqlTradeRepository(TradeRepository):
 
     # -------- get --------
 
-    def get(self, trade_id: UUID) -> Trade:
+    def get(self, trade_id: UUID, *, profile_id: str | None = None) -> Trade:
+        pid = resolve_profile_id(profile_id)
         with new_session() as s:
             row = s.get(TradeRow, str(trade_id))
-            if row is None or row.profile_id != DEFAULT_PROFILE_ID:
+            if row is None or row.profile_id != pid:
                 raise KeyError("trade not found")
 
             if row is None:
@@ -115,10 +122,11 @@ class SqlTradeRepository(TradeRepository):
 
     # -------- delete (physique en SQL) --------
 
-    def delete(self, *, trade_id: UUID) -> bool:
+    def delete(self, *, trade_id: UUID, profile_id: str | None = None) -> bool:
+        pid = resolve_profile_id(profile_id)
         with new_session() as s:
             row = s.get(TradeRow, str(trade_id))
-            if row is None or row.profile_id != DEFAULT_PROFILE_ID:
+            if row is None or row.profile_id != pid:
                 return False
 
             if row is None:
@@ -129,10 +137,11 @@ class SqlTradeRepository(TradeRepository):
 
     # -------- update (remplace JSONL merge) --------
 
-    def update(self, *, trade_id: UUID, patch: dict) -> Trade:
+    def update(self, *, trade_id: UUID, patch: dict, profile_id: str | None = None) -> Trade:
+        pid = resolve_profile_id(profile_id)
         with new_session() as s:
             row = s.get(TradeRow, str(trade_id))
-            if row is None or row.profile_id != DEFAULT_PROFILE_ID:
+            if row is None or row.profile_id != pid:
                 raise KeyError("trade not found")
             
             if row is None:

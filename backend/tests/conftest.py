@@ -1,0 +1,155 @@
+# backend/tests/conftest.py
+import os
+
+import pytest
+from sqlalchemy import select, text
+
+from app.db import get_engine, get_session_factory
+from app.db_base import Base
+from app.identity.defaults import (
+    DEFAULT_PROFILE_ID,
+    DEFAULT_PROFILE_NAME,
+    DEFAULT_USER_EMAIL,
+    DEFAULT_USER_ID,
+    DEFAULT_WORKSPACE_ID,
+    DEFAULT_WORKSPACE_NAME,
+)
+from app.repositories.sql_identity_models import (
+    ProfileAccessRow,
+    ProfileRow,
+    UserRow,
+    WorkspaceMembershipRow,
+    WorkspaceRow,
+)
+
+
+def _import_models() -> None:
+    # Ensure all models are registered on Base.metadata.
+    from app.repositories import sql_account_repository  # noqa: F401
+    from app.repositories import sql_transaction_repository  # noqa: F401
+    from app.repositories import sql_instrument_repository  # noqa: F401
+    from app.repositories import sql_trade_repository  # noqa: F401
+    from app.repositories import sql_portfolio_repository  # noqa: F401
+    from app.repositories import sql_portfolio_snapshot_repository  # noqa: F401
+    from app.repositories import sql_price_repository  # noqa: F401
+    from app.repositories import sql_identity_models  # noqa: F401
+
+
+def _seed_default_identity() -> None:
+    SessionLocal = get_session_factory()
+    with SessionLocal() as s:
+        # --- 1) Parents: user + workspace ---
+        if s.get(UserRow, DEFAULT_USER_ID) is None:
+            s.add(
+                UserRow(
+                    id=DEFAULT_USER_ID,
+                    email=DEFAULT_USER_EMAIL,
+                    password_hash="TEST_ONLY",
+                    is_disabled=False,
+                )
+            )
+
+        if s.get(WorkspaceRow, DEFAULT_WORKSPACE_ID) is None:
+            s.add(
+                WorkspaceRow(
+                    id=DEFAULT_WORKSPACE_ID,
+                    name=DEFAULT_WORKSPACE_NAME,
+                )
+            )
+
+        # Force insert of parents first (so workspace exists for profile FK)
+        s.flush()
+
+        # --- 2) Child: profile (depends on workspace_id FK) ---
+        if s.get(ProfileRow, DEFAULT_PROFILE_ID) is None:
+            s.add(
+                ProfileRow(
+                    id=DEFAULT_PROFILE_ID,
+                    workspace_id=DEFAULT_WORKSPACE_ID,
+                    display_name=DEFAULT_PROFILE_NAME,
+                )
+            )
+
+        # Force insert of profile before profile_access FK
+        s.flush()
+
+        # --- 3) FK rows: workspace_membership + profile_access ---
+        membership = s.execute(
+            select(WorkspaceMembershipRow).where(
+                WorkspaceMembershipRow.workspace_id == DEFAULT_WORKSPACE_ID,
+                WorkspaceMembershipRow.user_id == DEFAULT_USER_ID,
+            )
+        ).scalar_one_or_none()
+        if membership is None:
+            s.add(
+                WorkspaceMembershipRow(
+                    workspace_id=DEFAULT_WORKSPACE_ID,
+                    user_id=DEFAULT_USER_ID,
+                    role="OWNER",
+                )
+            )
+
+        access = s.execute(
+            select(ProfileAccessRow).where(
+                ProfileAccessRow.profile_id == DEFAULT_PROFILE_ID,
+                ProfileAccessRow.user_id == DEFAULT_USER_ID,
+            )
+        ).scalar_one_or_none()
+        if access is None:
+            s.add(
+                ProfileAccessRow(
+                    profile_id=DEFAULT_PROFILE_ID,
+                    user_id=DEFAULT_USER_ID,
+                    permission="OWNER",
+                )
+            )
+
+        s.commit()
+        
+@pytest.fixture(scope="session")
+def db_url() -> str:
+    url = os.getenv("DASHMONEY_TEST_DATABASE_URL", "").strip()
+    if not url:
+        raise RuntimeError(
+            "Set DASHMONEY_TEST_DATABASE_URL to a dedicated Postgres test database."
+        )
+
+    os.environ["DASHMONEY_DATABASE_URL"] = url
+    get_engine.cache_clear()
+    get_session_factory.cache_clear()
+    return url
+
+
+@pytest.fixture(scope="session")
+def db_engine(db_url: str):
+    _import_models()
+    return get_engine()
+
+
+@pytest.fixture(scope="session", autouse=True)
+def db_schema(db_engine) -> None:
+    Base.metadata.drop_all(bind=db_engine)
+    Base.metadata.create_all(bind=db_engine)
+    _seed_default_identity()
+
+
+@pytest.fixture(autouse=True)
+def db_reset(db_engine) -> None:
+    table_names = [f'"{t.name}"' for t in Base.metadata.sorted_tables]
+    if table_names:
+        with db_engine.begin() as conn:
+            conn.execute(
+                text(
+                    f"TRUNCATE {', '.join(table_names)} RESTART IDENTITY CASCADE"
+                )
+            )
+    _seed_default_identity()
+
+
+@pytest.fixture()
+def client(db_engine, db_url: str):
+    from fastapi.testclient import TestClient
+    from app.api.main import app
+
+    with TestClient(app) as test_client:
+        yield test_client

@@ -13,6 +13,7 @@ from app.domain.money import Currency, Money
 from app.domain.portfolio import PortfolioSnapshot
 from app.repositories.portfolio_snapshot_repository import PortfolioSnapshotRepository
 from app.identity.defaults import DEFAULT_PROFILE_ID
+from app.identity.profile_scope import resolve_profile_id
 from app.repositories.sql_identity_models import ProfileRow  # noqa: F401
 
 
@@ -45,18 +46,22 @@ class SqlPortfolioSnapshotRepository(PortfolioSnapshotRepository):
     def __init__(self) -> None:
         init_db()
 
-    def add(self, snapshot: PortfolioSnapshot) -> None:
+    def add(self, snapshot: PortfolioSnapshot, *, profile_id: str | None = None) -> None:
+        pid = resolve_profile_id(profile_id)
         with new_session() as s:
             if s.get(PortfolioSnapshotRow, str(snapshot.id)) is not None:
                 raise ValueError(f"snapshot id '{snapshot.id}' already exists")
 
-            s.add(self._to_row(snapshot))
+            row = self._to_row(snapshot)
+            row.profile_id = pid
+            s.add(row)
             s.commit()
 
-    def list(self, portfolio_id: UUID | None = None) -> list[PortfolioSnapshot]:
+    def list(self, portfolio_id: UUID | None = None, *, profile_id: str | None = None) -> list[PortfolioSnapshot]:
+        pid = resolve_profile_id(profile_id)
         with new_session() as s:
             stmt = select(PortfolioSnapshotRow)
-            stmt = stmt.where(PortfolioSnapshotRow.profile_id == DEFAULT_PROFILE_ID)
+            stmt = stmt.where(PortfolioSnapshotRow.profile_id == pid)
 
             if portfolio_id is not None:
                 stmt = stmt.where(PortfolioSnapshotRow.portfolio_id == str(portfolio_id))
@@ -66,7 +71,8 @@ class SqlPortfolioSnapshotRepository(PortfolioSnapshotRepository):
             snaps.sort(key=lambda s2: (s2.date, str(s2.id)))  # align JSONL :contentReference[oaicite:5]{index=5}
             return snaps
 
-    def list_between(self, *, portfolio_id: UUID, date_from: dt.date, date_to: dt.date) -> list[PortfolioSnapshot]:
+    def list_between(self, *, portfolio_id: UUID, date_from: dt.date, date_to: dt.date, profile_id: str | None = None) -> list[PortfolioSnapshot]:
+        pid = resolve_profile_id(profile_id)
         if date_from > date_to:
             raise ValueError("date_from must be <= date_to")
 
@@ -76,7 +82,7 @@ class SqlPortfolioSnapshotRepository(PortfolioSnapshotRepository):
                 .where(PortfolioSnapshotRow.portfolio_id == str(portfolio_id))
                 .where(PortfolioSnapshotRow.day >= date_from)
                 .where(PortfolioSnapshotRow.day <= date_to)
-                .where(PortfolioSnapshotRow.profile_id == DEFAULT_PROFILE_ID)
+                .where(PortfolioSnapshotRow.profile_id == pid)
 
             )
             rows = s.execute(stmt).scalars().all()
