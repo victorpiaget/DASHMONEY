@@ -138,19 +138,19 @@ def get_net_worth_timeseries(
 def get_net_worth_grouped(
     at: dt.date | None = Query(default=None),
     types: str | None = Query(default=None, description="CSV of account types, e.g. CHECKING,SAVINGS"),
+    profile_id: str | None = Query(default=None),
 ) -> NetWorthGroupedResponse:
     acc_repo = get_account_repo()
     tx_repo = get_tx_repo()
 
-    accounts = acc_repo.list_accounts()
+    accounts = acc_repo.list_accounts(profile_id=profile_id)
     selected = _parse_types(types)
     accounts = _filter_accounts_by_type(accounts, selected)
     currency = _ensure_single_currency(accounts)
 
-    # On récupère toutes les transactions (par compte) puis on agrège via le moteur
     all_txs = []
     for acc in accounts:
-        all_txs.extend(tx_repo.list(account_id=acc.id))
+        all_txs.extend(tx_repo.list(account_id=acc.id, profile_id=profile_id))
 
     total = compute_net_worth(accounts=accounts, transactions=all_txs, at=at)
     groups = compute_net_worth_grouped(accounts=accounts, transactions=all_txs, at=at)
@@ -172,6 +172,7 @@ def get_net_worth_timeseries_grouped(
     date_to: dt.date = Query(..., alias="to"),
     granularity: str = Query(default="auto", pattern="^(auto|daily|weekly|monthly|yearly)$"),
     types: str | None = Query(default=None, description="CSV of account types, e.g. CHECKING,SAVINGS"),
+    profile_id: str | None = Query(default=None),
 ) -> NetWorthTimeseriesGroupedResponse:
     if date_from > date_to:
         raise HTTPException(status_code=422, detail="from must be <= to")
@@ -179,7 +180,7 @@ def get_net_worth_timeseries_grouped(
     acc_repo = get_account_repo()
     tx_repo = get_tx_repo()
 
-    accounts = acc_repo.list_accounts()
+    accounts = acc_repo.list_accounts(profile_id=profile_id)
     selected = _parse_types(types)
     accounts = _filter_accounts_by_type(accounts, selected)
 
@@ -187,7 +188,7 @@ def get_net_worth_timeseries_grouped(
 
     all_txs = []
     for acc in accounts:
-        all_txs.extend(tx_repo.list(account_id=acc.id))
+        all_txs.extend(tx_repo.list(account_id=acc.id, profile_id=profile_id))
 
     g = pick_granularity(date_from, date_to) if granularity == "auto" else granularity
 

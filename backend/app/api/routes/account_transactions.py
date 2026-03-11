@@ -9,6 +9,7 @@ from app.api.deps import get_account_repo, get_tx_repo
 from app.api.schemas.transactions import AccountTransactionCreateRequest, TransactionResponse,TransactionUpdateRequest
 from app.domain.signed_money import SignedMoney
 from app.domain.transaction import Transaction, TransactionKind
+from app.identity.profile_scope import resolve_profile_id
 from app.services.transaction_query_service import TransactionQuery, apply_transaction_query
 
 router = APIRouter(prefix="/accounts", tags=["transactions"])
@@ -20,8 +21,10 @@ def create_account_transaction(
     payload: AccountTransactionCreateRequest,
     profile_id: str | None = Query(default=None),
 ) -> TransactionResponse:
+    pid = resolve_profile_id(profile_id)
+
     try:
-        acc = get_account_repo().get_account(account_id, profile_id=profile_id)
+        acc = get_account_repo().get_account(account_id, profile_id=pid)
     except KeyError:
         raise HTTPException(status_code=404, detail="Account not found")
 
@@ -31,7 +34,7 @@ def create_account_transaction(
         raise HTTPException(status_code=422, detail=str(e))
 
     tx_repo = get_tx_repo()
-    seq = tx_repo.next_sequence(acc.id, payload.date, profile_id=profile_id)
+    seq = tx_repo.next_sequence(acc.id, payload.date, profile_id=pid)
 
     try:
         tx = Transaction.create(
@@ -48,7 +51,7 @@ def create_account_transaction(
         raise HTTPException(status_code=422, detail=str(e))
 
     try:
-        tx_repo.add(tx, profile_id=profile_id)
+        tx_repo.add(tx, profile_id=pid)
     except ValueError as e:
         raise HTTPException(status_code=409, detail=str(e))
 
@@ -57,12 +60,14 @@ def create_account_transaction(
 
 @router.delete("/{account_id}/transactions/{tx_id}", status_code=204)
 def delete_account_transaction(account_id: str, tx_id: UUID, profile_id: str | None = Query(default=None)) -> Response:
+    pid = resolve_profile_id(profile_id)
+
     try:
-        acc = get_account_repo().get_account(account_id, profile_id=profile_id)
+        acc = get_account_repo().get_account(account_id, profile_id=pid)
     except KeyError:
         raise HTTPException(status_code=404, detail="Account not found")
 
-    deleted = get_tx_repo().delete(account_id=acc.id, tx_id=tx_id, profile_id=profile_id)
+    deleted = get_tx_repo().delete(account_id=acc.id, tx_id=tx_id, profile_id=pid)
     if not deleted:
         raise HTTPException(status_code=404, detail="Transaction not found")
 
@@ -75,32 +80,31 @@ def patch_account_transaction(
     payload: TransactionUpdateRequest,
     profile_id: str | None = Query(default=None),
 ) -> TransactionResponse:
-    # account exists
+    pid = resolve_profile_id(profile_id)
+
     try:
-        acc = get_account_repo().get_account(account_id, profile_id=profile_id)
+        acc = get_account_repo().get_account(account_id, profile_id=pid)
     except KeyError:
         raise HTTPException(status_code=404, detail="Account not found")
 
     tx_repo = get_tx_repo()
 
-    # tx exists
     existing = tx_repo.get(tx_id)
     if existing is None or existing.account_id != acc.id:
         raise HTTPException(status_code=404, detail="Transaction not found")
 
     if existing.kind == TransactionKind.TRANSFER or existing.transfer_id is not None:
         raise HTTPException(status_code=422, detail="Transfers must be updated via /transfers endpoint")
-    
+
     amount = None
     if payload.amount is not None:
-        # même logique que POST transaction
         amount = SignedMoney.from_str(payload.amount, acc.currency)
 
     try:
         updated = tx_repo.update(
             account_id=acc.id,
             tx_id=tx_id,
-            profile_id=profile_id,
+            profile_id=pid,
             category=payload.category,
             subcategory=payload.subcategory,
             label=payload.label,
@@ -129,12 +133,14 @@ def list_account_transactions(
     sort_by: str = Query(default="date", pattern="^(date|amount|kind|category|subcategory|label)$"),
     sort_dir: str = Query(default="asc", pattern="^(asc|desc)$"),
 ) -> list[TransactionResponse]:
+    pid = resolve_profile_id(profile_id)
+
     try:
-        acc = get_account_repo().get_account(account_id, profile_id=profile_id)
+        acc = get_account_repo().get_account(account_id, profile_id=pid)
     except KeyError:
         raise HTTPException(status_code=404, detail="Account not found")
 
-    txs = get_tx_repo().list(account_id=acc.id, profile_id=profile_id)
+    txs = get_tx_repo().list(account_id=acc.id, profile_id=pid)
 
     query_obj = TransactionQuery(
         date_from=date_from,

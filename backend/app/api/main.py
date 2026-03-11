@@ -1,4 +1,5 @@
 import os
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
@@ -19,15 +20,16 @@ from app.api.routes.prices import router as prices_router
 from app.api.routes.profiles import router as workspaces_router, profiles_router
 
 
-app = FastAPI(title="DASHMONEY API", version="0.1.0")
-
-@app.on_event("startup")
-def _startup_sql_only() -> None:
+@asynccontextmanager
+async def lifespan(app: FastAPI):
     db_url = os.getenv("DASHMONEY_DATABASE_URL", "").strip()
     if not db_url:
         raise RuntimeError("DASHMONEY_DATABASE_URL is required (SQL-only mode).")
-    # Fail fast if DB unreachable + ensure tables exist
     init_db()
+    yield
+
+
+app = FastAPI(title="DASHMONEY API", version="0.1.0", lifespan=lifespan)
 
 app.include_router(health_router)
 app.include_router(net_worth_router)

@@ -19,7 +19,8 @@ class AccountResponse(BaseModel):
     opening_balance: str
     opened_on: dt.date
     account_type: str
-    
+    profile_id: str
+
 
 class AccountBalanceResponse(BaseModel):
     account_id: str

@@ -7,11 +7,12 @@ import logging
 import re
 from typing import Optional
 
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, UploadFile, File, HTTPException, Query
 
 from app.api.deps import get_account_repo, get_tx_repo
 from app.domain.signed_money import SignedMoney
 from app.domain.transaction import Transaction, TransactionKind
+from app.identity.profile_scope import resolve_profile_id
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/accounts", tags=["import"])
@@ -103,18 +104,11 @@ def sniff_delimiter(text: str) -> str:
 # ---------- Route ----------
 
 @router.post("/{account_id}/import-victor")
-async def import_victor(account_id: str, file: UploadFile = File(...)):
-    """
-    Import Excel Victor -> transactions.jsonl
-    Format attendu (5 colonnes):
-      date_fr, type_excel, category, subcategory, amount_fr
+async def import_victor(account_id: str, file: UploadFile = File(...), profile_id: str | None = Query(default=None)):
+    pid = resolve_profile_id(profile_id)
 
-    Stratégie "pratique":
-    - on importe les lignes valides
-    - on renvoie un résumé d'erreurs (preview)
-    """
     try:
-        acc = get_account_repo().get_account(account_id)
+        acc = get_account_repo().get_account(account_id, profile_id=pid)
     except KeyError:
         raise HTTPException(status_code=404, detail="Account not found")
 
@@ -185,7 +179,7 @@ async def import_victor(account_id: str, file: UploadFile = File(...)):
             amount = SignedMoney.from_str(amount_norm, acc.currency)
 
             # sequence auto (par date)
-            seq = tx_repo.next_sequence(acc.id, date)
+            seq = tx_repo.next_sequence(acc.id, date, profile_id=pid)
 
             tx = Transaction.create(
                 account_id=acc.id,
@@ -198,7 +192,7 @@ async def import_victor(account_id: str, file: UploadFile = File(...)):
                 label=None,
             )
 
-            tx_repo.add(tx)
+            tx_repo.add(tx, profile_id=pid)
             imported += 1
 
         except Exception as e:

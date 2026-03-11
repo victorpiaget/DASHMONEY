@@ -40,22 +40,18 @@ def _create_cash_mirror_tx(
     date: dt.date,
     cash_amount: SignedMoney,
     label: str | None,
+    profile_id: str | None = None,
 ) -> Transaction:
-    """
-    Crée la transaction miroir dans le compte passerelle en utilisant ton flux standard
-    (next_sequence + Transaction.create + repo.add).
-    """
     acc_repo = get_account_repo()
     tx_repo = get_tx_repo()
 
     try:
-        acc = acc_repo.get_account(cash_account_id)
+        acc = acc_repo.get_account(cash_account_id, profile_id=profile_id)
     except KeyError:
         raise HTTPException(status_code=500, detail="cash pass-through account missing (should not happen)")
 
-    seq = tx_repo.next_sequence(acc.id, date)
+    seq = tx_repo.next_sequence(acc.id, date, profile_id=profile_id)
 
-    # kind selon signe
     kind = TransactionKind.INCOME if cash_amount.amount > 0 else TransactionKind.EXPENSE
 
     try:
@@ -72,7 +68,7 @@ def _create_cash_mirror_tx(
     except Exception as e:
         raise HTTPException(status_code=422, detail=str(e))
 
-    tx_repo.add(tx)
+    tx_repo.add(tx, profile_id=profile_id)
     return tx
 
 
@@ -84,7 +80,7 @@ def create_trade(portfolio_id: UUID, payload: TradeCreate, profile_id: str | Non
 
     # portfolio
     try:
-        p = p_repo.get(portfolio_id)
+        p = p_repo.get(portfolio_id, profile_id=profile_id)
     except KeyError:
         raise HTTPException(status_code=404, detail="portfolio not found")
 
@@ -136,12 +132,12 @@ def create_trade(portfolio_id: UUID, payload: TradeCreate, profile_id: str | Non
 
     cash_amount = SignedMoney(amount=net, currency=p.currency)
 
-    # create cash mirror tx first
     tx = _create_cash_mirror_tx(
         cash_account_id=p.cash_account_id,
         date=payload.date,
         cash_amount=cash_amount,
         label=payload.label or f"{side.value} {inst.symbol}",
+        profile_id=profile_id,
     )
 
     # create trade with linked tx id
@@ -186,7 +182,7 @@ def list_trades(
     t_repo = get_trade_repo()
 
     try:
-        p_repo.get(portfolio_id)
+        p_repo.get(portfolio_id, profile_id=profile_id)
     except KeyError:
         raise HTTPException(status_code=404, detail="portfolio not found")
 
@@ -207,12 +203,12 @@ def list_trades(
 
 
 @router.patch("/{trade_id}", response_model=TradeOut)
-def patch_trade(portfolio_id: UUID, trade_id: UUID, payload: TradePatch) -> TradeOut:
+def patch_trade(portfolio_id: UUID, trade_id: UUID, payload: TradePatch, profile_id: str | None = Query(default=None)) -> TradeOut:
     p_repo = get_portfolio_repo()
     t_repo = get_trade_repo()
 
     try:
-        p = p_repo.get(portfolio_id)
+        p = p_repo.get(portfolio_id, profile_id=profile_id)
     except KeyError:
         raise HTTPException(status_code=404, detail="portfolio not found")
 
@@ -275,12 +271,12 @@ def patch_trade(portfolio_id: UUID, trade_id: UUID, payload: TradePatch) -> Trad
     net = -(gross + fees) if side == TradeSide.BUY else (gross - fees)
     cash_amount = SignedMoney(amount=net, currency=p.currency)
 
-    # create new cash tx
     new_tx = _create_cash_mirror_tx(
         cash_account_id=p.cash_account_id,
         date=date,
         cash_amount=cash_amount,
         label=patch.get("label", base.label) or f"{side.value} {base.instrument_symbol}",
+        profile_id=profile_id,
     )
 
 
@@ -305,7 +301,7 @@ def delete_trade(portfolio_id: UUID, trade_id: UUID, profile_id: str | None = Qu
     t_repo = get_trade_repo()
 
     try:
-        p = p_repo.get(portfolio_id)
+        p = p_repo.get(portfolio_id, profile_id=profile_id)
     except KeyError:
         raise HTTPException(status_code=404, detail="portfolio not found")
 
@@ -338,16 +334,17 @@ pos_router = APIRouter(prefix="/portfolios/{portfolio_id}", tags=["positions"])
 def get_positions(
     portfolio_id: UUID,
     as_of: dt.date | None = Query(default=None),
+    profile_id: str | None = Query(default=None),
 ):
     p_repo = get_portfolio_repo()
     t_repo = get_trade_repo()
 
     try:
-        p_repo.get(portfolio_id)
+        p_repo.get(portfolio_id, profile_id=profile_id)
     except KeyError:
         raise HTTPException(status_code=404, detail="portfolio not found")
 
-    trades = t_repo.list(portfolio_id=portfolio_id)
+    trades = t_repo.list(portfolio_id=portfolio_id, profile_id=profile_id)
     pos = compute_positions(trades=trades, portfolio_id=portfolio_id, as_of=as_of)
 
     return [PositionOut(instrument_symbol=sym, quantity=str(qty)) for sym, qty in sorted(pos.items())]

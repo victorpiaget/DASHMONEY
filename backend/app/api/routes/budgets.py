@@ -5,6 +5,7 @@ import logging
 from fastapi import APIRouter, HTTPException, Query
 
 from app.api.deps import get_account_repo, get_tx_repo
+from app.identity.profile_scope import resolve_profile_id
 from app.engine.budget import (
     totals_by_kind,
     expense_totals_by_category,
@@ -21,10 +22,12 @@ def budget_summary(
     account_id: str,
     date_from: dt.date | None = Query(default=None),
     date_to: dt.date | None = Query(default=None),
+    profile_id: str | None = Query(default=None),
 ):
+    pid = resolve_profile_id(profile_id)
     try:
-        acc = get_account_repo().get_account(account_id)
-        txs = get_tx_repo().list(account_id=acc.id)
+        acc = get_account_repo().get_account(account_id, profile_id=pid)
+        txs = get_tx_repo().list(account_id=acc.id, profile_id=pid)
 
         if date_from is not None:
             txs = [t for t in txs if t.date >= date_from]

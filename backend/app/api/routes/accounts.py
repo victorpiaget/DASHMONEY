@@ -22,6 +22,7 @@ from app.domain.transaction import Transaction, TransactionKind
 from app.api.routes.account_transactions import _tx_to_response
 
 from app.domain.account import AccountType
+from app.identity.profile_scope import resolve_profile_id
 
 from uuid import UUID
 from decimal import Decimal
@@ -199,26 +200,23 @@ def update_transfer(
 @router.post("", status_code=201, response_model=AccountResponse)
 def create_account(req: AccountCreateRequest) -> AccountResponse:
     repo = get_account_repo()
-    profile_id = (req.profile_id or "").strip() or None
-    # currency
+    pid = resolve_profile_id(req.profile_id)
+
     try:
         currency = Currency(req.currency.strip())
     except Exception:
         raise HTTPException(status_code=422, detail="Invalid currency")
 
-    # opening balance
     try:
         opening_balance = SignedMoney.from_str(req.opening_balance.strip(), currency)
     except Exception:
         raise HTTPException(status_code=422, detail="Invalid opening_balance format")
-    
-    # account type
+
     try:
         account_type = AccountType(req.account_type.strip())
     except Exception:
         raise HTTPException(status_code=422, detail="Invalid account_type")
 
-    # domain object
     try:
         account = Account(
             id=req.id.strip(),
@@ -231,76 +229,65 @@ def create_account(req: AccountCreateRequest) -> AccountResponse:
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
 
-    # uniqueness
     try:
-        repo.get_account(account.id)
-        raise HTTPException(status_code=409, detail="Account id already exists")
-    except KeyError:
-        pass
-
-    # persist
-    try:
-        if profile_id is not None:
-            repo.add_for_profile(account, profile_id=profile_id)
-        else:
-            repo.add(account)
-    except FileNotFoundError as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        repo.add(account, profile_id=pid)
     except ValueError as e:
         raise HTTPException(status_code=409, detail=str(e))
 
-    return _account_to_response(account)
+    return _account_to_response(account, profile_id=pid)
 
 
 @router.get("", response_model=list[AccountResponse])
 def list_accounts(profile_id: str | None = Query(default=None)) -> list[AccountResponse]:
     try:
-        repo = get_account_repo()
-        if profile_id is None:
-            accounts = repo.list_accounts()
-        else:
-            accounts = repo.list_accounts_by_profile(profile_id=profile_id)
-        return [_account_to_response(a) for a in accounts]
+        pid = resolve_profile_id(profile_id)
+        accounts = get_account_repo().list_accounts(profile_id=pid)
+        return [_account_to_response(a, profile_id=pid) for a in accounts]
     except Exception as e:
         logger.exception("Failed to list accounts: %s", e)
         raise HTTPException(status_code=500, detail="Internal error")
 
 @router.delete("/{account_id}", status_code=204)
-def delete_account(account_id: str, cascade: bool = Query(default=True)) -> Response:
-    # 1) vérifier que le compte existe
+def delete_account(
+    account_id: str,
+    cascade: bool = Query(default=True),
+    profile_id: str | None = Query(default=None),
+) -> Response:
+    pid = resolve_profile_id(profile_id)
+
     try:
-        acc = get_account_repo().get_account(account_id)
+        acc = get_account_repo().get_account(account_id, profile_id=pid)
     except KeyError:
         raise HTTPException(status_code=404, detail="Account not found")
 
     tx_repo = get_tx_repo()
 
-    # 2) cascade transactions
     if cascade:
-        txs = tx_repo.list(account_id=acc.id)
+        txs = tx_repo.list(account_id=acc.id, profile_id=pid)
         for t in txs:
             tx_repo.delete(account_id=acc.id, tx_id=t.id)
 
-    # 3) supprimer le compte
     deleted = get_account_repo().delete(account_id=acc.id)
     if not deleted:
-        # (rare) si supprimé entre-temps
         raise HTTPException(status_code=404, detail="Account not found")
 
     return Response(status_code=204)
 
 
 @router.patch("/{account_id}", response_model=AccountResponse)
-def update_account(account_id: str, req: AccountUpdateRequest) -> AccountResponse:
+def update_account(
+    account_id: str,
+    req: AccountUpdateRequest,
+    profile_id: str | None = Query(default=None),
+) -> AccountResponse:
+    pid = resolve_profile_id(profile_id)
     repo = get_account_repo()
 
-    # exists?
     try:
-        repo.get_account(account_id)
+        repo.get_account(account_id, profile_id=pid)
     except KeyError:
         raise HTTPException(status_code=404, detail="Account not found")
 
-    # parse account_type if provided
     account_type = None
     if req.account_type is not None:
         try:
@@ -319,7 +306,7 @@ def update_account(account_id: str, req: AccountUpdateRequest) -> AccountRespons
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
 
-    return _account_to_response(updated)
+    return _account_to_response(updated, profile_id=pid)
 
 
 
@@ -327,17 +314,17 @@ def update_account(account_id: str, req: AccountUpdateRequest) -> AccountRespons
 def get_account_balance(
     account_id: str,
     at: dt.date | None = Query(default=None),
+    profile_id: str | None = Query(default=None),
 ) -> AccountBalanceResponse:
-    # 1) compte
+    pid = resolve_profile_id(profile_id)
+
     try:
-        acc = get_account_repo().get_account(account_id)
+        acc = get_account_repo().get_account(account_id, profile_id=pid)
     except KeyError:
         raise HTTPException(status_code=404, detail="Account not found")
 
-    # 2) tx
-    txs = get_tx_repo().list(account_id=acc.id)
+    txs = get_tx_repo().list(account_id=acc.id, profile_id=pid)
 
-    # 3) compute
     opening, tx_sum, balance, n = compute_balance(
         opening_balance=acc.opening_balance,
         transactions=txs,
@@ -360,16 +347,19 @@ def account_timeseries(
     date_from: dt.date = Query(..., alias="from"),
     date_to: dt.date = Query(..., alias="to"),
     granularity: str = Query(default="auto", pattern="^(auto|daily|weekly|monthly|yearly)$"),
+    profile_id: str | None = Query(default=None),
 ) -> AccountTimeSeriesResponse:
     if date_from > date_to:
         raise HTTPException(status_code=422, detail="from must be <= to")
 
+    pid = resolve_profile_id(profile_id)
+
     try:
-        acc = get_account_repo().get_account(account_id)
+        acc = get_account_repo().get_account(account_id, profile_id=pid)
     except KeyError:
         raise HTTPException(status_code=404, detail="Account not found")
 
-    txs = get_tx_repo().list(account_id=acc.id)
+    txs = get_tx_repo().list(account_id=acc.id, profile_id=pid)
 
     g = pick_granularity(date_from, date_to) if granularity == "auto" else granularity
 
@@ -404,13 +394,13 @@ def account_timeseries(
 
 
 
-def _account_to_response(a: Account) -> AccountResponse:
+def _account_to_response(a: Account, *, profile_id: str) -> AccountResponse:
     return AccountResponse(
         id=a.id,
         name=a.name,
-        currency=a.currency.value,                 # <-- FIX : value, pas Currency.EUR
+        currency=a.currency.value,
         opening_balance=str(a.opening_balance.amount),
         opened_on=a.opened_on,
-        account_type=a.account_type.value,         # <-- idem si AccountType est un Enum
-        profile_id=getattr(a, "profile_id", None), # si présent dans certains cas
+        account_type=a.account_type.value,
+        profile_id=profile_id,
     )

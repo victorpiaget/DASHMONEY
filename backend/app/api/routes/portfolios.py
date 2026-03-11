@@ -167,12 +167,12 @@ def delete_portfolio(portfolio_id: UUID, profile_id: str | None = Query(default=
 
 
 @router.post("/{portfolio_id}/snapshots", response_model=PortfolioSnapshotOut)
-def add_snapshot(portfolio_id: UUID, payload: PortfolioSnapshotCreate):
+def add_snapshot(portfolio_id: UUID, payload: PortfolioSnapshotCreate, profile_id: str | None = Query(default=None)):
     p_repo = get_portfolio_repo()
     s_repo = get_portfolio_snapshot_repo()
 
     try:
-        portfolio = p_repo.get(portfolio_id)
+        portfolio = p_repo.get(portfolio_id, profile_id=profile_id)
     except KeyError:
         raise HTTPException(status_code=404, detail="portfolio not found")
 
@@ -208,12 +208,13 @@ def list_snapshots(
     portfolio_id: UUID,
     date_from: dt.date | None = Query(default=None, alias="from"),
     date_to: dt.date | None = Query(default=None, alias="to"),
+    profile_id: str | None = Query(default=None),
 ):
     p_repo = get_portfolio_repo()
     s_repo = get_portfolio_snapshot_repo()
 
     try:
-        p_repo.get(portfolio_id)
+        p_repo.get(portfolio_id, profile_id=profile_id)
     except KeyError:
         raise HTTPException(status_code=404, detail="portfolio not found")
 
