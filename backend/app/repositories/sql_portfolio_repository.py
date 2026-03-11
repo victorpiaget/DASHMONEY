@@ -11,7 +11,6 @@ from app.db_base import Base
 from app.domain.money import Currency
 from app.domain.portfolio import Portfolio, PortfolioType
 from app.repositories.portfolio_repository import PortfolioRepository
-from app.identity.defaults import DEFAULT_PROFILE_ID
 from app.identity.profile_scope import resolve_profile_id
 from app.repositories.sql_identity_models import ProfileRow  # noqa: F401
 
@@ -74,8 +73,7 @@ class SqlPortfolioRepository(PortfolioRepository):
             if s.get(PortfolioRow, str(portfolio.id)) is not None:
                 raise ValueError(f"portfolio id '{portfolio.id}' already exists")
 
-            row = self._to_row(portfolio)
-            row.profile_id = pid
+            row = self._to_row(portfolio, pid)
             s.add(row)
             s.commit()
 
@@ -99,11 +97,13 @@ class SqlPortfolioRepository(PortfolioRepository):
         portfolio_id: UUID,
         name: str | None = None,
         portfolio_type: PortfolioType | None = None,
+        profile_id: str | None = None,
     ) -> Portfolio:
+        pid = resolve_profile_id(profile_id)
 
         with new_session() as s:
             row = s.get(PortfolioRow, str(portfolio_id))
-            if row is None:
+            if row is None or row.profile_id != pid:
                 raise KeyError("portfolio not found")
 
             if name is not None:
@@ -122,7 +122,7 @@ class SqlPortfolioRepository(PortfolioRepository):
     # -------- mapping --------
 
     @staticmethod
-    def _to_row(p: Portfolio) -> PortfolioRow:
+    def _to_row(p: Portfolio, profile_id: str) -> PortfolioRow:
         return PortfolioRow(
             id=str(p.id),
             name=p.name,
@@ -130,8 +130,7 @@ class SqlPortfolioRepository(PortfolioRepository):
             portfolio_type=p.portfolio_type.value,
             opened_on=p.opened_on,
             cash_account_id=p.cash_account_id,
-            profile_id=DEFAULT_PROFILE_ID,
-
+            profile_id=profile_id,
         )
 
     @staticmethod

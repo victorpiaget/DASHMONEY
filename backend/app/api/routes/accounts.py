@@ -300,6 +300,7 @@ def update_account(
             account_id=account_id,
             name=req.name,
             account_type=account_type,
+            profile_id=pid,
         )
     except KeyError:
         raise HTTPException(status_code=404, detail="Account not found")

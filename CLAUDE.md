@@ -114,10 +114,11 @@ Chaque ressource appartient à un `profile_id`.
 - Pas de `profile_id` dans les entités domain → c'est une préoccupation de persistance
 
 ### Repositories
-- Interface abstraite dans `account_repository.py`
-- Implémentation SQL dans `sql_account_repository.py`
-- Toujours accepter `profile_id: str | None = None` sur les méthodes publiques
+- Interface (`Protocol`) dans `account_repository.py`, implémentation SQL dans `sql_account_repository.py`
+- Toutes les interfaces sont des `Protocol` (pas ABC)
+- Toujours accepter `profile_id: str | None = None` sur les méthodes publiques, y compris `update()`
 - Utiliser `resolve_profile_id()` en interne
+- `_to_row(obj, profile_id: str)` : `profile_id` passé explicitement, jamais hardcodé
 
 ### Routes API
 - Toujours exposer `profile_id: str | None = Query(default=None)` sur les endpoints qui touchent des ressources
@@ -138,19 +139,23 @@ Chaque ressource appartient à un `profile_id`.
 - Engine de calcul (balance, timeseries, net worth)
 - Repositories SQL avec Alembic
 - Système identity/profils (Workspace → Profile)
-- Tests d'intégration (20 tests, base PostgreSQL dédiée)
+- Tests d'intégration (**114 tests**, base PostgreSQL dédiée)
 - **Profile scoping complet sur toute l'API** (accounts, transactions, net worth, portfolios, trades, imports, budgets)
 - `on_event` migré vers `lifespan` FastAPI
 
 ### Prochaines étapes identifiées
-- Améliorer la couverture de tests (edge cases, cas d'erreur)
-- Ajouter des fixtures de données dans conftest (comptes + transactions de test)
+- Frontend (à définir)
+- Nouvelles fonctionnalités métier (budget prévisionnel, objectifs, etc.)
 
 ### Décisions de design arrêtées
 - `profile_id` est retourné dans toutes les réponses API de type AccountResponse (explicite)
 - `profile_id` n'est PAS dans les domain objects (séparation domaine / persistance)
 - Le `profile_id` dans les réponses est passé explicitement au mapper `_account_to_response(account, *, profile_id: str)`
 - `resolve_profile_id()` est appelé au niveau de la route (pas dans le repo) — pattern uniforme sur toute l'API
+- `_to_row(obj, profile_id: str)` reçoit `profile_id` en paramètre explicite — pas de `DEFAULT_PROFILE_ID` hardcodé dans les mappers
+- `SqlTransactionRepository` est indépendant de `AccountRepository` — pas de dépendance injectée
+- Toutes les interfaces repo utilisent `Protocol` (plus de ABC)
+- `update()` est présent dans toutes les interfaces Protocol (AccountRepository, PortfolioRepository)
 
 ---
 

@@ -12,7 +12,6 @@ from app.domain.account import Account, AccountType
 from app.domain.money import Currency
 from app.domain.signed_money import SignedMoney
 from app.repositories.account_repository import AccountRepository
-from app.identity.defaults import DEFAULT_PROFILE_ID
 from app.identity.profile_scope import resolve_profile_id
 from app.repositories.sql_identity_models import ProfileRow  # noqa: F401
 
@@ -36,72 +35,9 @@ class AccountRow(Base):
 
 
 class SqlAccountRepository(AccountRepository):
-    """
-    SQL implementation aligned with JsonAccountRepository behavior:
-    - list_accounts(): returns all accounts
-    - get_account(): raises KeyError if unknown
-    - add(): raises ValueError if id exists
-    - delete(): returns False if unknown/invalid id
-    - update(): parity method (exists in JsonAccountRepository)
-    """
 
     def __init__(self) -> None:
         init_db()
-
-    def list_accounts_by_profile(self, *, profile_id: str) -> list[Account]:
-        pid = (profile_id or "").strip()
-        if not pid:
-            raise ValueError("profile_id cannot be empty")
-        with new_session() as s:
-            rows = (
-                s.execute(
-                    select(AccountRow)
-                    .where(AccountRow.profile_id == pid)
-                    .order_by(AccountRow.id.asc())
-                )
-                .scalars()
-                .all()
-            )
-            return [self._to_domain(r) for r in rows]
-
-    def get_account_in_profile(self, *, account_id: str, profile_id: str) -> Account:
-        pid = (profile_id or "").strip()
-        if not pid:
-            raise ValueError("profile_id cannot be empty")
-        if not isinstance(account_id, str) or not account_id.strip():
-            raise ValueError("account_id cannot be empty")
-        target = account_id.strip()
-
-        with new_session() as s:
-            row = s.get(AccountRow, target)
-            if row is None or row.profile_id != pid:
-                raise KeyError(f"unknown account_id '{target}' for profile '{pid}'")
-            return self._to_domain(row)
-
-    def add_for_profile(self, account: Account, *, profile_id: str) -> None:
-        if not isinstance(account, Account):
-            raise TypeError("account must be an Account")
-        pid = (profile_id or "").strip()
-        if not pid:
-            raise ValueError("profile_id cannot be empty")
-
-        with new_session() as s:
-            existing = s.get(AccountRow, account.id)
-            if existing is not None:
-                raise ValueError(f"account id '{account.id}' already exists")
-
-            row = AccountRow(
-                id=account.id,
-                name=account.name,
-                currency=account.currency.value,
-                opening_balance=Decimal(str(account.opening_balance.amount)),
-                opened_on=account.opened_on,
-                account_type=account.account_type.value,
-                profile_id=pid,
-            )
-            s.add(row)
-            s.commit()
-
 
     def list_accounts(self, *, profile_id: str | None = None) -> list[Account]:
         pid = resolve_profile_id(profile_id)
@@ -167,14 +103,16 @@ class SqlAccountRepository(AccountRepository):
         account_id: str,
         name: str | None = None,
         account_type: AccountType | None = None,
+        profile_id: str | None = None,
     ) -> Account:
         if not isinstance(account_id, str) or not account_id.strip():
             raise ValueError("account_id cannot be empty")
         target = account_id.strip()
+        pid = resolve_profile_id(profile_id)
 
         with new_session() as s:
             row = s.get(AccountRow, target)
-            if row is None:
+            if row is None or row.profile_id != pid:
                 raise KeyError(f"unknown account_id '{target}'")
 
             if name is not None:

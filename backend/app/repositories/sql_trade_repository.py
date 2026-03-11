@@ -12,7 +12,6 @@ from app.db_base import Base
 from app.domain.money import Currency
 from app.domain.trade import Trade, TradeSide
 from app.repositories.trade_repository import TradeRepository
-from app.identity.defaults import DEFAULT_PROFILE_ID
 from app.identity.profile_scope import resolve_profile_id
 from app.repositories.sql_identity_models import ProfileRow  # noqa: F401
 
@@ -66,8 +65,7 @@ class SqlTradeRepository(TradeRepository):
             if s.get(TradeRow, str(trade.id)) is not None:
                 raise ValueError(f"trade {trade.id} already exists")
 
-            row = self._to_row(trade)
-            row.profile_id = pid
+            row = self._to_row(trade, pid)
             s.add(row)
             s.commit()
 
@@ -115,9 +113,6 @@ class SqlTradeRepository(TradeRepository):
             row = s.get(TradeRow, str(trade_id))
             if row is None or row.profile_id != pid:
                 raise KeyError("trade not found")
-
-            if row is None:
-                raise KeyError("trade not found")
             return self._to_domain(row)
 
     # -------- delete (physique en SQL) --------
@@ -129,8 +124,6 @@ class SqlTradeRepository(TradeRepository):
             if row is None or row.profile_id != pid:
                 return False
 
-            if row is None:
-                return False
             s.delete(row)
             s.commit()
             return True
@@ -142,9 +135,6 @@ class SqlTradeRepository(TradeRepository):
         with new_session() as s:
             row = s.get(TradeRow, str(trade_id))
             if row is None or row.profile_id != pid:
-                raise KeyError("trade not found")
-            
-            if row is None:
                 raise KeyError("trade not found")
 
             # Appliquer patch comme JSONL _merge :contentReference[oaicite:6]{index=6}
@@ -172,7 +162,7 @@ class SqlTradeRepository(TradeRepository):
     # -------- mapping --------
 
     @staticmethod
-    def _to_row(t: Trade) -> TradeRow:
+    def _to_row(t: Trade, profile_id: str) -> TradeRow:
         return TradeRow(
             id=str(t.id),
             portfolio_id=str(t.portfolio_id),
@@ -185,8 +175,7 @@ class SqlTradeRepository(TradeRepository):
             currency=t.currency.value,
             label=t.label,
             linked_cash_tx_id=str(t.linked_cash_tx_id) if t.linked_cash_tx_id else None,
-            profile_id=DEFAULT_PROFILE_ID,
-
+            profile_id=profile_id,
         )
 
     @staticmethod

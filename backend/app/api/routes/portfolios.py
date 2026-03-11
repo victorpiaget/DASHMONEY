@@ -39,7 +39,10 @@ def list_portfolios(profile_id: str | None = Query(default=None)):
 @router.get("/{portfolio_id}", response_model=PortfolioOut)
 def get_portfolio(portfolio_id: UUID, profile_id: str | None = Query(default=None)) -> PortfolioOut:
     repo = get_portfolio_repo()
-    p = repo.get(portfolio_id, profile_id=profile_id)
+    try:
+        p = repo.get(portfolio_id, profile_id=profile_id)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="portfolio not found")
     return PortfolioOut(
         id=p.id,
         name=p.name,
@@ -99,9 +102,6 @@ def create_portfolio(payload: PortfolioCreate, profile_id: str | None = Query(de
             raise HTTPException(status_code=500, detail=f"failed to persist pass-through account: {e}")
 
 
-    repo.add(p, profile_id=profile_id)
-
-    
     create_account_if_missing(
         account_id=p.cash_account_id,
         name=f"Passerelle - {p.name}",
@@ -109,6 +109,8 @@ def create_portfolio(payload: PortfolioCreate, profile_id: str | None = Query(de
         opened_on=p.opened_on,
         profile_id=profile_id,
     )
+
+    repo.add(p, profile_id=profile_id)
 
     return PortfolioOut(
         id=p.id,
@@ -142,6 +144,7 @@ def update_portfolio(portfolio_id: UUID, req: PortfolioUpdateRequest, profile_id
             portfolio_id=portfolio_id,
             name=req.name,
             portfolio_type=ptype,
+            profile_id=profile_id,
         )
     except KeyError:
         raise HTTPException(status_code=404, detail="portfolio not found")
@@ -192,7 +195,7 @@ def add_snapshot(portfolio_id: UUID, payload: PortfolioSnapshotCreate, profile_i
     except Exception as e:
         raise HTTPException(status_code=422, detail=str(e))
 
-    s_repo.add(snap)
+    s_repo.add(snap, profile_id=profile_id)
     return PortfolioSnapshotOut(
         id=snap.id,
         portfolio_id=snap.portfolio_id,
@@ -218,7 +221,7 @@ def list_snapshots(
     except KeyError:
         raise HTTPException(status_code=404, detail="portfolio not found")
 
-    snaps = s_repo.list(portfolio_id=portfolio_id)
+    snaps = s_repo.list(portfolio_id=portfolio_id, profile_id=profile_id)
     if date_from is not None:
         snaps = [s for s in snaps if s.date >= date_from]
     if date_to is not None:

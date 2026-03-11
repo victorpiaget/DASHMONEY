@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Protocol
 from uuid import UUID
 
-from app.domain.portfolio import Portfolio
+from app.domain.portfolio import Portfolio, PortfolioType
 
 
 class PortfolioRepository(Protocol):
@@ -11,3 +11,4 @@ class PortfolioRepository(Protocol):
     def get(self, portfolio_id: UUID, *, profile_id: str | None = None) -> Portfolio: ...
     def add(self, portfolio: Portfolio, *, profile_id: str | None = None) -> None: ...
     def delete(self, *, portfolio_id: UUID, profile_id: str | None = None) -> bool: ...
+    def update(self, *, portfolio_id: UUID, name: str | None = None, portfolio_type: PortfolioType | None = None, profile_id: str | None = None) -> Portfolio: ...

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from typing import Protocol
-from app.domain.account import Account
+from app.domain.account import Account, AccountType
 
 
 class AccountRepository(Protocol):
@@ -9,3 +9,4 @@ class AccountRepository(Protocol):
     def get_account(self, account_id: str, *, profile_id: str | None = None) -> Account: ...
     def add(self, account: Account, *, profile_id: str | None = None) -> None: ...
     def delete(self, *, account_id: str) -> bool: ...
+    def update(self, *, account_id: str, name: str | None = None, account_type: AccountType | None = None, profile_id: str | None = None) -> Account: ...

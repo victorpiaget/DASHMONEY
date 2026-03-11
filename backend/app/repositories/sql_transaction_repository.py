@@ -18,7 +18,6 @@ from sqlalchemy import (
 
 from sqlalchemy.orm import Mapped, mapped_column, Session
 
-from app.identity.defaults import DEFAULT_PROFILE_ID
 from app.identity.profile_scope import resolve_profile_id
 
 
@@ -27,7 +26,6 @@ from app.db_base import Base
 from app.domain.money import Currency
 from app.domain.signed_money import SignedMoney
 from app.domain.transaction import Transaction, TransactionKind
-from app.repositories.account_repository import AccountRepository
 from app.repositories.transaction_repository import TransactionRepository
 from app.repositories.sql_identity_models import ProfileRow  # noqa: F401
 
@@ -65,26 +63,17 @@ class TransactionRow(Base):
 
 class SqlTransactionRepository(TransactionRepository):
 
-    def __init__(self, *, tx_account_repo: AccountRepository) -> None:
-        self._accounts = tx_account_repo
+    def __init__(self) -> None:
         init_db()
 
     def add(self, tx: Transaction, *, profile_id: str | None = None) -> None:
         pid = resolve_profile_id(profile_id)
-        acc = self._accounts.get_account(tx.account_id, profile_id=pid)
-        if tx.amount.currency != acc.currency:
-            raise ValueError(
-                f"currency mismatch for account '{tx.account_id}': "
-                f"tx={tx.amount.currency} account={acc.currency}"
-            )
-
         with new_session() as s:
             existing = s.get(TransactionRow, str(tx.id))
             if existing is not None:
                 raise ValueError(f"Transaction with id {tx.id} already exists")
 
-            row = self._to_row(tx)
-            row.profile_id = pid
+            row = self._to_row(tx, pid)
             s.add(row)
             s.commit()
 
@@ -127,12 +116,7 @@ class SqlTransactionRepository(TransactionRepository):
 
         with new_session() as s:
             row = s.get(TransactionRow, str(tx_id))
-            if row is None or row.profile_id != pid:
-                return False
-
-            if row is None:
-                return False
-            if row.account_id != aid:
+            if row is None or row.profile_id != pid or row.account_id != aid:
                 return False
 
             s.delete(row)
@@ -162,10 +146,6 @@ class SqlTransactionRepository(TransactionRepository):
             if row is None or row.profile_id != pid or row.account_id != aid:
                 raise KeyError("Transaction not found")
 
-
-            if row is None or row.account_id != aid:
-                raise KeyError("Transaction not found")
-
             if row.kind == TransactionKind.TRANSFER.value or row.transfer_id is not None:
                 raise ValueError("Transfers must be updated via /transfers endpoint")
 
@@ -179,12 +159,6 @@ class SqlTransactionRepository(TransactionRepository):
                 row.kind = kind.value
 
             if amount is not None:
-                acc = self._accounts.get_account(aid, profile_id=pid)
-                if amount.currency != acc.currency:
-                    raise ValueError(
-                        f"currency mismatch for account '{aid}': "
-                        f"tx={amount.currency} account={acc.currency}"
-                    )
                 row.amount = Decimal(str(amount.amount))
                 row.currency = amount.currency.value
 
@@ -267,14 +241,6 @@ class SqlTransactionRepository(TransactionRepository):
                 if new_amount_pos.amount <= 0:
                     raise ValueError("amount must be > 0")
 
-                acc_from = self._accounts.get_account(row_from.account_id, profile_id=pid)
-                acc_to = self._accounts.get_account(row_to.account_id, profile_id=pid)
-                if (
-                    new_amount_pos.currency != acc_from.currency
-                    or new_amount_pos.currency != acc_to.currency
-                ):
-                    raise ValueError("Currency mismatch in transfer update")
-
                 row_to.amount = Decimal(str(new_amount_pos.amount))
                 row_to.currency = new_amount_pos.currency.value
                 row_from.amount = Decimal(str(-new_amount_pos.amount))
@@ -336,7 +302,7 @@ class SqlTransactionRepository(TransactionRepository):
         return int(max_seq or 0) + 1
 
     @staticmethod
-    def _to_row(tx: Transaction) -> TransactionRow:
+    def _to_row(tx: Transaction, profile_id: str) -> TransactionRow:
         return TransactionRow(
             id=str(tx.id),
             account_id=tx.account_id,
@@ -350,8 +316,7 @@ class SqlTransactionRepository(TransactionRepository):
             label=tx.label,
             created_at=tx.created_at,
             transfer_id=str(tx.transfer_id) if tx.transfer_id else None,
-            profile_id=DEFAULT_PROFILE_ID,
-
+            profile_id=profile_id,
         )
 
     @staticmethod

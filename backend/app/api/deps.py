@@ -19,8 +19,7 @@ def get_account_repo():
 
 @lru_cache
 def get_tx_repo():
-    account_repo = get_account_repo()
-    return SqlTransactionRepository(tx_account_repo=account_repo)
+    return SqlTransactionRepository()
    
 @lru_cache
 def get_portfolio_repo():

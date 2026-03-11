@@ -12,7 +12,6 @@ from app.db_base import Base
 from app.domain.money import Currency, Money
 from app.domain.portfolio import PortfolioSnapshot
 from app.repositories.portfolio_snapshot_repository import PortfolioSnapshotRepository
-from app.identity.defaults import DEFAULT_PROFILE_ID
 from app.identity.profile_scope import resolve_profile_id
 from app.repositories.sql_identity_models import ProfileRow  # noqa: F401
 
@@ -52,8 +51,7 @@ class SqlPortfolioSnapshotRepository(PortfolioSnapshotRepository):
             if s.get(PortfolioSnapshotRow, str(snapshot.id)) is not None:
                 raise ValueError(f"snapshot id '{snapshot.id}' already exists")
 
-            row = self._to_row(snapshot)
-            row.profile_id = pid
+            row = self._to_row(snapshot, pid)
             s.add(row)
             s.commit()
 
@@ -91,7 +89,7 @@ class SqlPortfolioSnapshotRepository(PortfolioSnapshotRepository):
             return snaps
 
     @staticmethod
-    def _to_row(snap: PortfolioSnapshot) -> PortfolioSnapshotRow:
+    def _to_row(snap: PortfolioSnapshot, profile_id: str) -> PortfolioSnapshotRow:
         return PortfolioSnapshotRow(
             id=str(snap.id),
             portfolio_id=str(snap.portfolio_id),
@@ -99,8 +97,7 @@ class SqlPortfolioSnapshotRepository(PortfolioSnapshotRepository):
             value=Decimal(str(snap.value.amount)),
             currency=snap.value.currency.value,
             note=snap.note,
-            profile_id=DEFAULT_PROFILE_ID,
-
+            profile_id=profile_id,
         )
 
     @staticmethod
