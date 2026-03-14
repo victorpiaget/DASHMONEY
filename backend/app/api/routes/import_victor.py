@@ -47,12 +47,17 @@ def map_type_to_kind(type_excel: str, amount_str: str):
     if "revenu" in t:
         return TransactionKind.INCOME
     if "invest" in t:
-        return TransactionKind.INVESTMENT
-    if "ajust" in t:
-        return TransactionKind.ADJUSTMENT
+        return TransactionKind.EXPENSE
     if amount_str.startswith("-"):
         return TransactionKind.EXPENSE
     return TransactionKind.INCOME
+
+
+def _is_month_number(val: str) -> bool:
+    try:
+        return 1 <= int(val.strip()) <= 12
+    except (ValueError, AttributeError):
+        return False
 
 
 def looks_like_header(row: list[str]) -> bool:
@@ -118,20 +123,41 @@ async def import_victor(
         cells = [c.strip() for c in row]
 
         try:
-            if len(cells) < 5:
-                raise ValueError(f"expected 5 columns, got {len(cells)}")
-
-            date_fr = cells[0]
-            type_excel = cells[1]
-            category = cells[2].strip()
-            subcategory = cells[3].strip() or None
-            amount_fr = cells[4]
+            # Format Victor actuel (9 col avec trailing ; OU 8 col sans trailing ;) :
+            #   date | année | mois | type | catégorie | label | montant signé | solde | (vide?)
+            # Détection : cells[2] est un numéro de mois (1-12)
+            # Format ancien 8 colonnes :
+            #   date | année | type | catégorie | label | montant signé | solde | montant abs
+            # Format 5 colonnes (legacy) :
+            #   date | type | catégorie | sous-catégorie | montant
+            if len(cells) >= 8 and _is_month_number(cells[2]):
+                date_fr = cells[0]
+                type_excel = cells[3]
+                category = cells[4].strip()
+                subcategory = cells[5].strip() or None
+                amount_fr = cells[6]
+            elif len(cells) >= 8:
+                date_fr = cells[0]
+                type_excel = cells[2]
+                category = cells[3].strip()
+                subcategory = cells[4].strip() or None
+                amount_fr = cells[5]
+            elif len(cells) >= 5:
+                date_fr = cells[0]
+                type_excel = cells[1]
+                category = cells[2].strip()
+                subcategory = cells[3].strip() or None
+                amount_fr = cells[4]
+            else:
+                raise ValueError(f"expected ≥5 columns, got {len(cells)}")
 
             if not category:
                 raise ValueError("category empty")
 
             date = parse_date_fr(date_fr)
             amount_norm = normalize_amount_fr(amount_fr)
+            if float(amount_norm) == 0:
+                continue
             kind = map_type_to_kind(type_excel, amount_norm)
             amount = SignedMoney.from_str(amount_norm, acc.currency)
             seq = tx_repo.next_sequence(acc.id, date, profile_id=ctx.profile_id)

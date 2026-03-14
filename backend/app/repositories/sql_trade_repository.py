@@ -10,7 +10,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.db import init_db, new_session
 from app.db_base import Base
 from app.domain.money import Currency
-from app.domain.trade import Trade, TradeSide
+from app.domain.trade import Trade, TradeSide, TradeType
 from app.repositories.trade_repository import TradeRepository
 from app.identity.profile_scope import resolve_profile_id
 from app.repositories.sql_identity_models import ProfileRow  # noqa: F401
@@ -39,6 +39,7 @@ class TradeRow(Base):
     fees: Mapped[Decimal] = mapped_column(Numeric(24, 10), nullable=False)
     currency: Mapped[str] = mapped_column(String(8), nullable=False)
     label: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    trade_type: Mapped[str] = mapped_column(String(16), nullable=False, default="TRADE")
     linked_cash_tx_id: Mapped[str | None] = mapped_column(
         String(36),
         ForeignKey("transactions.id", ondelete="SET NULL"),
@@ -174,6 +175,7 @@ class SqlTradeRepository(TradeRepository):
             fees=Decimal(str(t.fees)),
             currency=t.currency.value,
             label=t.label,
+            trade_type=t.trade_type.value,
             linked_cash_tx_id=str(t.linked_cash_tx_id) if t.linked_cash_tx_id else None,
             profile_id=profile_id,
         )
@@ -191,5 +193,6 @@ class SqlTradeRepository(TradeRepository):
             fees=r.fees,
             currency=Currency(r.currency),
             label=r.label,
+            trade_type=TradeType(r.trade_type) if r.trade_type else TradeType.TRADE,
             linked_cash_tx_id=UUID(r.linked_cash_tx_id) if r.linked_cash_tx_id else None,
         )

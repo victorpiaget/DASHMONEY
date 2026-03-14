@@ -17,3 +17,10 @@ class PriceUpdateResult(BaseModel):
     day: dt.date
     stored: int = Field(ge=0)
     skipped: int = Field(ge=0)
+
+
+class BackfillResult(BaseModel):
+    date_from: dt.date
+    date_to: dt.date
+    stored: int = Field(ge=0)
+    skipped: int = Field(ge=0)

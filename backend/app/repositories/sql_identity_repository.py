@@ -72,6 +72,11 @@ class SqlProfileRepository(ProfileRepository):
             )
             return [self._to_domain(r) for r in rows]
 
+    def list_all(self) -> list[Profile]:
+        with new_session() as s:
+            rows = s.execute(select(ProfileRow).order_by(ProfileRow.created_at.asc())).scalars().all()
+            return [self._to_domain(r) for r in rows]
+
     def get_profile(self, *, profile_id: str) -> Profile:
         pid = (profile_id or "").strip()
         if not pid:
@@ -131,6 +136,17 @@ class SqlProfileRepository(ProfileRepository):
                 )
             ).scalar_one_or_none()
             return row is not None
+
+    def get_default_profile_id_for_user(self, user_id: str) -> str | None:
+        """Retourne le premier profil accessible par l'user (ordre stable par profile_id)."""
+        with new_session() as s:
+            row = s.execute(
+                select(ProfileAccessRow)
+                .where(ProfileAccessRow.user_id == user_id)
+                .order_by(ProfileAccessRow.profile_id.asc())
+                .limit(1)
+            ).scalar_one_or_none()
+            return row.profile_id if row else None
 
     @staticmethod
     def _to_domain(row: ProfileRow) -> Profile:

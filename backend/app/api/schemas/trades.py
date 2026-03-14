@@ -28,6 +28,7 @@ class TradeOut(BaseModel):
     portfolio_id: UUID
     date: dt.date
     side: str
+    trade_type: str = "TRADE"
     instrument_symbol: str
     quantity: str
     price: str

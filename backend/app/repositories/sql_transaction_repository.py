@@ -267,6 +267,39 @@ class SqlTransactionRepository(TransactionRepository):
 
             return self._to_domain(row_from), self._to_domain(row_to)
 
+    def link_as_transfer(
+        self, *, tx_from_id: UUID, tx_to_id: UUID, profile_id: str | None = None
+    ) -> tuple[Transaction, Transaction]:
+        """Relier deux transactions existantes en virement (transfer_id partagé, kind=TRANSFER)."""
+        from uuid import uuid4 as _uuid4
+        pid = resolve_profile_id(profile_id)
+        with new_session() as s:
+            row_from = s.get(TransactionRow, str(tx_from_id))
+            row_to = s.get(TransactionRow, str(tx_to_id))
+
+            if row_from is None or row_from.profile_id != pid:
+                raise KeyError("from transaction not found")
+            if row_to is None or row_to.profile_id != pid:
+                raise KeyError("to transaction not found")
+            if row_from.account_id == row_to.account_id:
+                raise ValueError("Les deux transactions doivent être dans des comptes différents")
+            if row_from.transfer_id is not None or row_to.transfer_id is not None:
+                raise ValueError("Une des transactions est déjà liée à un virement")
+            if abs(Decimal(str(row_from.amount))) != abs(Decimal(str(row_to.amount))):
+                raise ValueError(
+                    f"Les montants ne correspondent pas : {row_from.amount} ≠ {row_to.amount}"
+                )
+
+            transfer_id = str(_uuid4())
+            row_from.kind = TransactionKind.TRANSFER.value
+            row_from.transfer_id = transfer_id
+            row_to.kind = TransactionKind.TRANSFER.value
+            row_to.transfer_id = transfer_id
+            s.commit()
+            s.refresh(row_from)
+            s.refresh(row_to)
+            return self._to_domain(row_from), self._to_domain(row_to)
+
     def delete_transfer(self, *, transfer_id: UUID, profile_id: str | None = None) -> tuple[UUID, UUID]:
         pid = resolve_profile_id(profile_id)
         with new_session() as s:

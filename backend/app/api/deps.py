@@ -10,7 +10,7 @@ from fastapi import Query
 
 from app.domain.user import User
 from app.identity.auth import decode_access_token
-from app.identity.profile_scope import resolve_profile_id
+
 from app.identity.request_context import RequestContext
 from app.repositories.sql_account_repository import SqlAccountRepository
 from app.repositories.sql_transaction_repository import SqlTransactionRepository
@@ -22,6 +22,7 @@ from app.repositories.sql_price_repository import SqlPriceRepository
 from app.repositories.sql_identity_repository import SqlProfileRepository, SqlWorkspaceRepository
 from app.repositories.sql_refresh_token_repository import SqlRefreshTokenRepository
 from app.repositories.sql_user_repository import SqlUserRepository
+from app.repositories.sql_category_repository import SqlCategoryRepository
 
 _bearer = HTTPBearer(auto_error=True)
 
@@ -75,6 +76,11 @@ def get_refresh_token_repo():
     return SqlRefreshTokenRepository()
 
 
+@lru_cache
+def get_category_repo():
+    return SqlCategoryRepository()
+
+
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(_bearer),
 ) -> User:
@@ -101,10 +107,22 @@ async def get_request_context(
     user: User = Depends(get_current_user),
     profile_id: str | None = Query(default=None),
 ) -> RequestContext:
-    pid = resolve_profile_id(profile_id)
-    if not get_profile_repo().has_profile_access(user_id=user.id, profile_id=pid):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"No access to profile '{pid}'",
-        )
+    profile_repo = get_profile_repo()
+
+    if profile_id is None or not profile_id.strip():
+        # Pas de profile_id fourni → prendre le profil par défaut de l'user
+        pid = profile_repo.get_default_profile_id_for_user(user.id)
+        if pid is None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="No profile found for this user",
+            )
+    else:
+        pid = profile_id.strip()
+        if not profile_repo.has_profile_access(user_id=user.id, profile_id=pid):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"No access to profile '{pid}'",
+            )
+
     return RequestContext(user_id=user.id, profile_id=pid)

@@ -21,6 +21,7 @@ router = APIRouter(prefix="/portfolios/{portfolio_id}/trades", tags=["trades"])
 def _trade_to_out(t: Trade) -> TradeOut:
     return TradeOut(
         id=t.id, portfolio_id=t.portfolio_id, date=t.date, side=t.side.value,
+        trade_type=t.trade_type.value,
         instrument_symbol=t.instrument_symbol, quantity=str(t.quantity), price=str(t.price),
         fees=str(t.fees), currency=t.currency.value, label=t.label,
         linked_cash_tx_id=t.linked_cash_tx_id,
@@ -175,7 +176,7 @@ def patch_trade(
         raise HTTPException(status_code=404, detail="portfolio not found")
 
     try:
-        base = t_repo.get(trade_id)
+        base = t_repo.get(trade_id, profile_id=ctx.profile_id)
     except KeyError:
         raise HTTPException(status_code=404, detail="trade not found")
 
@@ -233,7 +234,7 @@ def patch_trade(
     patch["linked_cash_tx_id"] = new_tx.id
     patch["currency"] = p.currency
 
-    updated = t_repo.update(trade_id=trade_id, patch=patch)
+    updated = t_repo.update(trade_id=trade_id, patch=patch, profile_id=ctx.profile_id)
     return _trade_to_out(updated)
 
 

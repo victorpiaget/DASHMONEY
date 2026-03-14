@@ -57,3 +57,8 @@ class TransactionRepository(Protocol):
 
     def delete_transfer(self, *, transfer_id: UUID, profile_id: str | None = None) -> tuple[UUID, UUID]:
         ...
+
+    def link_as_transfer(
+        self, *, tx_from_id: UUID, tx_to_id: UUID, profile_id: str | None = None
+    ) -> tuple[Transaction, Transaction]:
+        ...

@@ -16,6 +16,8 @@ class InstrumentRow(Base):
     symbol: Mapped[str] = mapped_column(String(32), primary_key=True)
     kind: Mapped[str] = mapped_column(String(32), nullable=False)
     currency: Mapped[str] = mapped_column(String(8), nullable=False)
+    name: Mapped[str] = mapped_column(String(256), nullable=False, server_default="")
+    ticker: Mapped[str] = mapped_column(String(64), nullable=False, server_default="")
 
 
 class SqlInstrumentRepository(InstrumentRepository):
@@ -48,9 +50,25 @@ class SqlInstrumentRepository(InstrumentRepository):
                 symbol=sym,
                 kind=instrument.kind.value,
                 currency=instrument.currency.value,
+                name=instrument.name or "",
+                ticker=instrument.ticker or "",
             )
             s.add(row)
             s.commit()
+
+    def update(self, symbol: str, instrument: Instrument) -> Instrument:
+        sym = symbol.strip().upper()
+        with new_session() as s:
+            row = s.get(InstrumentRow, sym)
+            if row is None:
+                raise KeyError(f"instrument '{sym}' not found")
+            row.kind = instrument.kind.value
+            row.currency = instrument.currency.value
+            row.name = instrument.name or ""
+            row.ticker = instrument.ticker or ""
+            s.commit()
+            s.refresh(row)
+            return self._to_domain(row)
 
     def delete(self, *, symbol: str) -> bool:
         sym = symbol.strip().upper()
@@ -68,4 +86,6 @@ class SqlInstrumentRepository(InstrumentRepository):
             symbol=row.symbol,
             kind=InstrumentKind(row.kind),
             currency=Currency(row.currency),
+            name=row.name or "",
+            ticker=row.ticker or "",
         )

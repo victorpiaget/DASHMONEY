@@ -73,6 +73,14 @@ def create_profile(
 profiles_router = APIRouter(prefix="/profiles", tags=["profiles"])
 
 
+@profiles_router.get("", response_model=list[ProfileResponse])
+def list_all_profiles() -> list[ProfileResponse]:
+    """Liste tous les profils — utile pour retrouver son profile_id."""
+    from app.repositories.sql_identity_repository import SqlProfileRepository
+    profiles = SqlProfileRepository().list_all()
+    return [ProfileResponse(**asdict(p)) for p in profiles]
+
+
 @profiles_router.get("/{profile_id}", response_model=ProfileResponse)
 def get_profile(profile_id: str) -> ProfileResponse:
     repo = get_profile_repo()

@@ -81,6 +81,44 @@ class SqlPriceRepository(PriceRepository):
 
         return [self._to_domain(r) for r in rows]
 
+    def latest_on_or_before(self, *, symbol: str, day: dt.date) -> PricePoint | None:
+        sym = symbol.strip().upper()
+        stmt = (
+            select(PricePointRow)
+            .where(PricePointRow.symbol == sym)
+            .where(PricePointRow.day <= day)
+            .order_by(PricePointRow.day.desc(), PricePointRow.captured_at.desc())
+            .limit(1)
+        )
+        with new_session() as s:
+            row = s.execute(stmt).scalars().first()
+        return None if row is None else self._to_domain(row)
+
+    def latest_all(self) -> list[PricePoint]:
+        """Returns the most recent price point for each symbol."""
+        from sqlalchemy import func
+        with new_session() as s:
+            subq = (
+                select(
+                    PricePointRow.symbol,
+                    func.max(PricePointRow.day).label("max_day"),
+                )
+                .group_by(PricePointRow.symbol)
+                .subquery()
+            )
+            stmt = select(PricePointRow).join(
+                subq,
+                (PricePointRow.symbol == subq.c.symbol) & (PricePointRow.day == subq.c.max_day),
+            )
+            rows = s.execute(stmt).scalars().all()
+
+        # If multiple entries exist for the same day (different captured_at), keep the latest
+        by_symbol: dict[str, PricePointRow] = {}
+        for r in rows:
+            if r.symbol not in by_symbol or r.captured_at > by_symbol[r.symbol].captured_at:
+                by_symbol[r.symbol] = r
+        return [self._to_domain(r) for r in by_symbol.values()]
+
     def latest(self, *, symbol: str) -> PricePoint | None:
         sym = symbol.strip().upper()
         stmt = (

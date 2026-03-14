@@ -17,9 +17,11 @@ class InstrumentKind(str, Enum):
 
 @dataclass(frozen=True, slots=True)
 class Instrument:
-    symbol: str          # ex: "BTC", "AAPL", "CW8"
+    symbol: str          # ex: "BTC", "AAPL", "FR0013412020"
     kind: InstrumentKind
     currency: Currency   # devise de cotation / pricing
+    name: str = ""       # nom d'affichage, ex: "Amundi PEA MSCI Emerging"
+    ticker: str = ""     # ticker Yahoo Finance, ex: "PAEEM.PA", "BTC-EUR"
 
     def __post_init__(self) -> None:
         if not self.symbol or not self.symbol.strip():

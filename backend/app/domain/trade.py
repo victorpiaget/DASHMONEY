@@ -14,6 +14,11 @@ class TradeSide(str, Enum):
     SELL = "SELL"
 
 
+class TradeType(str, Enum):
+    TRADE = "TRADE"
+    TRANSFER = "TRANSFER"
+
+
 @dataclass(frozen=True, slots=True)
 class Trade:
     id: UUID
@@ -27,6 +32,7 @@ class Trade:
     currency: Currency
     label: str | None
     linked_cash_tx_id: UUID | None  # transaction miroir dans le compte passerelle
+    trade_type: TradeType = TradeType.TRADE
 
     @classmethod
     def create(
@@ -42,6 +48,7 @@ class Trade:
         currency: Currency,
         label: str | None = None,
         linked_cash_tx_id: UUID | None = None,
+        trade_type: TradeType = TradeType.TRADE,
         id: UUID | None = None,
     ) -> "Trade":
         tid = id or uuid4()
@@ -57,6 +64,7 @@ class Trade:
             currency=currency,
             label=label.strip() if isinstance(label, str) and label.strip() else None,
             linked_cash_tx_id=linked_cash_tx_id,
+            trade_type=trade_type,
         )
 
     def __post_init__(self) -> None:

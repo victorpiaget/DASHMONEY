@@ -162,10 +162,20 @@ Un user ne peut accéder qu'aux profils pour lesquels il a une entrée dans `pro
 - **Authentification JWT sur toute l'API** — access token 15min, refresh token 30j avec rotation
 - **Profile scoping complet** vérifié par `profile_access` à chaque requête
 - Multi-user réel avec isolation stricte entre workspaces
+- **Frontend complet** (React + Vite + Tailwind) — toutes les pages principales implémentées
+- **APScheduler** — snapshots automatiques quotidiens (20h UTC) + catch-up au démarrage si jours manqués
+- **Imports CSV** — Boursorama et Binance (fichiers officiels), format perso Victor
+- **Transferts d'actifs inter-portefeuilles** — `trade_type = TRANSFER` distingue les vrais trades des mouvements internes (pas de faux P&L)
+- **Prix yfinance** — récupération automatique via `yfinance` + `GET /prices/latest-all` + historique
+- **Courbe P&L globale** sur le dashboard (valeur totale vs net investi dans le temps)
+- **Page d'analyse par portefeuille** — valorisation actuelle, P&L all-time, positions enrichies, benchmark auto-détecté
 
 ### Prochaines étapes identifiées
-- Frontend (à définir)
 - Nouvelles fonctionnalités métier (budget prévisionnel, objectifs, etc.)
+- **TODO : Import CSV banque automatique** — parser les formats exportés par les applis bancaires (BNP, Crédit Agricole, Boursorama, etc.) sans configuration manuelle. L'endpoint `import-victor` gère le format perso de Victor (8 colonnes). Il faudra un système de détection automatique du format + mapping configurable.
+- **TODO : Gestion des virements depuis les pages de compte** — Ajouter un bouton "Ajouter un transfert" en haut de chaque page de compte pour enregistrer les virements entrants/sortants (ex: alimentation mensuelle PEA). Problème actuel : le compte passerelle des portefeuilles affiche un solde négatif (ex: -5000€) car les virements vers le PEA sont traités comme des transactions normales dans le compte courant au lieu d'être liés au compte passerelle. Il faut une UI dédiée qui crée une transaction coordonnée entre le compte courant et le compte passerelle du portefeuille.
+- **TODO : Modifier les actifs du catalogue** — Permettre l'édition du nom, du type et de la devise d'un instrument existant (UI inline dans la page Actifs). Le `PATCH /instruments/{symbol}` backend existe déjà ; l'édition inline est implémentée dans `InstrumentsPage.tsx`.
+- **TODO : Système de devises avec taux de change en temps réel** — conversion automatique EUR/USD/BTC/USDT/etc. Taux récupérés via API externe (ex. ECB, exchangerate.host ou CoinGecko pour le crypto). Affichage unifié dans toutes les pages (comptes multi-devises, portefeuilles, dashboard net worth). Stocker les taux en cache côté backend pour éviter les appels répétés et garantir la cohérence des calculs historiques.
 
 ### Décisions de design arrêtées
 - `profile_id` est retourné dans toutes les réponses API de type AccountResponse (explicite)
@@ -179,6 +189,9 @@ Un user ne peut accéder qu'aux profils pour lesquels il a une entrée dans `pro
 - `update()` est présent dans toutes les interfaces Protocol (AccountRepository, PortfolioRepository)
 - Refresh tokens : stockés hashés (SHA-256), rotation systématique, révocation en cascade sur réutilisation
 - `passlib` retiré — on utilise `bcrypt` directement pour le hachage des mots de passe
+- `trade_type: TradeType` (TRADE | TRANSFER) sur le domaine Trade — les transferts inter-portefeuilles n'entrent pas dans le calcul du P&L ni du coût d'acquisition
+- Les snapshots sont calculés automatiquement via `auto_snapshot_service` (positions × prix yfinance)
+- Le scheduler rattrape les jours manqués au démarrage (thread daemon)
 
 ---
 
@@ -201,6 +214,14 @@ Un user ne peut accéder qu'aux profils pour lesquels il a une entrée dans `pro
 | `backend/app/api/main.py` | Point d'entrée FastAPI, enregistrement des routers |
 | `backend/app/api/deps.py` | Injection de dépendances + `get_current_user` + `get_request_context` |
 | `backend/app/api/routes/auth.py` | `POST /auth/login|register|refresh|logout` |
+| `backend/app/api/routes/snapshots.py` | `GET /snapshots/pnl-curve`, auto-snapshot, backfill |
+| `backend/app/api/routes/prices.py` | `GET /prices/latest-all`, historique, mise à jour manuelle |
+| `backend/app/api/routes/asset_transfers.py` | Transferts d'actifs inter-portefeuilles (trade_type=TRANSFER) |
+| `backend/app/api/scheduler.py` | APScheduler — snapshots quotidiens + catch-up au démarrage |
+| `backend/app/services/auto_snapshot_service.py` | Calcul snapshot = positions × prix yfinance |
+| `backend/app/services/update_prices_service.py` | Récupération prix via yfinance |
+| `backend/app/providers/yfinance_provider.py` | Wrapper yfinance |
+| `backend/app/domain/trade.py` | Trade domain + enum TradeType (TRADE / TRANSFER) |
 | `backend/app/identity/auth.py` | JWT + bcrypt + refresh token helpers |
 | `backend/app/identity/request_context.py` | `RequestContext(user_id, profile_id)` |
 | `backend/app/identity/defaults.py` | IDs par défaut (user1, user2, profils, workspaces) |
@@ -210,3 +231,7 @@ Un user ne peut accéder qu'aux profils pour lesquels il a une entrée dans `pro
 | `backend/app/db_base.py` | `Base` déclarative SQLAlchemy |
 | `backend/tests/conftest.py` | Fixtures pytest (seed user1+user2, auth_headers, client) |
 | `backend/migrations/` | Migrations Alembic |
+| `frontend/src/pages/DashboardPage.tsx` | Dashboard — patrimoine net + courbe P&L globale + comptes |
+| `frontend/src/pages/PortfolioAnalysisPage.tsx` | Analyse portefeuille — valorisation, P&L, positions, benchmark |
+| `frontend/src/lib/portfoliosApi.ts` | Client API portfolios/trades/prix/snapshots |
+| `frontend/src/hooks/usePortfolios.ts` | React Query hooks (trades, positions, snapshots, prix, P&L) |

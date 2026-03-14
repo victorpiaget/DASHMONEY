@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C \"/c/Users/victo/Desktop/ADMINISTRATIF/VICTOR/PROJET/CODAGE/DASHMONEY\" log --oneline -20)",
+      "Bash(DASHMONEY_DATABASE_URL=\"postgresql+psycopg://dashmoney:dashmoney@localhost:5432/dashmoney\" DASHMONEY_TEST_DATABASE_URL=\"postgresql+psycopg://dashmoney:dashmoney@localhost:5432/dashmoney_test\" poetry run pytest tests/test_10_timeseries.py::test_account_timeseries_basic tests/test_10_timeseries.py::test_net_worth_full_no_data -q)",
+      "Bash(grep -E \"\\\\.py$\")",
+      "Bash(poetry run:*)",
+      "Bash(poetry add:*)",
+      "Bash(npm create:*)",
+      "Bash(npm install:*)"
+    ]
+  }
+}
