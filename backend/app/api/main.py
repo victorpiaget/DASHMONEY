@@ -31,6 +31,7 @@ from app.api.routes.import_binance import router as import_binance_router
 from app.api.routes.transfers import router as transfers_router
 from app.api.routes.asset_transfers import router as asset_transfers_router
 from app.api.routes.snapshots import router as snapshots_router
+from app.api.routes.me import router as me_router
 
 
 @asynccontextmanager
@@ -79,3 +80,4 @@ app.include_router(import_binance_router)
 app.include_router(transfers_router)
 app.include_router(asset_transfers_router)
 app.include_router(snapshots_router)
+app.include_router(me_router)

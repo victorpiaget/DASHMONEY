@@ -9,7 +9,7 @@ from app.domain.profile import Profile
 from app.domain.workspace import Workspace
 from app.repositories.profile_repository import ProfileRepository
 from app.repositories.workspace_repository import WorkspaceRepository
-from app.repositories.sql_identity_models import ProfileAccessRow, ProfileRow, WorkspaceRow
+from app.repositories.sql_identity_models import ProfileAccessRow, ProfileRow, WorkspaceRow, WorkspaceMembershipRow
 
 
 class SqlWorkspaceRepository(WorkspaceRepository):
@@ -42,6 +42,42 @@ class SqlWorkspaceRepository(WorkspaceRepository):
             s.commit()
             s.refresh(row)
             return self._to_domain(row)
+
+    def list_workspaces_for_user(self, user_id: str) -> list[Workspace]:
+        with new_session() as s:
+            rows = (
+                s.execute(
+                    select(WorkspaceRow)
+                    .join(WorkspaceMembershipRow, WorkspaceRow.id == WorkspaceMembershipRow.workspace_id)
+                    .where(WorkspaceMembershipRow.user_id == user_id)
+                    .order_by(WorkspaceRow.created_at.asc())
+                )
+                .scalars()
+                .all()
+            )
+            return [self._to_domain(r) for r in rows]
+
+    def has_workspace_membership(self, *, user_id: str, workspace_id: str) -> bool:
+        with new_session() as s:
+            row = s.execute(
+                select(WorkspaceMembershipRow).where(
+                    WorkspaceMembershipRow.workspace_id == workspace_id,
+                    WorkspaceMembershipRow.user_id == user_id,
+                )
+            ).scalar_one_or_none()
+            return row is not None
+
+    def add_workspace_membership(self, *, user_id: str, workspace_id: str, role: str = "OWNER") -> None:
+        with new_session() as s:
+            existing = s.execute(
+                select(WorkspaceMembershipRow).where(
+                    WorkspaceMembershipRow.workspace_id == workspace_id,
+                    WorkspaceMembershipRow.user_id == user_id,
+                )
+            ).scalar_one_or_none()
+            if existing is None:
+                s.add(WorkspaceMembershipRow(workspace_id=workspace_id, user_id=user_id, role=role))
+                s.commit()
 
     @staticmethod
     def _to_domain(row: WorkspaceRow) -> Workspace:
@@ -147,6 +183,20 @@ class SqlProfileRepository(ProfileRepository):
                 .limit(1)
             ).scalar_one_or_none()
             return row.profile_id if row else None
+
+    def list_profiles_for_user(self, user_id: str) -> list[Profile]:
+        with new_session() as s:
+            rows = (
+                s.execute(
+                    select(ProfileRow)
+                    .join(ProfileAccessRow, ProfileRow.id == ProfileAccessRow.profile_id)
+                    .where(ProfileAccessRow.user_id == user_id)
+                    .order_by(ProfileRow.created_at.asc())
+                )
+                .scalars()
+                .all()
+            )
+            return [self._to_domain(r) for r in rows]
 
     @staticmethod
     def _to_domain(row: ProfileRow) -> Profile:

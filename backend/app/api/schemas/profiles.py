@@ -23,3 +23,16 @@ class ProfileResponse(BaseModel):
     workspace_id: str
     display_name: str
     created_at: dt.datetime
+
+
+class WorkspaceWithProfilesResponse(BaseModel):
+    id: str
+    name: str
+    created_at: dt.datetime
+    profiles: list[ProfileResponse]
+
+
+class MeResponse(BaseModel):
+    id: str
+    email: str
+    workspaces: list[WorkspaceWithProfilesResponse]

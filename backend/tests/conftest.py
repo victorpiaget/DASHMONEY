@@ -45,6 +45,7 @@ def _import_models() -> None:
     from app.repositories import sql_portfolio_snapshot_repository  # noqa: F401
     from app.repositories import sql_price_repository  # noqa: F401
     from app.repositories import sql_identity_models  # noqa: F401
+    from app.repositories import sql_category_repository  # noqa: F401
 
 
 def _seed_default_identity() -> None:

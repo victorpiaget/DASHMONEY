@@ -91,7 +91,7 @@ def create_trade(
         raise HTTPException(status_code=422, detail=f"invalid numeric field: {e}")
 
     if side == TradeSide.SELL:
-        existing_trades = t_repo.list(portfolio_id=p.id)
+        existing_trades = t_repo.list(portfolio_id=p.id, profile_id=ctx.profile_id)
         positions = compute_positions(trades=existing_trades, portfolio_id=p.id, as_of=payload.date)
         current_qty = positions.get(inst.symbol.upper(), Decimal("0"))
         if qty > current_qty:
@@ -118,7 +118,7 @@ def create_trade(
         )
     except Exception as e:
         try:
-            get_tx_repo().delete(account_id=p.cash_account_id, tx_id=tx.id)
+            get_tx_repo().delete(account_id=p.cash_account_id, tx_id=tx.id, profile_id=ctx.profile_id)
         except Exception:
             pass
         raise HTTPException(status_code=422, detail=str(e))
@@ -205,7 +205,7 @@ def patch_trade(
     date = patch.get("date", base.date)
 
     if side == TradeSide.SELL:
-        existing_trades = t_repo.list(portfolio_id=p.id)
+        existing_trades = t_repo.list(portfolio_id=p.id, profile_id=ctx.profile_id)
         existing_trades = [t for t in existing_trades if t.id != base.id]
         positions = compute_positions(trades=existing_trades, portfolio_id=p.id, as_of=date)
         current_qty = positions.get(base.instrument_symbol.upper(), Decimal("0"))
@@ -227,7 +227,7 @@ def patch_trade(
 
     if base.linked_cash_tx_id is not None:
         try:
-            get_tx_repo().delete(account_id=p.cash_account_id, tx_id=base.linked_cash_tx_id)
+            get_tx_repo().delete(account_id=p.cash_account_id, tx_id=base.linked_cash_tx_id, profile_id=ctx.profile_id)
         except Exception:
             pass
 
@@ -266,7 +266,7 @@ def delete_trade(
 
     if trade.linked_cash_tx_id is not None:
         try:
-            get_tx_repo().delete(account_id=p.cash_account_id, tx_id=trade.linked_cash_tx_id)
+            get_tx_repo().delete(account_id=p.cash_account_id, tx_id=trade.linked_cash_tx_id, profile_id=ctx.profile_id)
         except Exception:
             pass
 

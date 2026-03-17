@@ -255,7 +255,7 @@ def delete_account(
     if cascade:
         txs = tx_repo.list(account_id=acc.id, profile_id=ctx.profile_id)
         for t in txs:
-            tx_repo.delete(account_id=acc.id, tx_id=t.id)
+            tx_repo.delete(account_id=acc.id, tx_id=t.id, profile_id=ctx.profile_id)
 
     deleted = get_account_repo().delete(account_id=acc.id)
     if not deleted:

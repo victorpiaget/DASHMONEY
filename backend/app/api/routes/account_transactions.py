@@ -88,7 +88,7 @@ def patch_account_transaction(
 
     tx_repo = get_tx_repo()
 
-    existing = tx_repo.get(tx_id)
+    existing = tx_repo.get(tx_id, profile_id=ctx.profile_id)
     if existing is None or existing.account_id != acc.id:
         raise HTTPException(status_code=404, detail="Transaction not found")
 
