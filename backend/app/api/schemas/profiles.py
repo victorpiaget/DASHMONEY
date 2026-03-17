@@ -36,3 +36,13 @@ class MeResponse(BaseModel):
     id: str
     email: str
     workspaces: list[WorkspaceWithProfilesResponse]
+
+
+class InviteMemberRequest(BaseModel):
+    email: str = Field(min_length=1, max_length=255)
+
+
+class WorkspaceMemberResponse(BaseModel):
+    user_id: str
+    email: str
+    role: str

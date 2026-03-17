@@ -2,14 +2,14 @@ from __future__ import annotations
 
 from uuid import uuid4
 
-from sqlalchemy import select
+from sqlalchemy import delete as sql_delete, func, select
 
 from app.db import init_db, new_session
 from app.domain.profile import Profile
 from app.domain.workspace import Workspace
 from app.repositories.profile_repository import ProfileRepository
-from app.repositories.workspace_repository import WorkspaceRepository
-from app.repositories.sql_identity_models import ProfileAccessRow, ProfileRow, WorkspaceRow, WorkspaceMembershipRow
+from app.repositories.workspace_repository import WorkspaceRepository, WorkspaceMember
+from app.repositories.sql_identity_models import ProfileAccessRow, ProfileRow, UserRow, WorkspaceRow, WorkspaceMembershipRow
 
 
 class SqlWorkspaceRepository(WorkspaceRepository):
@@ -78,6 +78,46 @@ class SqlWorkspaceRepository(WorkspaceRepository):
             if existing is None:
                 s.add(WorkspaceMembershipRow(workspace_id=workspace_id, user_id=user_id, role=role))
                 s.commit()
+
+    def get_membership_role(self, *, user_id: str, workspace_id: str) -> str | None:
+        with new_session() as s:
+            row = s.execute(
+                select(WorkspaceMembershipRow).where(
+                    WorkspaceMembershipRow.workspace_id == workspace_id,
+                    WorkspaceMembershipRow.user_id == user_id,
+                )
+            ).scalar_one_or_none()
+            return row.role if row else None
+
+    def list_members(self, workspace_id: str) -> list[WorkspaceMember]:
+        with new_session() as s:
+            rows = s.execute(
+                select(WorkspaceMembershipRow, UserRow.email)
+                .join(UserRow, WorkspaceMembershipRow.user_id == UserRow.id)
+                .where(WorkspaceMembershipRow.workspace_id == workspace_id)
+                .order_by(WorkspaceMembershipRow.role.asc(), UserRow.email.asc())
+            ).all()
+            return [WorkspaceMember(user_id=r.WorkspaceMembershipRow.user_id, email=r.email, role=r.WorkspaceMembershipRow.role) for r in rows]
+
+    def remove_member(self, *, user_id: str, workspace_id: str) -> None:
+        with new_session() as s:
+            s.execute(
+                sql_delete(WorkspaceMembershipRow).where(
+                    WorkspaceMembershipRow.workspace_id == workspace_id,
+                    WorkspaceMembershipRow.user_id == user_id,
+                )
+            )
+            s.commit()
+
+    def count_owners(self, workspace_id: str) -> int:
+        with new_session() as s:
+            result = s.execute(
+                select(func.count()).select_from(WorkspaceMembershipRow).where(
+                    WorkspaceMembershipRow.workspace_id == workspace_id,
+                    WorkspaceMembershipRow.role == "OWNER",
+                )
+            ).scalar()
+            return result or 0
 
     @staticmethod
     def _to_domain(row: WorkspaceRow) -> Workspace:
@@ -197,6 +237,18 @@ class SqlProfileRepository(ProfileRepository):
                 .all()
             )
             return [self._to_domain(r) for r in rows]
+
+    def revoke_workspace_access(self, *, user_id: str, workspace_id: str) -> None:
+        with new_session() as s:
+            s.execute(
+                sql_delete(ProfileAccessRow).where(
+                    ProfileAccessRow.user_id == user_id,
+                    ProfileAccessRow.profile_id.in_(
+                        select(ProfileRow.id).where(ProfileRow.workspace_id == workspace_id)
+                    ),
+                )
+            )
+            s.commit()
 
     @staticmethod
     def _to_domain(row: ProfileRow) -> Profile:

@@ -4,17 +4,28 @@ from dataclasses import asdict
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from app.api.deps import get_current_user, get_profile_repo, get_workspace_repo
+from app.api.deps import get_current_user, get_profile_repo, get_user_repo, get_workspace_repo
 from app.domain.user import User
 from app.api.schemas.profiles import (
+    InviteMemberRequest,
     ProfileCreateRequest,
     ProfileResponse,
     WorkspaceCreateRequest,
+    WorkspaceMemberResponse,
     WorkspaceResponse,
 )
 
 
 router = APIRouter(prefix="/workspaces", tags=["workspaces"])
+
+
+def _require_owner(user: User, workspace_id: str) -> None:
+    repo = get_workspace_repo()
+    role = repo.get_membership_role(user_id=user.id, workspace_id=workspace_id)
+    if role is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No access to this workspace")
+    if role != "OWNER":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only workspace owners can perform this action")
 
 
 @router.get("", response_model=list[WorkspaceResponse])
@@ -85,6 +96,76 @@ def create_profile(
     profile_repo.grant_profile_access(user_id=user.id, profile_id=p.id, permission="OWNER")
     return ProfileResponse(**asdict(p))
 
+
+# ---------------------------------------------------------------------------
+# Members management
+# ---------------------------------------------------------------------------
+
+@router.get("/{workspace_id}/members", response_model=list[WorkspaceMemberResponse])
+def list_members(
+    workspace_id: str,
+    user: User = Depends(get_current_user),
+) -> list[WorkspaceMemberResponse]:
+    workspace_repo = get_workspace_repo()
+    if not workspace_repo.has_workspace_membership(user_id=user.id, workspace_id=workspace_id):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No access to this workspace")
+    members = workspace_repo.list_members(workspace_id)
+    return [WorkspaceMemberResponse(user_id=m.user_id, email=m.email, role=m.role) for m in members]
+
+
+@router.post("/{workspace_id}/members/invite", status_code=201, response_model=WorkspaceMemberResponse)
+def invite_member(
+    workspace_id: str,
+    payload: InviteMemberRequest,
+    user: User = Depends(get_current_user),
+) -> WorkspaceMemberResponse:
+    _require_owner(user, workspace_id)
+
+    user_repo = get_user_repo()
+    target = user_repo.get_by_email(payload.email.strip().lower())
+    if target is None:
+        raise HTTPException(status_code=404, detail=f"No user found with email '{payload.email}'")
+
+    workspace_repo = get_workspace_repo()
+    if workspace_repo.has_workspace_membership(user_id=target.id, workspace_id=workspace_id):
+        raise HTTPException(status_code=409, detail="User is already a member of this workspace")
+
+    workspace_repo.add_workspace_membership(user_id=target.id, workspace_id=workspace_id, role="MEMBER")
+
+    profile_repo = get_profile_repo()
+    for p in profile_repo.list_profiles(workspace_id=workspace_id):
+        profile_repo.grant_profile_access(user_id=target.id, profile_id=p.id, permission="MEMBER")
+
+    return WorkspaceMemberResponse(user_id=target.id, email=target.email, role="MEMBER")
+
+
+@router.delete("/{workspace_id}/members/{target_user_id}", status_code=204)
+def remove_member(
+    workspace_id: str,
+    target_user_id: str,
+    user: User = Depends(get_current_user),
+) -> None:
+    _require_owner(user, workspace_id)
+
+    workspace_repo = get_workspace_repo()
+    if not workspace_repo.has_workspace_membership(user_id=target_user_id, workspace_id=workspace_id):
+        raise HTTPException(status_code=404, detail="Member not found in this workspace")
+
+    # Ne pas supprimer le dernier OWNER
+    target_role = workspace_repo.get_membership_role(user_id=target_user_id, workspace_id=workspace_id)
+    if target_role == "OWNER" and workspace_repo.count_owners(workspace_id) <= 1:
+        raise HTTPException(
+            status_code=422,
+            detail="Cannot remove the last owner of a workspace",
+        )
+
+    workspace_repo.remove_member(user_id=target_user_id, workspace_id=workspace_id)
+    get_profile_repo().revoke_workspace_access(user_id=target_user_id, workspace_id=workspace_id)
+
+
+# ---------------------------------------------------------------------------
+# /profiles router
+# ---------------------------------------------------------------------------
 
 profiles_router = APIRouter(prefix="/profiles", tags=["profiles"])
 
