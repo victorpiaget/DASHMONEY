@@ -6,7 +6,7 @@ from uuid import UUID
 from decimal import Decimal
 import datetime as dt
 
-from app.api.deps import get_account_repo, get_tx_repo, get_request_context
+from app.api.deps import get_account_repo, get_tx_repo, get_request_context, get_write_context
 from app.api.routes.account_transactions import _tx_to_response
 from app.api.schemas.transfers import TransferResponse
 from app.domain.transaction import TransactionKind
@@ -37,7 +37,7 @@ class LinkTransferRequest(BaseModel):
 @router.post("/link", response_model=TransferResponse, status_code=201)
 def link_transactions_as_transfer(
     payload: LinkTransferRequest,
-    ctx: RequestContext = Depends(get_request_context),
+    ctx: RequestContext = Depends(get_write_context),
 ) -> TransferResponse:
     tx_repo = get_tx_repo()
     try:

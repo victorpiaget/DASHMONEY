@@ -1,5 +1,5 @@
 import { type FormEvent, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 
 export default function LoginPage() {
@@ -82,6 +82,13 @@ export default function LoginPage() {
             </button>
           </form>
         </div>
+
+        <p className="text-center text-sm text-gray-500 mt-6">
+          Pas encore de compte ?{' '}
+          <Link to="/register" className="font-medium text-gray-900 hover:underline">
+            Créer un compte
+          </Link>
+        </p>
       </div>
     </div>
   )

@@ -95,7 +95,10 @@ def register(payload: RegisterRequest) -> UserResponse:
     profile_repo.grant_profile_access(
         user_id=user.id,
         profile_id=profile.id,
-        permission="OWNER",
+        permission="ADMIN",
+    )
+    SqlWorkspaceRepository().add_workspace_membership(
+        user_id=user.id, workspace_id=workspace.id, role="OWNER"
     )
 
     return UserResponse(id=user.id, email=user.email)

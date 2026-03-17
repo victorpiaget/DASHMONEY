@@ -4,16 +4,18 @@ import datetime as dt
 
 from decimal import Decimal
 from uuid import UUID
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from fastapi import HTTPException
 from app.api.deps import (
+    get_current_user,
     get_portfolio_repo,
     get_trade_repo,
     get_price_repo,
     get_portfolio_snapshot_repo,
+    get_profile_repo,
 )
+from app.domain.user import User
 from app.services.auto_snapshot_service import auto_snapshot_all_portfolios
 
 
@@ -30,23 +32,25 @@ class PnlPoint(BaseModel):
 
 @router.get("/pnl-curve", response_model=list[PnlPoint])
 def pnl_curve(
-    profile_id: str | None = Query(default=None, description="Laisser vide pour tous les profils"),
+    profile_id: str | None = Query(default=None, description="Laisser vide pour tous les profils accessibles"),
+    user: User = Depends(get_current_user),
 ):
     """
     Courbe P&L globale : pour chaque jour où il existe au moins un snapshot,
     retourne la valeur totale des portefeuilles et le montant net investi cumulé.
     P&L = valeur_totale - net_investi.
     """
-    from app.repositories.sql_identity_repository import SqlProfileRepository
     from app.domain.trade import TradeType, TradeSide
 
     snapshot_repo = get_portfolio_snapshot_repo()
     trade_repo = get_trade_repo()
 
     if profile_id:
+        if not get_profile_repo().has_profile_access(user_id=user.id, profile_id=profile_id):
+            raise HTTPException(status_code=403, detail=f"No access to profile '{profile_id}'")
         profile_ids = [profile_id]
     else:
-        profile_ids = [p.id for p in SqlProfileRepository().list_all()]
+        profile_ids = [p.id for p in get_profile_repo().list_profiles_for_user(user.id)]
 
     # Agrégation des snapshots par date (somme de tous les portfolios)
     date_values: dict[dt.date, Decimal] = {}
@@ -99,20 +103,21 @@ class DeleteSnapshotsResult(BaseModel):
 @router.delete("/portfolio/{portfolio_id}", response_model=DeleteSnapshotsResult)
 def delete_all_portfolio_snapshots(
     portfolio_id: UUID,
-    profile_id: str | None = Query(default=None, description="Laisser vide pour tous les profils"),
+    profile_id: str | None = Query(default=None, description="Laisser vide pour tous les profils accessibles"),
+    user: User = Depends(get_current_user),
 ):
     """
     Supprime tous les snapshots d'un portefeuille donné.
     Utile avant un re-backfill pour repartir de zéro.
     """
-    from app.repositories.sql_identity_repository import SqlProfileRepository
-
     snapshot_repo = get_portfolio_snapshot_repo()
 
     if profile_id:
+        if not get_profile_repo().has_profile_access(user_id=user.id, profile_id=profile_id):
+            raise HTTPException(status_code=403, detail=f"No access to profile '{profile_id}'")
         profile_ids = [profile_id]
     else:
-        profile_ids = [p.id for p in SqlProfileRepository().list_all()]
+        profile_ids = [p.id for p in get_profile_repo().list_profiles_for_user(user.id)]
 
     total_deleted = 0
     for pid in profile_ids:
@@ -131,21 +136,22 @@ class AutoSnapshotResult(BaseModel):
 @router.post("/auto", response_model=AutoSnapshotResult)
 def trigger_auto_snapshot(
     day: dt.date | None = Query(default=None, description="UTC day (YYYY-MM-DD), default: today UTC"),
-    profile_id: str | None = Query(default=None, description="Laisser vide pour tous les profils"),
+    profile_id: str | None = Query(default=None, description="Laisser vide pour tous les profils accessibles"),
+    user: User = Depends(get_current_user),
 ):
     """
     Calcule automatiquement la valeur de chaque portefeuille pour un jour donné.
-    Si profile_id est absent, tous les profils sont traités.
+    Si profile_id est absent, tous les profils accessibles sont traités.
     """
-    from app.repositories.sql_identity_repository import SqlProfileRepository
-
     if day is None:
         day = dt.datetime.now(dt.timezone.utc).date()
 
     if profile_id:
+        if not get_profile_repo().has_profile_access(user_id=user.id, profile_id=profile_id):
+            raise HTTPException(status_code=403, detail=f"No access to profile '{profile_id}'")
         profile_ids = [profile_id]
     else:
-        profile_ids = [p.id for p in SqlProfileRepository().list_all()]
+        profile_ids = [p.id for p in get_profile_repo().list_profiles_for_user(user.id)]
 
     total_created = total_skipped = 0
     all_errors: list[str] = []
@@ -183,14 +189,13 @@ class BackfillSnapshotsResult(BaseModel):
 def backfill_snapshots(
     date_from: dt.date = Query(..., description="Start date YYYY-MM-DD"),
     date_to: dt.date = Query(..., description="End date YYYY-MM-DD"),
-    profile_id: str | None = Query(default=None, description="Laisser vide pour tous les profils"),
+    profile_id: str | None = Query(default=None, description="Laisser vide pour tous les profils accessibles"),
+    user: User = Depends(get_current_user),
 ):
     """
     Crée des snapshots quotidiens pour chaque portefeuille sur toute la période.
-    Si profile_id est absent, tous les profils sont traités automatiquement.
+    Si profile_id est absent, tous les profils accessibles sont traités.
     """
-    from app.repositories.sql_identity_repository import SqlProfileRepository
-
     total_created = 0
     total_skipped = 0
     all_errors: list[str] = []
@@ -202,10 +207,11 @@ def backfill_snapshots(
 
     # Détermine la liste des profils à traiter
     if profile_id:
+        if not get_profile_repo().has_profile_access(user_id=user.id, profile_id=profile_id):
+            raise HTTPException(status_code=403, detail=f"No access to profile '{profile_id}'")
         profile_ids = [profile_id]
     else:
-        profile_repo_inst = SqlProfileRepository()
-        profile_ids = [p.id for p in profile_repo_inst.list_all()]
+        profile_ids = [p.id for p in get_profile_repo().list_profiles_for_user(user.id)]
 
     for pid in profile_ids:
         day = date_from

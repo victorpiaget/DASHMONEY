@@ -38,8 +38,17 @@ class MeResponse(BaseModel):
     workspaces: list[WorkspaceWithProfilesResponse]
 
 
+_VALID_WORKSPACE_ROLES = {"OWNER", "MEMBER", "READ_ONLY"}
+_WORKSPACE_ROLE_TO_PROFILE_PERMISSION = {"OWNER": "ADMIN", "MEMBER": "WRITE", "READ_ONLY": "READ"}
+
+
 class InviteMemberRequest(BaseModel):
     email: str = Field(min_length=1, max_length=255)
+    role: str = Field(default="MEMBER", pattern="^(OWNER|MEMBER|READ_ONLY)$")
+
+
+class UpdateMemberRoleRequest(BaseModel):
+    role: str = Field(pattern="^(OWNER|MEMBER|READ_ONLY)$")
 
 
 class WorkspaceMemberResponse(BaseModel):

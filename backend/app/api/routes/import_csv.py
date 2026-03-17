@@ -7,7 +7,7 @@ import logging
 
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
 
-from app.api.deps import get_account_repo, get_tx_repo, get_request_context
+from app.api.deps import get_account_repo, get_tx_repo, get_request_context, get_write_context
 from app.domain.signed_money import SignedMoney
 from app.domain.transaction import Transaction, TransactionKind
 from app.identity.request_context import RequestContext
@@ -20,7 +20,7 @@ router = APIRouter(prefix="/accounts", tags=["import"])
 async def import_transactions_csv(
     account_id: str,
     file: UploadFile = File(...),
-    ctx: RequestContext = Depends(get_request_context),
+    ctx: RequestContext = Depends(get_write_context),
 ):
     try:
         acc = get_account_repo().get_account(account_id, profile_id=ctx.profile_id)

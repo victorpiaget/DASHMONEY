@@ -12,7 +12,7 @@ from uuid import UUID
 
 from app.api.deps import (
     get_portfolio_repo, get_instrument_repo, get_trade_repo,
-    get_account_repo, get_tx_repo, get_request_context,
+    get_account_repo, get_tx_repo, get_request_context, get_write_context,
 )
 from app.domain.instrument import Instrument, InstrumentKind
 from app.domain.money import Currency, Money
@@ -71,7 +71,7 @@ def _extract_base(pair: str, quote: str) -> str:
 async def import_binance(
     portfolio_id: UUID,
     file: UploadFile = File(...),
-    ctx: RequestContext = Depends(get_request_context),
+    ctx: RequestContext = Depends(get_write_context),
 ):
     # ── Vérifier que le portefeuille existe ──────────────────────────────────
     p_repo = get_portfolio_repo()

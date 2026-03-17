@@ -5,7 +5,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 
-from app.api.deps import get_account_repo, get_tx_repo, get_request_context
+from app.api.deps import get_account_repo, get_tx_repo, get_request_context, get_write_context
 from app.api.schemas.transactions import AccountTransactionCreateRequest, TransactionResponse, TransactionUpdateRequest
 from app.domain.signed_money import SignedMoney
 from app.domain.transaction import Transaction, TransactionKind
@@ -19,7 +19,7 @@ router = APIRouter(prefix="/accounts", tags=["transactions"])
 def create_account_transaction(
     account_id: str,
     payload: AccountTransactionCreateRequest,
-    ctx: RequestContext = Depends(get_request_context),
+    ctx: RequestContext = Depends(get_write_context),
 ) -> TransactionResponse:
     try:
         acc = get_account_repo().get_account(account_id, profile_id=ctx.profile_id)
@@ -60,7 +60,7 @@ def create_account_transaction(
 def delete_account_transaction(
     account_id: str,
     tx_id: UUID,
-    ctx: RequestContext = Depends(get_request_context),
+    ctx: RequestContext = Depends(get_write_context),
 ) -> Response:
     try:
         acc = get_account_repo().get_account(account_id, profile_id=ctx.profile_id)
@@ -79,7 +79,7 @@ def patch_account_transaction(
     account_id: str,
     tx_id: UUID,
     payload: TransactionUpdateRequest,
-    ctx: RequestContext = Depends(get_request_context),
+    ctx: RequestContext = Depends(get_write_context),
 ) -> TransactionResponse:
     try:
         acc = get_account_repo().get_account(account_id, profile_id=ctx.profile_id)

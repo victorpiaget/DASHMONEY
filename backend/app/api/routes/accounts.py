@@ -6,7 +6,7 @@ import datetime as dt
 
 from fastapi import APIRouter, Depends, HTTPException, Response, Query
 
-from app.api.deps import get_account_repo, get_tx_repo, get_request_context
+from app.api.deps import get_account_repo, get_tx_repo, get_request_context, get_write_context
 from app.api.schemas.accounts import AccountCreateRequest, AccountResponse, AccountTimeSeriesResponse, TimeSeriesPoint, AccountUpdateRequest
 from app.domain.account import Account
 from app.domain.money import Currency
@@ -37,7 +37,7 @@ router = APIRouter(prefix="/accounts", tags=["accounts"])
 def create_transfer(
     account_id: str,
     payload: TransferCreateRequest,
-    ctx: RequestContext = Depends(get_request_context),
+    ctx: RequestContext = Depends(get_write_context),
 ) -> TransferResponse:
 
     account_repo = get_account_repo()
@@ -115,7 +115,7 @@ def create_transfer(
 def delete_transfer(
     account_id: str,
     transfer_id: UUID,
-    ctx: RequestContext = Depends(get_request_context),
+    ctx: RequestContext = Depends(get_write_context),
 ) -> None:
     account_repo = get_account_repo()
     tx_repo = get_tx_repo()
@@ -142,7 +142,7 @@ def update_transfer(
     account_id: str,
     transfer_id: UUID,
     payload: TransferUpdateRequest,
-    ctx: RequestContext = Depends(get_request_context),
+    ctx: RequestContext = Depends(get_write_context),
 ) -> TransferResponse:
     account_repo = get_account_repo()
     tx_repo = get_tx_repo()
@@ -189,7 +189,7 @@ def update_transfer(
 @router.post("", status_code=201, response_model=AccountResponse)
 def create_account(
     req: AccountCreateRequest,
-    ctx: RequestContext = Depends(get_request_context),
+    ctx: RequestContext = Depends(get_write_context),
 ) -> AccountResponse:
     repo = get_account_repo()
     pid = ctx.profile_id
@@ -243,7 +243,7 @@ def list_accounts(ctx: RequestContext = Depends(get_request_context)) -> list[Ac
 def delete_account(
     account_id: str,
     cascade: bool = Query(default=True),
-    ctx: RequestContext = Depends(get_request_context),
+    ctx: RequestContext = Depends(get_write_context),
 ) -> Response:
     try:
         acc = get_account_repo().get_account(account_id, profile_id=ctx.profile_id)
@@ -268,7 +268,7 @@ def delete_account(
 def update_account(
     account_id: str,
     req: AccountUpdateRequest,
-    ctx: RequestContext = Depends(get_request_context),
+    ctx: RequestContext = Depends(get_write_context),
 ) -> AccountResponse:
     repo = get_account_repo()
 

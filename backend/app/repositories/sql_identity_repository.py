@@ -119,6 +119,19 @@ class SqlWorkspaceRepository(WorkspaceRepository):
             ).scalar()
             return result or 0
 
+    def update_membership_role(self, *, user_id: str, workspace_id: str, new_role: str) -> None:
+        from sqlalchemy import update as sql_update
+        with new_session() as s:
+            s.execute(
+                sql_update(WorkspaceMembershipRow)
+                .where(
+                    WorkspaceMembershipRow.workspace_id == workspace_id,
+                    WorkspaceMembershipRow.user_id == user_id,
+                )
+                .values(role=new_role)
+            )
+            s.commit()
+
     @staticmethod
     def _to_domain(row: WorkspaceRow) -> Workspace:
         return Workspace(
@@ -237,6 +250,31 @@ class SqlProfileRepository(ProfileRepository):
                 .all()
             )
             return [self._to_domain(r) for r in rows]
+
+    def get_profile_permission(self, *, user_id: str, profile_id: str) -> str | None:
+        with new_session() as s:
+            row = s.execute(
+                select(ProfileAccessRow).where(
+                    ProfileAccessRow.profile_id == profile_id,
+                    ProfileAccessRow.user_id == user_id,
+                )
+            ).scalar_one_or_none()
+            return row.permission if row else None
+
+    def update_workspace_permissions(self, *, user_id: str, workspace_id: str, permission: str) -> None:
+        from sqlalchemy import update as sql_update
+        with new_session() as s:
+            s.execute(
+                sql_update(ProfileAccessRow)
+                .where(
+                    ProfileAccessRow.user_id == user_id,
+                    ProfileAccessRow.profile_id.in_(
+                        select(ProfileRow.id).where(ProfileRow.workspace_id == workspace_id)
+                    ),
+                )
+                .values(permission=permission)
+            )
+            s.commit()
 
     def revoke_workspace_access(self, *, user_id: str, workspace_id: str) -> None:
         with new_session() as s:

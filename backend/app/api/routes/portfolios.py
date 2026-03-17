@@ -4,7 +4,7 @@ import datetime as dt
 from fastapi import APIRouter, Depends, HTTPException, Query
 from uuid import UUID
 
-from app.api.deps import get_portfolio_repo, get_portfolio_snapshot_repo, get_account_repo, get_request_context
+from app.api.deps import get_portfolio_repo, get_portfolio_snapshot_repo, get_account_repo, get_request_context, get_write_context
 from app.api.schemas.portfolios import (
     PortfolioCreate, PortfolioOut,
     PortfolioSnapshotCreate, PortfolioSnapshotOut, PortfolioUpdateRequest
@@ -54,7 +54,7 @@ def get_portfolio(
 @router.post("", response_model=PortfolioOut)
 def create_portfolio(
     payload: PortfolioCreate,
-    ctx: RequestContext = Depends(get_request_context),
+    ctx: RequestContext = Depends(get_write_context),
 ):
     repo = get_portfolio_repo()
 
@@ -110,7 +110,7 @@ def create_portfolio(
 def update_portfolio(
     portfolio_id: UUID,
     req: PortfolioUpdateRequest,
-    ctx: RequestContext = Depends(get_request_context),
+    ctx: RequestContext = Depends(get_write_context),
 ) -> PortfolioOut:
     repo = get_portfolio_repo()
 
@@ -146,7 +146,7 @@ def update_portfolio(
 @router.delete("/{portfolio_id}")
 def delete_portfolio(
     portfolio_id: UUID,
-    ctx: RequestContext = Depends(get_request_context),
+    ctx: RequestContext = Depends(get_write_context),
 ):
     repo = get_portfolio_repo()
     ok = repo.delete(portfolio_id=portfolio_id, profile_id=ctx.profile_id)
@@ -159,7 +159,7 @@ def delete_portfolio(
 def add_snapshot(
     portfolio_id: UUID,
     payload: PortfolioSnapshotCreate,
-    ctx: RequestContext = Depends(get_request_context),
+    ctx: RequestContext = Depends(get_write_context),
 ):
     p_repo = get_portfolio_repo()
     s_repo = get_portfolio_snapshot_repo()

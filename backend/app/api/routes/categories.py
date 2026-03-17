@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Response
 
-from app.api.deps import get_category_repo, get_request_context
+from app.api.deps import get_category_repo, get_request_context, get_write_context
 from app.api.schemas.categories import (
     CategoryCreateRequest,
     CategoryResponse,
@@ -31,7 +31,7 @@ def list_categories(ctx: RequestContext = Depends(get_request_context)) -> list[
 @router.post("", response_model=CategoryResponse, status_code=201)
 def create_category(
     req: CategoryCreateRequest,
-    ctx: RequestContext = Depends(get_request_context),
+    ctx: RequestContext = Depends(get_write_context),
 ) -> CategoryResponse:
     repo = get_category_repo()
     try:
@@ -44,7 +44,7 @@ def create_category(
 @router.delete("/{category_id}", status_code=204)
 def delete_category(
     category_id: str,
-    ctx: RequestContext = Depends(get_request_context),
+    ctx: RequestContext = Depends(get_write_context),
 ) -> Response:
     repo = get_category_repo()
     deleted = repo.delete_category(category_id, profile_id=ctx.profile_id)
@@ -57,7 +57,7 @@ def delete_category(
 def add_subcategory(
     category_id: str,
     req: SubcategoryCreateRequest,
-    ctx: RequestContext = Depends(get_request_context),
+    ctx: RequestContext = Depends(get_write_context),
 ) -> SubcategoryResponse:
     repo = get_category_repo()
     try:
@@ -73,7 +73,7 @@ def add_subcategory(
 def delete_subcategory(
     category_id: str,
     subcategory_id: str,
-    ctx: RequestContext = Depends(get_request_context),
+    ctx: RequestContext = Depends(get_write_context),
 ) -> Response:
     repo = get_category_repo()
     deleted = repo.delete_subcategory(subcategory_id, profile_id=ctx.profile_id)

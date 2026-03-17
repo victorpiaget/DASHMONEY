@@ -20,10 +20,30 @@ export function useWorkspaceMembers(workspaceId: string | undefined) {
 export function useInviteMember(workspaceId: string) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (email: string) => workspaceApi.invite(workspaceId, email),
+    mutationFn: ({ email, role }: { email: string; role: 'OWNER' | 'MEMBER' | 'READ_ONLY' }) =>
+      workspaceApi.invite(workspaceId, email, role),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['workspace-members', workspaceId] })
       qc.invalidateQueries({ queryKey: ['me'] })
+    },
+  })
+}
+
+export function useCreateWorkspace() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (name: string) => workspaceApi.createWorkspace(name),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['me'] }),
+  })
+}
+
+export function useUpdateMemberRole(workspaceId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ userId, role }: { userId: string; role: 'OWNER' | 'MEMBER' | 'READ_ONLY' }) =>
+      workspaceApi.updateMemberRole(workspaceId, userId, role),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['workspace-members', workspaceId] })
     },
   })
 }

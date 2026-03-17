@@ -82,6 +82,11 @@ export async function login(email: string, password: string): Promise<{ access_t
   return res.data
 }
 
+export async function register(email: string, password: string): Promise<{ id: string; email: string }> {
+  const res = await axios.post(`${BASE_URL}/auth/register`, { email, password })
+  return res.data
+}
+
 export async function logout(refreshToken: string): Promise<void> {
   await api.post('/auth/logout', { refresh_token: refreshToken })
   setAccessToken(null)

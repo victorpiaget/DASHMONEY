@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import datetime as dt
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
-from app.api.deps import get_instrument_repo, get_price_repo
+from app.api.deps import get_current_user, get_instrument_repo, get_price_repo
 from app.api.schemas.prices import PriceOut, PriceUpdateResult, BackfillResult
+from app.domain.user import User
 from app.services.update_prices_service import update_prices_for_day, backfill_prices
 
 
@@ -90,7 +91,10 @@ def latest_price(symbol: str):
 
 
 @router.post("/update-daily", response_model=PriceUpdateResult)
-def update_daily_prices(day: dt.date | None = Query(default=None, description="UTC day (YYYY-MM-DD), default: today UTC")):
+def update_daily_prices(
+    day: dt.date | None = Query(default=None, description="UTC day (YYYY-MM-DD), default: today UTC"),
+    _user: User = Depends(get_current_user),
+):
     # default: today UTC
     if day is None:
         day = dt.datetime.now(dt.timezone.utc).date()
@@ -107,6 +111,7 @@ def update_daily_prices(day: dt.date | None = Query(default=None, description="U
 def backfill_prices_route(
     date_from: dt.date = Query(..., description="Start date YYYY-MM-DD"),
     date_to: dt.date = Query(..., description="End date YYYY-MM-DD"),
+    _user: User = Depends(get_current_user),
 ):
     """
     Fetch full daily price history for all instruments between date_from and date_to.

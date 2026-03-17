@@ -10,9 +10,11 @@ from app.api.schemas.profiles import (
     InviteMemberRequest,
     ProfileCreateRequest,
     ProfileResponse,
+    UpdateMemberRoleRequest,
     WorkspaceCreateRequest,
     WorkspaceMemberResponse,
     WorkspaceResponse,
+    _WORKSPACE_ROLE_TO_PROFILE_PERMISSION,
 )
 
 
@@ -93,7 +95,7 @@ def create_profile(
         raise HTTPException(status_code=422, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=409, detail=str(e))
-    profile_repo.grant_profile_access(user_id=user.id, profile_id=p.id, permission="OWNER")
+    profile_repo.grant_profile_access(user_id=user.id, profile_id=p.id, permission="ADMIN")
     return ProfileResponse(**asdict(p))
 
 
@@ -130,13 +132,15 @@ def invite_member(
     if workspace_repo.has_workspace_membership(user_id=target.id, workspace_id=workspace_id):
         raise HTTPException(status_code=409, detail="User is already a member of this workspace")
 
-    workspace_repo.add_workspace_membership(user_id=target.id, workspace_id=workspace_id, role="MEMBER")
+    granted_role = payload.role
+    granted_permission = _WORKSPACE_ROLE_TO_PROFILE_PERMISSION[granted_role]
+    workspace_repo.add_workspace_membership(user_id=target.id, workspace_id=workspace_id, role=granted_role)
 
     profile_repo = get_profile_repo()
     for p in profile_repo.list_profiles(workspace_id=workspace_id):
-        profile_repo.grant_profile_access(user_id=target.id, profile_id=p.id, permission="MEMBER")
+        profile_repo.grant_profile_access(user_id=target.id, profile_id=p.id, permission=granted_permission)
 
-    return WorkspaceMemberResponse(user_id=target.id, email=target.email, role="MEMBER")
+    return WorkspaceMemberResponse(user_id=target.id, email=target.email, role=granted_role)
 
 
 @router.delete("/{workspace_id}/members/{target_user_id}", status_code=204)
@@ -161,6 +165,42 @@ def remove_member(
 
     workspace_repo.remove_member(user_id=target_user_id, workspace_id=workspace_id)
     get_profile_repo().revoke_workspace_access(user_id=target_user_id, workspace_id=workspace_id)
+
+
+@router.patch("/{workspace_id}/members/{target_user_id}", response_model=WorkspaceMemberResponse)
+def update_member_role(
+    workspace_id: str,
+    target_user_id: str,
+    payload: UpdateMemberRoleRequest,
+    user: User = Depends(get_current_user),
+) -> WorkspaceMemberResponse:
+    _require_owner(user, workspace_id)
+
+    workspace_repo = get_workspace_repo()
+    if not workspace_repo.has_workspace_membership(user_id=target_user_id, workspace_id=workspace_id):
+        raise HTTPException(status_code=404, detail="Member not found in this workspace")
+
+    # On ne peut pas rétrograder le dernier OWNER
+    current_role = workspace_repo.get_membership_role(user_id=target_user_id, workspace_id=workspace_id)
+    if current_role == "OWNER" and payload.role != "OWNER" and workspace_repo.count_owners(workspace_id) <= 1:
+        raise HTTPException(
+            status_code=422,
+            detail="Cannot downgrade the last owner of a workspace",
+        )
+
+    new_permission = _WORKSPACE_ROLE_TO_PROFILE_PERMISSION[payload.role]
+    workspace_repo.update_membership_role(user_id=target_user_id, workspace_id=workspace_id, new_role=payload.role)
+    get_profile_repo().update_workspace_permissions(
+        user_id=target_user_id, workspace_id=workspace_id, permission=new_permission
+    )
+
+    user_repo = get_user_repo()
+    try:
+        target = user_repo.get(target_user_id)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    return WorkspaceMemberResponse(user_id=target_user_id, email=target.email, role=payload.role)
 
 
 # ---------------------------------------------------------------------------

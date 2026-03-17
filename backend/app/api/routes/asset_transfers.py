@@ -7,7 +7,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from app.api.deps import get_portfolio_repo, get_instrument_repo, get_trade_repo, get_request_context
+from app.api.deps import get_portfolio_repo, get_instrument_repo, get_trade_repo, get_request_context, get_write_context
 from app.api.schemas.trades import TradeOut
 from app.domain.trade import Trade, TradeSide, TradeType
 from app.identity.request_context import RequestContext
@@ -56,7 +56,7 @@ def _trade_to_out(t: Trade) -> TradeOut:
 @router.post("", status_code=201)
 def create_asset_transfer(
     payload: AssetTransferPayload,
-    ctx: RequestContext = Depends(get_request_context),
+    ctx: RequestContext = Depends(get_write_context),
 ) -> dict:
     p_repo = get_portfolio_repo()
     i_repo = get_instrument_repo()
@@ -201,7 +201,7 @@ def list_asset_transfers(
 @router.delete("/{sell_trade_id}", status_code=204)
 def delete_asset_transfer(
     sell_trade_id: UUID,
-    ctx: RequestContext = Depends(get_request_context),
+    ctx: RequestContext = Depends(get_write_context),
 ) -> None:
     t_repo = get_trade_repo()
 

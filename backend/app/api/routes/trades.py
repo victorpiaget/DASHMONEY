@@ -5,7 +5,7 @@ from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException, Query
 from uuid import UUID
 
-from app.api.deps import get_portfolio_repo, get_instrument_repo, get_trade_repo, get_account_repo, get_tx_repo, get_request_context
+from app.api.deps import get_portfolio_repo, get_instrument_repo, get_trade_repo, get_account_repo, get_tx_repo, get_request_context, get_write_context
 from app.api.schemas.trades import TradeCreate, TradeOut, PositionOut, TradePatch
 from app.domain.trade import Trade, TradeSide
 from app.domain.transaction import Transaction, TransactionKind
@@ -63,7 +63,7 @@ def _create_cash_mirror_tx(
 def create_trade(
     portfolio_id: UUID,
     payload: TradeCreate,
-    ctx: RequestContext = Depends(get_request_context),
+    ctx: RequestContext = Depends(get_write_context),
 ) -> TradeOut:
     p_repo = get_portfolio_repo()
     i_repo = get_instrument_repo()
@@ -165,7 +165,7 @@ def patch_trade(
     portfolio_id: UUID,
     trade_id: UUID,
     payload: TradePatch,
-    ctx: RequestContext = Depends(get_request_context),
+    ctx: RequestContext = Depends(get_write_context),
 ) -> TradeOut:
     p_repo = get_portfolio_repo()
     t_repo = get_trade_repo()
@@ -242,7 +242,7 @@ def patch_trade(
 def delete_trade(
     portfolio_id: UUID,
     trade_id: UUID,
-    ctx: RequestContext = Depends(get_request_context),
+    ctx: RequestContext = Depends(get_write_context),
 ) -> None:
     p_repo = get_portfolio_repo()
     t_repo = get_trade_repo()

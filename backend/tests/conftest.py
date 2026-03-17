@@ -113,7 +113,7 @@ def _seed_default_identity() -> None:
                 ProfileAccessRow(
                     profile_id=DEFAULT_PROFILE_ID,
                     user_id=DEFAULT_USER_ID,
-                    permission="OWNER",
+                    permission="ADMIN",
                 )
             )
 
@@ -175,7 +175,7 @@ def _seed_default_identity() -> None:
                 ProfileAccessRow(
                     profile_id=DEFAULT_PROFILE2_ID,
                     user_id=DEFAULT_USER2_ID,
-                    permission="OWNER",
+                    permission="ADMIN",
                 )
             )
 

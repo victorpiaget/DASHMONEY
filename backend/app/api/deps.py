@@ -110,7 +110,6 @@ async def get_request_context(
     profile_repo = get_profile_repo()
 
     if profile_id is None or not profile_id.strip():
-        # Pas de profile_id fourni → prendre le profil par défaut de l'user
         pid = profile_repo.get_default_profile_id_for_user(user.id)
         if pid is None:
             raise HTTPException(
@@ -125,4 +124,16 @@ async def get_request_context(
                 detail=f"No access to profile '{pid}'",
             )
 
-    return RequestContext(user_id=user.id, profile_id=pid)
+    permission = profile_repo.get_profile_permission(user_id=user.id, profile_id=pid) or "READ"
+    return RequestContext(user_id=user.id, profile_id=pid, permission=permission)
+
+
+async def get_write_context(
+    ctx: RequestContext = Depends(get_request_context),
+) -> RequestContext:
+    if ctx.permission == "READ":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Read-only access to this profile",
+        )
+    return ctx
