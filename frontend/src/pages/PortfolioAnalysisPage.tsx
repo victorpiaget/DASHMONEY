@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { usePortfolios, useTrades, usePositions, useSnapshots, useAddSnapshot, useInstruments, useLatestPrices, usePriceHistory } from '../hooks/usePortfolios'
 import { formatAmount } from '../lib/formatters'
 import PeriodPicker, { type PeriodSelection, resolveDates } from '../components/PeriodPicker'
-import type { PortfolioSnapshot, Instrument, PricePoint } from '../lib/portfoliosApi'
+import type { PortfolioSnapshot, Instrument } from '../lib/portfoliosApi'
 
 function instLabel(instruments: Instrument[], symbol: string): string {
   const inst = instruments.find((i) => i.symbol === symbol)
@@ -30,7 +30,7 @@ const TYPE_COLORS: Record<string, string> = {
 
 // ── Snapshot SVG line chart ───────────────────────────────────────────────────
 
-function SnapshotChart({ snapshots, currency }: { snapshots: PortfolioSnapshot[]; currency: string }) {
+function SnapshotChart({ snapshots }: { snapshots: PortfolioSnapshot[]; currency: string }) {
   const [hovered, setHovered] = useState<number | null>(null)
 
   const sorted = useMemo(

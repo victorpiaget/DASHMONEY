@@ -14,6 +14,7 @@ import PortfoliosPage from './pages/PortfoliosPage'
 import PortfolioDetailPage from './pages/PortfolioDetailPage'
 import PortfolioAnalysisPage from './pages/PortfolioAnalysisPage'
 import InstrumentsPage from './pages/InstrumentsPage'
+import WorkspacePage from './pages/WorkspacePage'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -58,6 +59,7 @@ export default function App() {
               <Route path="portfolios/:id" element={<PortfolioDetailPage />} />
               <Route path="portfolios/:id/analyse" element={<PortfolioAnalysisPage />} />
               <Route path="instruments" element={<InstrumentsPage />} />
+              <Route path="workspace" element={<WorkspacePage />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

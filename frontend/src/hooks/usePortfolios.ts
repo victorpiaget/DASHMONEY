@@ -144,7 +144,7 @@ export function useInstruments() {
 export function useCreateInstrument() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (payload: { symbol: string; kind: string; currency: string; name?: string }) =>
+    mutationFn: (payload: { symbol: string; kind: string; currency: string; name?: string; ticker?: string }) =>
       instrumentsApi.create(payload),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['instruments'] }),
   })
@@ -153,7 +153,7 @@ export function useCreateInstrument() {
 export function useUpdateInstrument() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ symbol, payload }: { symbol: string; payload: { kind: string; currency: string; name: string } }) =>
+    mutationFn: ({ symbol, payload }: { symbol: string; payload: { kind: string; currency: string; name: string; ticker: string } }) =>
       instrumentsApi.update(symbol, payload),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['instruments'] }),
   })

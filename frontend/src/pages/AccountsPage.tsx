@@ -1,5 +1,5 @@
 import { type FormEvent, useRef, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { useAccountBalance, useAccounts, useCreateAccount, useDeleteAccount, useImportVictor } from '../hooks/useAccounts'
 import { formatAmount } from '../lib/formatters'
 import type { Account, ImportResult } from '../lib/accountsApi'

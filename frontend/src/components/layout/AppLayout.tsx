@@ -8,6 +8,7 @@ const NAV_ITEMS = [
   { to: '/portfolios', label: 'Portefeuilles', icon: '◎' },
   { to: '/categories', label: 'Catégories', icon: '⊟' },
   { to: '/instruments', label: 'Actifs', icon: '◫' },
+  { to: '/workspace', label: 'Workspace', icon: '⊕' },
 ]
 
 export default function AppLayout() {
