@@ -158,10 +158,12 @@ Un user ne peut accéder qu'aux profils pour lesquels il a une entrée dans `pro
 - Engine de calcul (balance, timeseries, net worth)
 - Repositories SQL avec Alembic
 - Système identity/profils (Workspace → Profile) + authentification JWT complète
-- Tests d'intégration (**127 tests**, base PostgreSQL dédiée)
+- Tests d'intégration (**153 tests**, base PostgreSQL dédiée)
 - **Authentification JWT sur toute l'API** — access token 15min, refresh token 30j avec rotation
 - **Profile scoping complet** vérifié par `profile_access` à chaque requête
 - Multi-user réel avec isolation stricte entre workspaces
+- **Permissions granulaires** — rôles workspace OWNER/MEMBER/READ_ONLY → permissions profil ADMIN/WRITE/READ ; `get_write_context` sur tous les endpoints de mutation ; `PATCH /workspaces/{id}/members/{user_id}`
+- **Page d'inscription** — RegisterPage.tsx avec auto-login, lien depuis LoginPage
 - **Frontend complet** (React + Vite + Tailwind) — toutes les pages principales implémentées
 - **APScheduler** — snapshots automatiques quotidiens (20h UTC) + catch-up au démarrage si jours manqués
 - **Imports CSV** — Boursorama et Binance (fichiers officiels), format perso Victor
@@ -169,13 +171,14 @@ Un user ne peut accéder qu'aux profils pour lesquels il a une entrée dans `pro
 - **Prix yfinance** — récupération automatique via `yfinance` + `GET /prices/latest-all` + historique
 - **Courbe P&L globale** sur le dashboard (valeur totale vs net investi dans le temps)
 - **Page d'analyse par portefeuille** — valorisation actuelle, P&L all-time, positions enrichies, benchmark auto-détecté
+- **Bouton Virement sur AccountDetailPage** — modal coordonné compte source → compte destination via `POST /accounts/{id}/transfers`
+- **Édition inline des actifs** — nom, type, ticker ET devise éditables dans InstrumentsPage
+- **Système multi-devises complet** — 11 devises (EUR USD GBP CHF JPY CAD AUD SGD BTC ETH USDT) ; taux yfinance stockés en base (`exchange_rates`) ; refresh quotidien via scheduler ; `CurrencyContext` React avec `convert()` + `format()` ; sélecteur dans la sidebar ; préférence `localStorage` ; toutes les pages converties
 
 ### Prochaines étapes identifiées
 - Nouvelles fonctionnalités métier (budget prévisionnel, objectifs, etc.)
 - **TODO : Import CSV banque automatique** — parser les formats exportés par les applis bancaires (BNP, Crédit Agricole, Boursorama, etc.) sans configuration manuelle. L'endpoint `import-victor` gère le format perso de Victor (8 colonnes). Il faudra un système de détection automatique du format + mapping configurable.
-- **TODO : Gestion des virements depuis les pages de compte** — Ajouter un bouton "Ajouter un transfert" en haut de chaque page de compte pour enregistrer les virements entrants/sortants (ex: alimentation mensuelle PEA). Problème actuel : le compte passerelle des portefeuilles affiche un solde négatif (ex: -5000€) car les virements vers le PEA sont traités comme des transactions normales dans le compte courant au lieu d'être liés au compte passerelle. Il faut une UI dédiée qui crée une transaction coordonnée entre le compte courant et le compte passerelle du portefeuille.
-- **TODO : Modifier les actifs du catalogue** — Permettre l'édition du nom, du type et de la devise d'un instrument existant (UI inline dans la page Actifs). Le `PATCH /instruments/{symbol}` backend existe déjà ; l'édition inline est implémentée dans `InstrumentsPage.tsx`.
-- **TODO : Système de devises avec taux de change en temps réel** — conversion automatique EUR/USD/BTC/USDT/etc. Taux récupérés via API externe (ex. ECB, exchangerate.host ou CoinGecko pour le crypto). Affichage unifié dans toutes les pages (comptes multi-devises, portefeuilles, dashboard net worth). Stocker les taux en cache côté backend pour éviter les appels répétés et garantir la cohérence des calculs historiques.
+- **TODO : Système de devises — saisie multi-devise** — quand l'user saisit un montant dans un formulaire (transaction, trade, compte), permettre de choisir la devise de saisie et convertir automatiquement vers la devise native avant envoi au backend.
 
 ### Décisions de design arrêtées
 - `profile_id` est retourné dans toutes les réponses API de type AccountResponse (explicite)
