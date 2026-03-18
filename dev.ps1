@@ -26,7 +26,20 @@ if (-not $pg_ok.TcpTestSucceeded) {
 }
 Write-Host "  Postgres OK" -ForegroundColor Green
 
-# 2. Backend dans un nouveau terminal
+# 2. Migrations
+Write-Host "> Migrations Alembic..." -ForegroundColor Yellow
+$env:DASHMONEY_DATABASE_URL = $DB_URL
+Push-Location $BACKEND
+poetry run alembic upgrade head | Out-Null
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "ERREUR: alembic upgrade head a echoue" -ForegroundColor Red
+    Pop-Location
+    exit 1
+}
+Pop-Location
+Write-Host "  Migrations OK" -ForegroundColor Green
+
+# 3. Backend dans un nouveau terminal
 Write-Host "> Demarrage backend (port 8000)..." -ForegroundColor Yellow
 Start-Process powershell -ArgumentList @(
     "-NoExit",
@@ -34,7 +47,7 @@ Start-Process powershell -ArgumentList @(
     "cd '$BACKEND'; `$env:DASHMONEY_DATABASE_URL='$DB_URL'; `$env:DASHMONEY_TEST_DATABASE_URL='$TEST_DB_URL'; `$env:DASHMONEY_SECRET_KEY='$SECRET_KEY'; poetry run uvicorn app.api.main:app --reload --port 8000"
 )
 
-# 3. Frontend dans un nouveau terminal
+# 4. Frontend dans un nouveau terminal
 Write-Host "> Demarrage frontend (port 5173)..." -ForegroundColor Yellow
 Start-Process powershell -ArgumentList @(
     "-NoExit",
