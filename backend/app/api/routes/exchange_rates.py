@@ -20,15 +20,15 @@ def get_latest_rates():
     repo = SqlExchangeRateRepository()
     rates = repo.get_all()
 
-    if not rates:
-        # Première utilisation : fetch synchrone
+    if len(rates) <= 1:
+        # Seulement EUR seedé par la migration → fetch synchrone au premier appel
         try:
             update_exchange_rates()
             rates = repo.get_all()
         except Exception:
             pass
 
-    if not rates:
+    if len(rates) <= 1:
         raise HTTPException(
             status_code=503,
             detail="Taux de change indisponibles. Réessayez dans quelques instants.",

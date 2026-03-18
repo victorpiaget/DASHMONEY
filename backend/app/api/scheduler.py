@@ -96,6 +96,16 @@ def _catchup_job() -> None:
 
     today = dt.datetime.now(dt.timezone.utc).date()
 
+    # 0. Taux de change au démarrage si absents
+    try:
+        from app.services.update_exchange_rates_service import update_exchange_rates
+        from app.repositories.sql_exchange_rate_repository import SqlExchangeRateRepository
+        if len(SqlExchangeRateRepository().get_all()) <= 1:
+            fx = update_exchange_rates()
+            log.info("[catchup] Taux de change initialisés: %s stored, %s failed", fx["stored"], fx["failed"])
+    except Exception as e:
+        log.error("[catchup] Initialisation taux de change échouée: %s", e)
+
     # Trouve le dernier jour snapshottté toutes tables confondues
     with new_session() as s:
         row = s.execute(text("SELECT MAX(date) FROM portfolio_snapshots")).fetchone()
