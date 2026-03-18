@@ -30,12 +30,13 @@ function InstrumentRow({
   const [editing, setEditing] = useState(false)
   const [editName, setEditName] = useState(inst.name)
   const [editKind, setEditKind] = useState<InstrumentKind>(inst.kind as InstrumentKind)
+  const [editCurrency, setEditCurrency] = useState(inst.currency)
   const [editTicker, setEditTicker] = useState(inst.ticker ?? '')
 
   const handleSave = async () => {
     await updateInstrument.mutateAsync({
       symbol: inst.symbol,
-      payload: { kind: editKind, currency: inst.currency, name: editName.trim(), ticker: editTicker.trim() },
+      payload: { kind: editKind, currency: editCurrency, name: editName.trim(), ticker: editTicker.trim() },
     })
     setEditing(false)
   }
@@ -43,6 +44,7 @@ function InstrumentRow({
   const handleCancel = () => {
     setEditName(inst.name)
     setEditKind(inst.kind as InstrumentKind)
+    setEditCurrency(inst.currency)
     setEditTicker(inst.ticker ?? '')
     setEditing(false)
   }
@@ -72,6 +74,13 @@ function InstrumentRow({
           className="text-xs border border-gray-200 rounded px-2 py-1 focus:outline-none"
         >
           {KINDS.map((k) => <option key={k.key} value={k.key}>{k.label}</option>)}
+        </select>
+        <select
+          value={editCurrency}
+          onChange={(e) => setEditCurrency(e.target.value)}
+          className="text-xs border border-gray-200 rounded px-2 py-1 focus:outline-none font-mono"
+        >
+          {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
         </select>
         <button
           onClick={handleSave}

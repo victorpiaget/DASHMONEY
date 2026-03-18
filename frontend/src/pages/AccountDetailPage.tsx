@@ -2,8 +2,10 @@ import { type FormEvent, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useAccounts, useAccountBalance } from '../hooks/useAccounts'
 import { useTransactions, useCreateTransaction, useUpdateTransaction, useDeleteTransaction } from '../hooks/useTransactions'
+import { useCreateTransfer } from '../hooks/useTransfers'
 import { useCategories } from '../hooks/useCategories'
-import { formatAmount, formatDate } from '../lib/formatters'
+import { formatDate } from '../lib/formatters'
+import { useCurrency } from '../context/CurrencyContext'
 import type { Transaction, TransactionKind, CreateTransactionPayload, TransactionFilters, SortField, SortDir } from '../lib/transactionsApi'
 
 const TYPE_LABELS: Record<string, string> = {
@@ -42,6 +44,7 @@ export default function AccountDetailPage() {
   const account = accounts.find((a) => a.id === id)
 
   const { data: balanceData } = useAccountBalance(id ?? '')
+  const { format } = useCurrency()
   const createTransaction = useCreateTransaction(id ?? '')
   const updateTransaction = useUpdateTransaction(id ?? '')
   const deleteTransaction = useDeleteTransaction(id ?? '')
@@ -62,6 +65,8 @@ export default function AccountDetailPage() {
   const [sortDir, setSortDir] = useState<SortDir>('desc')
 
   const [modal, setModal] = useState<ModalMode | null>(null)
+  const [transferModal, setTransferModal] = useState(false)
+  const createTransfer = useCreateTransfer()
 
   const filters: TransactionFilters = {
     q: q || undefined,
@@ -147,7 +152,7 @@ export default function AccountDetailPage() {
             <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Solde actuel</p>
             {balance !== null ? (
               <p className={`text-3xl font-semibold tabular-nums ${balanceNegative ? 'text-red-600' : 'text-gray-900'}`}>
-                {formatAmount(balance, balanceData!.currency)}
+                {format(balance, balanceData!.currency)}
               </p>
             ) : (
               <div className="h-9 w-32 bg-gray-100 rounded-lg animate-pulse" />
@@ -166,13 +171,21 @@ export default function AccountDetailPage() {
               <span className="ml-2 text-xs font-normal text-gray-400">{transactions.length}</span>
             )}
           </h2>
-          <button
-            onClick={() => setModal({ type: 'create' })}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg hover:bg-gray-800 transition-colors"
-          >
-            <span className="text-sm leading-none">+</span>
-            Nouvelle transaction
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setTransferModal(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 text-gray-700 text-xs font-medium rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              ⇄ Virement
+            </button>
+            <button
+              onClick={() => setModal({ type: 'create' })}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg hover:bg-gray-800 transition-colors"
+            >
+              <span className="text-sm leading-none">+</span>
+              Nouvelle transaction
+            </button>
+          </div>
         </div>
 
         {/* Barre de filtres */}
@@ -311,7 +324,7 @@ export default function AccountDetailPage() {
         )}
       </div>
 
-      {/* Modal */}
+      {/* Modal transaction */}
       {modal && (
         <TransactionModal
           mode={modal}
@@ -334,6 +347,22 @@ export default function AccountDetailPage() {
           }
         />
       )}
+
+      {/* Modal virement */}
+      {transferModal && id && (
+        <TransferModal
+          fromAccountId={id}
+          fromCurrency={account?.currency ?? 'EUR'}
+          accounts={accounts.filter((a) => a.id !== id)}
+          onClose={() => setTransferModal(false)}
+          onSubmit={async (payload) => {
+            await createTransfer.mutateAsync({ fromAccountId: id, payload })
+            setTransferModal(false)
+          }}
+          isLoading={createTransfer.isPending}
+          error={createTransfer.error?.message ?? null}
+        />
+      )}
     </div>
   )
 }
@@ -347,6 +376,7 @@ function TransactionRow({
   onEdit: () => void
   onDelete: () => void
 }) {
+  const { format } = useCurrency()
   const [confirmDelete, setConfirmDelete] = useState(false)
   const amount = parseFloat(tx.amount)
   const isNegative = amount < 0
@@ -372,7 +402,7 @@ function TransactionRow({
       </td>
       <td className="px-6 py-3.5 text-right">
         <span className={`text-sm font-medium tabular-nums ${isNegative ? 'text-red-600' : 'text-emerald-600'}`}>
-          {formatAmount(tx.amount, tx.currency)}
+          {format(tx.amount, tx.currency)}
         </span>
       </td>
       <td className="px-4 py-3.5 text-right">
@@ -608,3 +638,135 @@ function TransactionModal({ mode, currency, categories, onClose, onSubmit, isLoa
 }
 
 const inputClass = 'w-full px-3.5 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent transition bg-white'
+
+interface TransferModalProps {
+  fromAccountId: string
+  fromCurrency: string
+  accounts: { id: string; name: string; currency: string }[]
+  onClose: () => void
+  onSubmit: (payload: { to_account_id: string; date: string; amount: string; category: string; label?: string }) => Promise<void>
+  isLoading: boolean
+  error: string | null
+}
+
+function TransferModal({ fromCurrency, accounts, onClose, onSubmit, isLoading, error }: TransferModalProps) {
+  const sameCurrency = accounts.filter((a) => a.currency === fromCurrency)
+  const otherCurrency = accounts.filter((a) => a.currency !== fromCurrency)
+
+  const [toAccountId, setToAccountId] = useState(sameCurrency[0]?.id ?? accounts[0]?.id ?? '')
+  const [date, setDate] = useState(new Date().toISOString().split('T')[0])
+  const [amount, setAmount] = useState('')
+  const [label, setLabel] = useState('')
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault()
+    const abs = parseFloat(amount)
+    if (isNaN(abs) || abs <= 0) return
+    await onSubmit({
+      to_account_id: toAccountId,
+      date,
+      amount: abs.toFixed(2),
+      category: 'Virement',
+      label: label.trim() || undefined,
+    })
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center z-50" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-lg font-semibold text-gray-900">Nouveau virement</h2>
+          <button onClick={onClose} className="text-gray-300 hover:text-gray-500 text-xl leading-none">×</button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">Compte destination</label>
+            <select
+              required
+              value={toAccountId}
+              onChange={(e) => setToAccountId(e.target.value)}
+              className={inputClass}
+            >
+              {sameCurrency.length > 0 && (
+                <optgroup label={`Même devise (${fromCurrency})`}>
+                  {sameCurrency.map((a) => (
+                    <option key={a.id} value={a.id}>{a.name}</option>
+                  ))}
+                </optgroup>
+              )}
+              {otherCurrency.length > 0 && (
+                <optgroup label="Autre devise">
+                  {otherCurrency.map((a) => (
+                    <option key={a.id} value={a.id}>{a.name} ({a.currency})</option>
+                  ))}
+                </optgroup>
+              )}
+            </select>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Date</label>
+              <input
+                type="date"
+                required
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Montant ({fromCurrency})</label>
+              <input
+                type="number"
+                required
+                min="0.01"
+                step="0.01"
+                placeholder="0,00"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                className={inputClass}
+                autoFocus
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+              Libellé <span className="text-gray-400 font-normal">(optionnel)</span>
+            </label>
+            <input
+              type="text"
+              placeholder="Ex : Alimentation PEA mars"
+              value={label}
+              onChange={(e) => setLabel(e.target.value)}
+              className={inputClass}
+            />
+          </div>
+
+          {error && (
+            <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>
+          )}
+
+          <div className="flex gap-3 pt-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 py-2.5 px-4 border border-gray-200 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              Annuler
+            </button>
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="flex-1 py-2.5 px-4 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-800 disabled:opacity-50 transition-colors"
+            >
+              {isLoading ? 'Enregistrement…' : 'Créer le virement'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}

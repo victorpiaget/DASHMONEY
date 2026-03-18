@@ -45,6 +45,7 @@ from app.repositories.sql_trade_repository import TradeRow  # noqa: F401
 from app.repositories.sql_portfolio_repository import PortfolioRow  # noqa: F401
 from app.repositories.sql_portfolio_snapshot_repository import PortfolioSnapshotRow  # noqa: F401
 from app.repositories.sql_price_repository import PricePointRow  # noqa: F401
+from app.repositories.sql_exchange_rate_repository import ExchangeRateRow  # noqa: F401
 
 
 

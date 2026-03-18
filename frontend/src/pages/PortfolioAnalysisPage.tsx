@@ -1,7 +1,7 @@
 import { useState, useMemo, type FormEvent, type ReactNode } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { usePortfolios, useTrades, usePositions, useSnapshots, useAddSnapshot, useInstruments, useLatestPrices, usePriceHistory } from '../hooks/usePortfolios'
-import { formatAmount } from '../lib/formatters'
+import { useCurrency } from '../context/CurrencyContext'
 import PeriodPicker, { type PeriodSelection, resolveDates } from '../components/PeriodPicker'
 import type { PortfolioSnapshot, Instrument } from '../lib/portfoliosApi'
 
@@ -31,6 +31,7 @@ const TYPE_COLORS: Record<string, string> = {
 // ── Snapshot SVG line chart ───────────────────────────────────────────────────
 
 function SnapshotChart({ snapshots }: { snapshots: PortfolioSnapshot[]; currency: string }) {
+  const { format } = useCurrency()
   const [hovered, setHovered] = useState<number | null>(null)
 
   const sorted = useMemo(
@@ -112,7 +113,7 @@ function SnapshotChart({ snapshots }: { snapshots: PortfolioSnapshot[]; currency
       {hov && (
         <div className="absolute top-2 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs px-2.5 py-1.5 rounded-lg pointer-events-none whitespace-nowrap shadow-lg">
           <span className="text-gray-400 mr-2">{fmtDate(hov.date)}</span>
-          {formatAmount(hov.value, hov.currency)}
+          {format(hov.value, hov.currency)}
         </div>
       )}
     </div>
@@ -124,6 +125,7 @@ function SnapshotChart({ snapshots }: { snapshots: PortfolioSnapshot[]; currency
 function KpiCard({ label, value, currency, color = 'default', note }: {
   label: string; value: string | null; currency: string; color?: 'emerald' | 'red' | 'blue' | 'default'; note?: string
 }) {
+  const { format } = useCurrency()
   const colorClass =
     color === 'emerald' ? 'text-emerald-600' :
     color === 'red' ? 'text-red-600' :
@@ -133,7 +135,7 @@ function KpiCard({ label, value, currency, color = 'default', note }: {
     <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-5 py-4">
       <p className="text-xs text-gray-400 uppercase tracking-wider mb-1.5">{label}</p>
       {value !== null
-        ? <p className={`text-xl font-semibold tabular-nums ${colorClass}`}>{formatAmount(value, currency)}</p>
+        ? <p className={`text-xl font-semibold tabular-nums ${colorClass}`}>{format(value, currency)}</p>
         : <div className="h-7 w-28 bg-gray-100 rounded animate-pulse" />
       }
       {note && <p className="text-[10px] text-gray-400 mt-1">{note}</p>}
@@ -167,11 +169,12 @@ function EmptyState({ label }: { label: string }) {
 // ── PnL badge ─────────────────────────────────────────────────────────────────
 
 function PnlBadge({ value, currency }: { value: number; currency: string }) {
+  const { format } = useCurrency()
   if (value === 0) return <span className="text-gray-400 tabular-nums">—</span>
   const positive = value >= 0
   return (
     <span className={`tabular-nums font-medium ${positive ? 'text-emerald-600' : 'text-red-500'}`}>
-      {positive ? '+' : ''}{formatAmount(value.toFixed(2), currency)}
+      {positive ? '+' : ''}{format(value.toFixed(2), currency)}
     </span>
   )
 }
@@ -409,6 +412,7 @@ function AddSnapshotModal({ portfolioId, currency, onClose }: {
 // ── Page principale ───────────────────────────────────────────────────────────
 
 export default function PortfolioAnalysisPage() {
+  const { format } = useCurrency()
   const { id } = useParams<{ id: string }>()
   const portfolioId = id ?? ''
 
@@ -635,7 +639,7 @@ export default function PortfolioAnalysisPage() {
     q % 1 === 0 ? q.toLocaleString('fr-FR') : q.toLocaleString('fr-FR', { maximumFractionDigits: 8 })
 
   const fmtPrice = (price: number, cur: string) =>
-    formatAmount(price.toFixed(price < 1 ? 6 : 2), cur)
+    format(price.toFixed(price < 1 ? 6 : 2), cur)
 
   return (
     <div className="p-8">
@@ -767,7 +771,7 @@ export default function PortfolioAnalysisPage() {
                         )}
                       </td>
                       <td className="py-2.5 px-3 text-right text-gray-900 font-semibold tabular-nums">
-                        {p.currentValue !== null ? formatAmount(p.currentValue.toFixed(2), currency) : '—'}
+                        {p.currentValue !== null ? format(p.currentValue.toFixed(2), currency) : '—'}
                       </td>
                       <td className="py-2.5 pl-3 text-right tabular-nums">
                         {p.pnl !== null ? <PnlBadge value={p.pnl} currency={currency} /> : <span className="text-gray-400">—</span>}
@@ -780,7 +784,7 @@ export default function PortfolioAnalysisPage() {
                 <tr className="border-t border-gray-200">
                   <td colSpan={3} className="pt-2.5 pr-4 text-gray-500 font-medium">Total</td>
                   <td className="pt-2.5 px-3 text-right text-gray-900 font-semibold tabular-nums">
-                    {formatAmount(currentValuation.toFixed(2), currency)}
+                    {format(currentValuation.toFixed(2), currency)}
                   </td>
                   <td className="pt-2.5 pl-3 text-right">
                     <PnlBadge
@@ -827,20 +831,20 @@ export default function PortfolioAnalysisPage() {
                       </td>
                       <td className="py-2 px-3 text-right text-gray-600 tabular-nums">{fmtQty(s.buyQty)}</td>
                       <td className="py-2 px-3 text-right text-gray-700 tabular-nums font-medium">
-                        {formatAmount(s.buyAmount.toFixed(2), currency)}
+                        {format(s.buyAmount.toFixed(2), currency)}
                       </td>
                       <td className="py-2 px-3 text-right text-gray-600 tabular-nums">
-                        {s.buyQty > 0 ? formatAmount((s.buyAmount / s.buyQty).toFixed(4), currency) : '—'}
+                        {s.buyQty > 0 ? format((s.buyAmount / s.buyQty).toFixed(4), currency) : '—'}
                       </td>
                       <td className="py-2 px-3 text-right text-gray-600 tabular-nums">
                         {s.sellQty > 0 ? fmtQty(s.sellQty) : '—'}
                       </td>
                       <td className="py-2 px-3 text-right text-red-500 tabular-nums">
-                        {s.fees > 0 ? formatAmount(s.fees.toFixed(2), currency) : '—'}
+                        {s.fees > 0 ? format(s.fees.toFixed(2), currency) : '—'}
                       </td>
                       <td className="py-2 pl-3 text-right tabular-nums">
                         {currentVal !== null
-                          ? <span className="font-medium text-blue-700">{formatAmount(currentVal.toFixed(2), currency)}</span>
+                          ? <span className="font-medium text-blue-700">{format(currentVal.toFixed(2), currency)}</span>
                           : <span className="text-gray-400">—</span>
                         }
                       </td>
@@ -853,15 +857,15 @@ export default function PortfolioAnalysisPage() {
                   <td className="pt-2 pr-4 text-gray-500 font-medium">Total</td>
                   <td className="pt-2 px-3" />
                   <td className="pt-2 px-3 text-right text-gray-900 font-semibold tabular-nums">
-                    {formatAmount(kpis.invested, currency)}
+                    {format(kpis.invested, currency)}
                   </td>
                   <td className="pt-2 px-3" />
                   <td className="pt-2 px-3" />
                   <td className="pt-2 px-3 text-right text-red-600 font-semibold tabular-nums">
-                    {formatAmount(kpis.fees, currency)}
+                    {format(kpis.fees, currency)}
                   </td>
                   <td className="pt-2 pl-3 text-right text-blue-700 font-semibold tabular-nums">
-                    {formatAmount(currentValuation.toFixed(2), currency)}
+                    {format(currentValuation.toFixed(2), currency)}
                   </td>
                 </tr>
               </tfoot>

@@ -1,5 +1,6 @@
 import { NavLink, Outlet } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
+import { useCurrency, SUPPORTED_CURRENCIES } from '../../context/CurrencyContext'
 
 const NAV_ITEMS = [
   { to: '/', label: 'Dashboard', icon: '◈' },
@@ -13,6 +14,7 @@ const NAV_ITEMS = [
 
 export default function AppLayout() {
   const { logout } = useAuth()
+  const { displayCurrency, setDisplayCurrency, isError } = useCurrency()
 
   return (
     <div className="flex h-screen bg-gray-50">
@@ -43,6 +45,25 @@ export default function AppLayout() {
             </NavLink>
           ))}
         </nav>
+
+        {/* Sélecteur de devise */}
+        <div className="px-3 pb-2 border-t border-gray-100 pt-3">
+          <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider px-1 mb-1.5">
+            Devise d'affichage
+            {isError && <span className="ml-1 text-amber-500" title="Taux non disponibles">⚠</span>}
+          </p>
+          <select
+            value={displayCurrency}
+            onChange={(e) => setDisplayCurrency(e.target.value)}
+            className="w-full px-2.5 py-1.5 rounded-lg border border-gray-200 text-xs text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent transition"
+          >
+            {SUPPORTED_CURRENCIES.map((c) => (
+              <option key={c.code} value={c.code}>
+                {c.symbol} {c.code} — {c.label}
+              </option>
+            ))}
+          </select>
+        </div>
 
         {/* Logout */}
         <div className="p-3 border-t border-gray-100">

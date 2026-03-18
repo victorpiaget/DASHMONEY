@@ -32,7 +32,15 @@ def _daily_job() -> None:
     today = dt.datetime.now(dt.timezone.utc).date()
     log.info("[scheduler] Daily job starting for %s", today)
 
-    # 1. Mise à jour des prix
+    # 1. Mise à jour des taux de change
+    try:
+        from app.services.update_exchange_rates_service import update_exchange_rates
+        fx_result = update_exchange_rates()
+        log.info("[scheduler] Exchange rates updated: %s stored, %s failed", fx_result["stored"], fx_result["failed"])
+    except Exception as e:
+        log.error("[scheduler] Exchange rate update failed: %s", e)
+
+    # 2. Mise à jour des prix
     try:
         result = update_prices_for_day(
             day_utc=today,

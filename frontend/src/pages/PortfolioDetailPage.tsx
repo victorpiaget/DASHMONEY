@@ -1,6 +1,7 @@
 import { useState, useRef, type FormEvent, type DragEvent } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { usePortfolios, useTrades, useCreateTrade, usePatchTrade, useDeleteTrade, usePositions, useInstruments, useCreateInstrument, useImportBoursorama, useImportBinance } from '../hooks/usePortfolios'
+import { useCurrency } from '../context/CurrencyContext'
 import type { Trade, TradeSide, ImportBoursoramaResult } from '../lib/portfoliosApi'
 
 // ── Constantes ─────────────────────────────────────────────────────────────────
@@ -55,15 +56,10 @@ function formatNum(v: string, decimals = 2) {
   return new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: decimals }).format(n)
 }
 
-function formatAmount(v: string, currency: string) {
-  const n = parseFloat(v)
-  if (isNaN(n)) return '—'
-  return new Intl.NumberFormat('fr-FR', { style: 'currency', currency, minimumFractionDigits: 2 }).format(n)
-}
-
 // ── Page ───────────────────────────────────────────────────────────────────────
 
 export default function PortfolioDetailPage() {
+  const { format } = useCurrency()
   const { id } = useParams<{ id: string }>()
   const { data: portfolios = [] } = usePortfolios()
   const portfolio = portfolios.find((p) => p.id === id)
@@ -363,10 +359,10 @@ export default function PortfolioDetailPage() {
                         <div className="text-[10px] text-gray-400 font-mono">{t.instrument_symbol}</div>
                       </td>
                       <td className="px-4 py-3 text-gray-700 tabular-nums">{formatNum(t.quantity, 8)}</td>
-                      <td className="px-4 py-3 text-gray-700 tabular-nums">{formatAmount(t.price, t.currency)}</td>
-                      <td className="px-4 py-3 text-gray-500 tabular-nums">{formatAmount(t.fees, t.currency)}</td>
+                      <td className="px-4 py-3 text-gray-700 tabular-nums">{format(t.price, t.currency)}</td>
+                      <td className="px-4 py-3 text-gray-500 tabular-nums">{format(t.fees, t.currency)}</td>
                       <td className={`px-4 py-3 text-right tabular-nums font-medium ${total < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
-                        {formatAmount(total.toString(), t.currency)}
+                        {format(total.toString(), t.currency)}
                       </td>
                       <td className="px-4 py-3 text-gray-400 max-w-[160px] truncate">{t.label}</td>
                       <td className="px-4 py-3">
@@ -542,7 +538,7 @@ export default function PortfolioDetailPage() {
                       const gross = parseFloat(tradeQty) * parseFloat(tradePrice)
                       const fees = parseFloat(tradeFees || '0')
                       const total = tradeSide === 'BUY' ? -(gross + fees) : gross - fees
-                      return formatAmount(total.toString(), portfolio?.currency ?? 'EUR')
+                      return format(total.toString(), portfolio?.currency ?? 'EUR')
                     })()}
                   </span>
                 </div>

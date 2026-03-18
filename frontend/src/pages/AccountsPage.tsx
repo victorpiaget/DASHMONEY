@@ -1,7 +1,7 @@
 import { type FormEvent, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAccountBalance, useAccounts, useCreateAccount, useDeleteAccount, useImportVictor } from '../hooks/useAccounts'
-import { formatAmount } from '../lib/formatters'
+import { useCurrency } from '../context/CurrencyContext'
 import type { Account, ImportResult } from '../lib/accountsApi'
 
 const ACCOUNT_TYPE_LABELS: Record<string, string> = {
@@ -97,6 +97,7 @@ function AccountRow({ account, onDelete }: { account: Account; onDelete: () => v
   const fileInputRef = useRef<HTMLInputElement>(null)
   const importMutation = useImportVictor(account.id)
   const { data: balanceData } = useAccountBalance(account.id)
+  const { format } = useCurrency()
   const navigate = useNavigate()
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -128,7 +129,7 @@ function AccountRow({ account, onDelete }: { account: Account; onDelete: () => v
         </td>
         <td className="px-6 py-4 text-right">
           <span className={`text-sm font-medium tabular-nums ${balanceData && parseFloat(balanceData.balance) < 0 ? 'text-red-600' : 'text-gray-900'}`}>
-            {balanceData ? formatAmount(balanceData.balance, balanceData.currency) : '—'}
+            {balanceData ? format(balanceData.balance, balanceData.currency) : '—'}
           </span>
         </td>
         <td className="px-4 py-4 text-right" onClick={(e) => e.stopPropagation()}>

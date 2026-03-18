@@ -2,7 +2,7 @@ import { useState, useMemo, type ReactNode } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useAccounts, useAccountBalance } from '../hooks/useAccounts'
 import { useAccountTimeSeries, useAccountBudgetSummary } from '../hooks/useAccountAnalysis'
-import { formatAmount } from '../lib/formatters'
+import { useCurrency } from '../context/CurrencyContext'
 import PeriodPicker, { type PeriodSelection, resolveDates } from '../components/PeriodPicker'
 import type { TimeSeriesPoint } from '../lib/analysisApi'
 
@@ -66,6 +66,7 @@ const GRANULARITIES: { key: Granularity; label: string }[] = [
 // ── SVG Balance Line Chart ────────────────────────────────────────────────────
 
 function BalanceChart({ points, currency }: { points: TimeSeriesPoint[]; currency: string }) {
+  const { format } = useCurrency()
   const [hovered, setHovered] = useState<number | null>(null)
 
   const W = 600, H = 160
@@ -142,7 +143,7 @@ function BalanceChart({ points, currency }: { points: TimeSeriesPoint[]; currenc
       {hoveredPoint && (
         <div className="absolute top-2 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs px-2.5 py-1.5 rounded-lg pointer-events-none whitespace-nowrap shadow-lg">
           <span className="text-gray-400 mr-2">{formatBucketTooltip(hoveredPoint.bucket)}</span>
-          {formatAmount(hoveredPoint.balance_end, currency)}
+          {format(hoveredPoint.balance_end, currency)}
         </div>
       )}
     </div>
@@ -154,6 +155,7 @@ function BalanceChart({ points, currency }: { points: TimeSeriesPoint[]; currenc
 interface MonthBar { label: string; income: number; expense: number }
 
 function MonthlyChart({ bars, currency }: { bars: MonthBar[]; currency: string }) {
+  const { format } = useCurrency()
   const [hovered, setHovered] = useState<number | null>(null)
   const maxVal = Math.max(...bars.flatMap((b) => [b.income, Math.abs(b.expense)]), 1)
   const BAR_H = 120
@@ -166,14 +168,14 @@ function MonthlyChart({ bars, currency }: { bars: MonthBar[]; currency: string }
         <span className="flex items-center gap-1.5 text-xs">
           <span className="w-3 h-3 rounded-sm bg-emerald-400 inline-block flex-shrink-0" />
           {hov
-            ? <span className="text-emerald-600 font-semibold tabular-nums">+{formatAmount(hov.income.toFixed(2), currency)}</span>
+            ? <span className="text-emerald-600 font-semibold tabular-nums">+{format(hov.income.toFixed(2), currency)}</span>
             : <span className="text-gray-500">Revenus</span>
           }
         </span>
         <span className="flex items-center gap-1.5 text-xs">
           <span className="w-3 h-3 rounded-sm bg-red-300 inline-block flex-shrink-0" />
           {hov
-            ? <span className="text-red-500 font-semibold tabular-nums">{formatAmount(hov.expense.toFixed(2), currency)}</span>
+            ? <span className="text-red-500 font-semibold tabular-nums">{format(hov.expense.toFixed(2), currency)}</span>
             : <span className="text-gray-500">Dépenses</span>
           }
         </span>
@@ -223,6 +225,7 @@ function CategoryBars({
   subcategoryData: { category: string; subcategory: string; total: string }[]
   currency: string
 }) {
+  const { format } = useCurrency()
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const max = Math.max(...data.map((d) => Math.abs(parseFloat(d.total))), 1)
 
@@ -267,7 +270,7 @@ function CategoryBars({
                 <div className="h-full bg-red-400 rounded-full transition-all" style={{ width: `${pct}%` }} />
               </div>
               <span className="text-xs text-gray-700 tabular-nums w-28 text-right flex-shrink-0">
-                {formatAmount(d.total, currency)}
+                {format(d.total, currency)}
               </span>
             </div>
 
@@ -282,7 +285,7 @@ function CategoryBars({
                         <div className="h-full bg-red-300 rounded-full" style={{ width: `${subPct}%` }} />
                       </div>
                       <span className="text-[11px] text-gray-500 tabular-nums w-28 text-right flex-shrink-0">
-                        {formatAmount(s.total, currency)}
+                        {format(s.total, currency)}
                       </span>
                     </div>
                   )
@@ -301,12 +304,13 @@ function CategoryBars({
 function KpiCard({ label, value, currency, color = 'default' }: {
   label: string; value: string | null; currency: string; color?: 'emerald' | 'red' | 'default'
 }) {
+  const { format } = useCurrency()
   const colorClass = color === 'emerald' ? 'text-emerald-600' : color === 'red' ? 'text-red-600' : 'text-gray-900'
   return (
     <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-5 py-4">
       <p className="text-xs text-gray-400 uppercase tracking-wider mb-1.5">{label}</p>
       {value !== null
-        ? <p className={`text-xl font-semibold tabular-nums ${colorClass}`}>{formatAmount(value, currency)}</p>
+        ? <p className={`text-xl font-semibold tabular-nums ${colorClass}`}>{format(value, currency)}</p>
         : <div className="h-7 w-28 bg-gray-100 rounded animate-pulse" />
       }
     </div>

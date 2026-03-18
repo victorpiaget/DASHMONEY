@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react'
 import { useAccountBalance, useAccounts } from '../hooks/useAccounts'
 import { useNetWorthGrouped } from '../hooks/useNetWorth'
 import { usePnlCurve } from '../hooks/usePortfolios'
-import { formatAmount } from '../lib/formatters'
+import { useCurrency } from '../context/CurrencyContext'
 import { Link } from 'react-router-dom'
 import type { PnlPoint } from '../lib/portfoliosApi'
 
@@ -10,6 +10,7 @@ import type { PnlPoint } from '../lib/portfoliosApi'
 
 function AccountCard({ account }: { account: { id: string; name: string; currency: string; account_type: string } }) {
   const { data: balanceData } = useAccountBalance(account.id)
+  const { format } = useCurrency()
   const balance = balanceData?.balance ?? null
   const negative = balance !== null && parseFloat(balance) < 0
   return (
@@ -22,7 +23,7 @@ function AccountCard({ account }: { account: { id: string; name: string; currenc
         <p className="text-xs text-gray-400 mt-0.5">{ACCOUNT_TYPE_LABELS[account.account_type] ?? account.account_type}</p>
       </div>
       <p className={`text-sm font-medium tabular-nums ${negative ? 'text-red-600' : 'text-gray-900'}`}>
-        {balance !== null ? formatAmount(balance, balanceData!.currency) : '—'}
+        {balance !== null ? format(balance, balanceData!.currency) : '—'}
       </p>
     </Link>
   )
@@ -39,6 +40,7 @@ const NW_TYPE_LABELS: Record<string, string> = {
 // ── PnL Chart ─────────────────────────────────────────────────────────────────
 
 function PnlChart({ data }: { data: PnlPoint[] }) {
+  const { format } = useCurrency()
   const [hovered, setHovered] = useState<number | null>(null)
 
   const sorted = useMemo(() => [...data].sort((a, b) => a.date.localeCompare(b.date)), [data])
@@ -143,16 +145,16 @@ function PnlChart({ data }: { data: PnlPoint[] }) {
           <div className="flex gap-4">
             <div>
               <div className="text-gray-400 text-[10px]">Valorisation</div>
-              <div className="font-medium">{formatAmount(hov.portfolio_value.toFixed(2), 'EUR')}</div>
+              <div className="font-medium">{format(hov.portfolio_value.toFixed(2), 'EUR')}</div>
             </div>
             <div>
               <div className="text-gray-400 text-[10px]">Net investi</div>
-              <div className="font-medium">{formatAmount(hov.net_invested.toFixed(2), 'EUR')}</div>
+              <div className="font-medium">{format(hov.net_invested.toFixed(2), 'EUR')}</div>
             </div>
             <div>
               <div className="text-gray-400 text-[10px]">P&L</div>
               <div className={`font-semibold ${hov.pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                {hov.pnl >= 0 ? '+' : ''}{formatAmount(hov.pnl.toFixed(2), 'EUR')}
+                {hov.pnl >= 0 ? '+' : ''}{format(hov.pnl.toFixed(2), 'EUR')}
                 <span className="text-[10px] ml-1 opacity-80">({hov.pnl >= 0 ? '+' : ''}{hov.pnl_pct.toFixed(1)}%)</span>
               </div>
             </div>
@@ -182,6 +184,7 @@ function PnlChart({ data }: { data: PnlPoint[] }) {
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
+  const { format } = useCurrency()
   const { data: nw, isLoading: nwLoading } = useNetWorthGrouped()
   const { data: accounts = [], isLoading: accLoading } = useAccounts()
   const { data: pnlData = [], isLoading: pnlLoading } = usePnlCurve()
@@ -204,7 +207,7 @@ export default function DashboardPage() {
           <div className="h-10 w-48 bg-gray-100 rounded-lg animate-pulse" />
         ) : (
           <p className="text-4xl font-semibold text-gray-900 tabular-nums">
-            {formatAmount(nw?.total ?? '0', currency)}
+            {format(nw?.total ?? '0', currency)}
           </p>
         )}
 
@@ -214,7 +217,7 @@ export default function DashboardPage() {
               <div key={g.key}>
                 <p className="text-xs text-gray-400 mb-1">{NW_TYPE_LABELS[g.key] ?? g.key}</p>
                 <p className="text-sm font-medium text-gray-700 tabular-nums">
-                  {formatAmount(g.net_worth, currency)}
+                  {format(g.net_worth, currency)}
                 </p>
               </div>
             ))}
@@ -230,7 +233,7 @@ export default function DashboardPage() {
             {lastPnl && !pnlLoading && (
               <div className="flex items-baseline gap-3">
                 <span className={`text-2xl font-semibold tabular-nums ${lastPnl.pnl >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                  {lastPnl.pnl >= 0 ? '+' : ''}{formatAmount(lastPnl.pnl.toFixed(2), 'EUR')}
+                  {lastPnl.pnl >= 0 ? '+' : ''}{format(lastPnl.pnl.toFixed(2), 'EUR')}
                 </span>
                 <span className={`text-sm font-medium tabular-nums px-2 py-0.5 rounded-full ${lastPnl.pnl >= 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'}`}>
                   {lastPnl.pnl >= 0 ? '+' : ''}{lastPnl.pnl_pct.toFixed(1)}%
@@ -242,7 +245,7 @@ export default function DashboardPage() {
             <div className="text-right">
               <p className="text-xs text-gray-400 mb-1">Net investi</p>
               <p className="text-sm font-medium text-gray-700 tabular-nums">
-                {formatAmount(lastPnl.net_invested.toFixed(2), 'EUR')}
+                {format(lastPnl.net_invested.toFixed(2), 'EUR')}
               </p>
             </div>
           )}
