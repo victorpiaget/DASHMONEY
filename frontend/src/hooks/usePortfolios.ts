@@ -116,6 +116,14 @@ export function usePnlCurve() {
   })
 }
 
+export function usePortfoliosCompare(params: { date_from?: string; date_to?: string } = {}) {
+  return useQuery({
+    queryKey: ['snapshots', 'compare', params],
+    queryFn: () => snapshotsApi.compare(params),
+    staleTime: 5 * 60 * 1000,
+  })
+}
+
 // ── Prices ─────────────────────────────────────────────────────────────────────
 
 export function useLatestPrices() {

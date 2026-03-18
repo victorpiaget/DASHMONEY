@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { usePortfolios, useCreatePortfolio, useDeletePortfolio } from '../hooks/usePortfolios'
 import type { PortfolioType } from '../lib/portfoliosApi'
 
@@ -29,6 +29,7 @@ const today = () => new Date().toISOString().slice(0, 10)
 // ── Page ───────────────────────────────────────────────────────────────────────
 
 export default function PortfoliosPage() {
+  const navigate = useNavigate()
   const { data: portfolios = [], isLoading } = usePortfolios()
   const createPortfolio = useCreatePortfolio()
   const deletePortfolio = useDeletePortfolio()
@@ -76,13 +77,22 @@ export default function PortfoliosPage() {
           <h1 className="text-2xl font-semibold text-gray-900">Portefeuilles</h1>
           <p className="text-sm text-gray-400 mt-0.5">Actions, ETF, Crypto</p>
         </div>
-        <button
-          onClick={() => setShowModal(true)}
-          className="flex items-center gap-1.5 px-3.5 py-2 bg-gray-900 text-white text-sm font-medium rounded-xl hover:bg-gray-800 transition-colors"
-        >
-          <span className="text-base leading-none">+</span>
-          Nouveau portefeuille
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => navigate('/portfolios/compare')}
+            className="flex items-center gap-1.5 px-3.5 py-2 bg-white border border-gray-200 text-gray-700 text-sm font-medium rounded-xl hover:border-gray-300 transition-colors"
+          >
+            <span className="text-base leading-none">⊞</span>
+            Vue comparée
+          </button>
+          <button
+            onClick={() => setShowModal(true)}
+            className="flex items-center gap-1.5 px-3.5 py-2 bg-gray-900 text-white text-sm font-medium rounded-xl hover:bg-gray-800 transition-colors"
+          >
+            <span className="text-base leading-none">+</span>
+            Nouveau portefeuille
+          </button>
+        </div>
       </div>
 
       {/* Liste */}

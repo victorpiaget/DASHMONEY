@@ -33,6 +33,7 @@ from app.api.routes.asset_transfers import router as asset_transfers_router
 from app.api.routes.snapshots import router as snapshots_router
 from app.api.routes.me import router as me_router
 from app.api.routes.exchange_rates import router as exchange_rates_router
+from app.api.routes.transactions_global import router as transactions_global_router
 
 
 @asynccontextmanager
@@ -83,3 +84,4 @@ app.include_router(asset_transfers_router)
 app.include_router(snapshots_router)
 app.include_router(me_router)
 app.include_router(exchange_rates_router)
+app.include_router(transactions_global_router)

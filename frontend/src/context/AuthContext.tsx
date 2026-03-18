@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 import { login as apiLogin, logout as apiLogout, refreshAccessToken, setAccessToken } from '../lib/api'
+import { useProfile } from './ProfileContext'
 
 interface AuthState {
   isAuthenticated: boolean
@@ -13,8 +14,8 @@ const AuthContext = createContext<AuthState | null>(null)
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
-  // Refresh token gardé en mémoire pour le logout
   const [refreshToken, setRefreshToken] = useState<string | null>(null)
+  const { clearProfile } = useProfile()
 
   // Au démarrage : tente un refresh silencieux via le cookie httpOnly
   useEffect(() => {
@@ -38,6 +39,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     setRefreshToken(null)
     setIsAuthenticated(false)
+    clearProfile()
   }
 
   return (

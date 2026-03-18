@@ -14,6 +14,7 @@ from app.api.deps import (
     get_price_repo,
     get_portfolio_snapshot_repo,
     get_profile_repo,
+    get_request_context,
 )
 from app.domain.user import User
 from app.services.auto_snapshot_service import auto_snapshot_all_portfolios
@@ -90,6 +91,108 @@ def pnl_curve(
             net_invested=float(net_invested),
             pnl=float(pnl),
             pnl_pct=pnl_pct,
+        ))
+
+    return result
+
+
+class SnapshotPoint(BaseModel):
+    date: dt.date
+    value: float
+    net_invested: float
+    pnl: float
+
+
+class PortfolioCompareItem(BaseModel):
+    portfolio_id: str
+    portfolio_name: str
+    portfolio_type: str
+    currency: str
+    current_value: float
+    net_invested: float
+    pnl: float
+    pnl_pct: float
+    snapshots: list[SnapshotPoint]
+
+
+@router.get("/compare", response_model=list[PortfolioCompareItem])
+def compare_portfolios(
+    date_from: dt.date | None = Query(default=None),
+    date_to: dt.date | None = Query(default=None),
+    ctx=Depends(get_request_context),
+) -> list[PortfolioCompareItem]:
+    """
+    Retourne la performance de chaque portefeuille du profil sur la période.
+    Chaque item contient les snapshots (pour le graphique) et les KPIs agrégés.
+    """
+    from app.domain.trade import TradeType, TradeSide
+
+    portfolio_repo = get_portfolio_repo()
+    trade_repo = get_trade_repo()
+    snapshot_repo = get_portfolio_snapshot_repo()
+
+    portfolios = portfolio_repo.list(profile_id=ctx.profile_id)
+    cutoff = date_to or dt.date.today()
+    result = []
+
+    for ptf in portfolios:
+        # Snapshots filtrés par période
+        if date_from and date_to:
+            snaps = snapshot_repo.list_between(
+                portfolio_id=ptf.id, date_from=date_from, date_to=date_to,
+                profile_id=ctx.profile_id,
+            )
+        else:
+            snaps = snapshot_repo.list(portfolio_id=ptf.id, profile_id=ctx.profile_id)
+            if date_from:
+                snaps = [s for s in snaps if s.date >= date_from]
+            if date_to:
+                snaps = [s for s in snaps if s.date <= date_to]
+
+        snaps = sorted(snaps, key=lambda s: s.date)
+        if not snaps:
+            continue
+
+        current_value = snaps[-1].value.amount
+
+        # Net investi = somme des trades TRADE (pas TRANSFER) jusqu'à cutoff
+        trades = [
+            t for t in trade_repo.list(portfolio_id=ptf.id, profile_id=ctx.profile_id)
+            if t.trade_type == TradeType.TRADE and t.date <= cutoff
+        ]
+        net_invested = sum(
+            (t.quantity * t.price if t.side == TradeSide.BUY else -(t.quantity * t.price))
+            for t in trades
+        )
+
+        pnl = current_value - net_invested
+        pnl_pct = round(float(pnl / net_invested * 100), 2) if net_invested > 0 else 0.0
+
+        # Calcul net_invested cumulatif à chaque date de snapshot (pour la courbe P&L)
+        trades_sorted = sorted(trades, key=lambda t: t.date)
+        snap_points = []
+        for s in snaps:
+            ni = sum(
+                (t.quantity * t.price if t.side == TradeSide.BUY else -(t.quantity * t.price))
+                for t in trades_sorted if t.date <= s.date
+            )
+            snap_points.append(SnapshotPoint(
+                date=s.date,
+                value=float(s.value.amount),
+                net_invested=float(ni),
+                pnl=float(s.value.amount) - float(ni),
+            ))
+
+        result.append(PortfolioCompareItem(
+            portfolio_id=str(ptf.id),
+            portfolio_name=ptf.name,
+            portfolio_type=ptf.portfolio_type.value,
+            currency=ptf.currency.value,
+            current_value=float(current_value),
+            net_invested=float(net_invested),
+            pnl=float(pnl),
+            pnl_pct=pnl_pct,
+            snapshots=snap_points,
         ))
 
     return result

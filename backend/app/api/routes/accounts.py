@@ -257,7 +257,7 @@ def delete_account(
         for t in txs:
             tx_repo.delete(account_id=acc.id, tx_id=t.id, profile_id=ctx.profile_id)
 
-    deleted = get_account_repo().delete(account_id=acc.id)
+    deleted = get_account_repo().delete(account_id=acc.id, profile_id=ctx.profile_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Account not found")
 

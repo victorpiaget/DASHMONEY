@@ -84,7 +84,7 @@ class SqlAccountRepository(AccountRepository):
             s.add(row)
             s.commit()
 
-    def delete(self, *, account_id: str) -> bool:
+    def delete(self, *, account_id: str, profile_id: str | None = None) -> bool:
         if not isinstance(account_id, str) or not account_id.strip():
             return False
         target = account_id.strip()
@@ -92,6 +92,8 @@ class SqlAccountRepository(AccountRepository):
         with new_session() as s:
             row = s.get(AccountRow, target)
             if row is None:
+                return False
+            if profile_id is not None and row.profile_id != profile_id.strip():
                 return False
             s.delete(row)
             s.commit()

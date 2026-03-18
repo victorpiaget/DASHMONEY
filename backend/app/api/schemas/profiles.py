@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import datetime as dt
+from decimal import Decimal
 from pydantic import BaseModel, Field
 
 
@@ -47,6 +48,14 @@ class InviteMemberRequest(BaseModel):
     role: str = Field(default="MEMBER", pattern="^(OWNER|MEMBER|READ_ONLY)$")
 
 
+class WorkspaceRenameRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=128)
+
+
+class ProfileRenameRequest(BaseModel):
+    display_name: str = Field(min_length=1, max_length=128)
+
+
 class UpdateMemberRoleRequest(BaseModel):
     role: str = Field(pattern="^(OWNER|MEMBER|READ_ONLY)$")
 
@@ -55,3 +64,34 @@ class WorkspaceMemberResponse(BaseModel):
     user_id: str
     email: str
     role: str
+
+
+class ProfileNetWorthEntry(BaseModel):
+    profile_id: str
+    display_name: str
+    accounts_eur: str
+    portfolios_eur: str
+    total_eur: str
+
+
+class WorkspaceNetWorthResponse(BaseModel):
+    workspace_id: str
+    currency: str = "EUR"
+    at: dt.date | None
+    total_eur: str
+    profiles: list[ProfileNetWorthEntry]
+
+
+class WorkspaceNetWorthPoint(BaseModel):
+    bucket: str
+    total_eur: str
+    by_profile: dict[str, str]
+
+
+class WorkspaceNetWorthTimeseriesResponse(BaseModel):
+    workspace_id: str
+    currency: str = "EUR"
+    date_from: dt.date
+    date_to: dt.date
+    granularity: str
+    points: list[WorkspaceNetWorthPoint]

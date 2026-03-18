@@ -176,9 +176,31 @@ export interface PnlPoint {
   pnl_pct: number
 }
 
+export interface PortfolioCompareSnapshot {
+  date: string
+  value: number
+  net_invested: number
+  pnl: number
+}
+
+export interface PortfolioCompareItem {
+  portfolio_id: string
+  portfolio_name: string
+  portfolio_type: string
+  currency: string
+  current_value: number
+  net_invested: number
+  pnl: number
+  pnl_pct: number
+  snapshots: PortfolioCompareSnapshot[]
+}
+
 export const snapshotsApi = {
   pnlCurve: (): Promise<PnlPoint[]> =>
     api.get<PnlPoint[]>('/snapshots/pnl-curve').then((r) => r.data),
+
+  compare: (params: { date_from?: string; date_to?: string } = {}): Promise<PortfolioCompareItem[]> =>
+    api.get<PortfolioCompareItem[]>('/snapshots/compare', { params }).then((r) => r.data),
 }
 
 export const pricesApi = {
@@ -187,6 +209,9 @@ export const pricesApi = {
 
   history: (symbol: string, dateFrom: string, dateTo: string): Promise<PricePoint[]> =>
     api.get<PricePoint[]>('/prices', { params: { symbol, date_from: dateFrom, date_to: dateTo } }).then((r) => r.data),
+
+  updateDaily: (): Promise<{ day: string; stored: number; skipped: number }> =>
+    api.post<{ day: string; stored: number; skipped: number }>('/prices/update-daily').then((r) => r.data),
 }
 
 export const instrumentsApi = {

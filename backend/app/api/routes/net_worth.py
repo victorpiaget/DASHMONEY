@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import datetime as dt
+from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 
 from app.api.deps import get_account_repo, get_tx_repo, get_request_context
 from app.api.schemas.net_worth import NetWorthResponse, NetWorthTimeseriesResponse, NetWorthGroupedResponse, NetWorthGroupLine, NetWorthTimeseriesGroupedResponse, NetWorthTimeseriesGroup
@@ -11,7 +13,20 @@ from app.engine.net_worth import compute_net_worth, compute_net_worth_timeseries
 from app.engine.account_timeseries import pick_granularity
 
 from app.domain.account import AccountType
+from app.domain.transaction import TransactionKind
 from app.identity.request_context import RequestContext
+
+
+class CashFlowMonth(BaseModel):
+    month: str      # "2026-03"
+    income: str     # somme des revenus (positif)
+    expenses: str   # somme des dépenses (positif, valeur absolue)
+
+
+class CashFlowResponse(BaseModel):
+    currency: str
+    current: CashFlowMonth
+    previous: CashFlowMonth
 
 router = APIRouter(prefix="/net-worth", tags=["net-worth"])
 
@@ -44,6 +59,52 @@ def _filter_accounts_by_type(accounts, selected: set[AccountType] | None):
     if selected is None:
         return accounts
     return [a for a in accounts if a.account_type in selected]
+
+
+@router.get("/cash-flow", response_model=CashFlowResponse)
+def get_cash_flow(
+    ctx: RequestContext = Depends(get_request_context),
+) -> CashFlowResponse:
+    acc_repo = get_account_repo()
+    tx_repo = get_tx_repo()
+
+    today = dt.date.today()
+    cur_month = today.replace(day=1)
+    if cur_month.month == 1:
+        prev_month = cur_month.replace(year=cur_month.year - 1, month=12)
+    else:
+        prev_month = cur_month.replace(month=cur_month.month - 1)
+
+    accounts = acc_repo.list_accounts(profile_id=ctx.profile_id)
+
+    all_txs = []
+    for acc in accounts:
+        all_txs.extend(tx_repo.list(account_id=acc.id, profile_id=ctx.profile_id))
+
+    currency = _ensure_single_currency(accounts)
+
+    def _summarize(month_start: dt.date) -> CashFlowMonth:
+        month_end = (month_start.replace(day=28) + dt.timedelta(days=4)).replace(day=1) - dt.timedelta(days=1)
+        month_txs = [t for t in all_txs if month_start <= t.date <= month_end]
+        income = sum(
+            (t.amount.amount for t in month_txs if t.kind == TransactionKind.INCOME),
+            Decimal(0),
+        )
+        expenses = sum(
+            (abs(t.amount.amount) for t in month_txs if t.kind == TransactionKind.EXPENSE),
+            Decimal(0),
+        )
+        return CashFlowMonth(
+            month=month_start.strftime("%Y-%m"),
+            income=str(income),
+            expenses=str(expenses),
+        )
+
+    return CashFlowResponse(
+        currency=currency,
+        current=_summarize(cur_month),
+        previous=_summarize(prev_month),
+    )
 
 
 @router.get("", response_model=NetWorthResponse)

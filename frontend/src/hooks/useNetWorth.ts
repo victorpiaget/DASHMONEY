@@ -7,3 +7,10 @@ export function useNetWorthGrouped() {
     queryFn: netWorthApi.getGrouped,
   })
 }
+
+export function useCashFlow() {
+  return useQuery({
+    queryKey: ['net-worth', 'cash-flow'],
+    queryFn: netWorthApi.getCashFlow,
+  })
+}

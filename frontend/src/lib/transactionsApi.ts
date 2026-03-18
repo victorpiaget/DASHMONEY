@@ -40,6 +40,23 @@ export interface CreateTransactionPayload {
   label?: string
 }
 
+export interface GlobalTransaction extends Transaction {
+  account_name: string
+  account_currency: string
+}
+
+export interface GlobalTransactionFilters {
+  account_ids?: string
+  date_from?: string
+  date_to?: string
+  kinds?: TransactionKind[]
+  categories?: string[]
+  q?: string
+  sort_by?: SortField
+  sort_dir?: SortDir
+  limit?: number
+}
+
 export const transactionsApi = {
   list: (accountId: string, filters: TransactionFilters = {}): Promise<Transaction[]> =>
     api
@@ -56,4 +73,7 @@ export const transactionsApi = {
 
   delete: (accountId: string, txId: string): Promise<void> =>
     api.delete(`/accounts/${accountId}/transactions/${txId}`).then(() => undefined),
+
+  listGlobal: (filters: GlobalTransactionFilters = {}): Promise<GlobalTransaction[]> =>
+    api.get<GlobalTransaction[]>('/transactions', { params: filters }).then((r) => r.data),
 }

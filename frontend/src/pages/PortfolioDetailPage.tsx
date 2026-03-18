@@ -2,6 +2,7 @@ import { useState, useRef, type FormEvent, type DragEvent } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { usePortfolios, useTrades, useCreateTrade, usePatchTrade, useDeleteTrade, usePositions, useInstruments, useCreateInstrument, useImportBoursorama, useImportBinance } from '../hooks/usePortfolios'
 import { useCurrency } from '../context/CurrencyContext'
+import { CurrencyAmountInput } from '../components/CurrencyAmountInput'
 import type { Trade, TradeSide, ImportBoursoramaResult } from '../lib/portfoliosApi'
 
 // ── Constantes ─────────────────────────────────────────────────────────────────
@@ -59,7 +60,7 @@ function formatNum(v: string, decimals = 2) {
 // ── Page ───────────────────────────────────────────────────────────────────────
 
 export default function PortfolioDetailPage() {
-  const { format } = useCurrency()
+  const { format, displayCurrency, convertBetween } = useCurrency()
   const { id } = useParams<{ id: string }>()
   const { data: portfolios = [] } = usePortfolios()
   const portfolio = portfolios.find((p) => p.id === id)
@@ -137,6 +138,7 @@ export default function PortfolioDetailPage() {
   const [tradeFees, setTradeFees] = useState('0')
   const [tradeLabel, setTradeLabel] = useState('')
   const [tradeError, setTradeError] = useState('')
+  const [priceCurrency, setPriceCurrency] = useState(displayCurrency)
 
   // Form état nouvel instrument (intégré au modal)
   const [showNewInstrument, setShowNewInstrument] = useState(false)
@@ -148,6 +150,7 @@ export default function PortfolioDetailPage() {
     setTradeDate(today()); setTradeSide('BUY'); setTradeSymbol(''); setTradeQty('')
     setTradePrice(''); setTradeFees('0'); setTradeLabel(''); setTradeError('')
     setShowNewInstrument(false)
+    setPriceCurrency(displayCurrency)
     setModal({ type: 'create' })
   }
 
@@ -156,6 +159,7 @@ export default function PortfolioDetailPage() {
     setTradeQty(t.quantity); setTradePrice(t.price); setTradeFees(t.fees)
     setTradeLabel(t.label ?? ''); setTradeError('')
     setShowNewInstrument(false)
+    setPriceCurrency(t.currency)
     setModal({ type: 'edit', trade: t })
   }
 
@@ -166,15 +170,23 @@ export default function PortfolioDetailPage() {
       return
     }
     try {
+      const sym = tradeSymbol.toUpperCase().trim()
+      const inst = instruments.find((i) => i.symbol === sym)
+      const instrumentCurrency = inst?.currency ?? portfolio?.currency ?? 'EUR'
+      const convertedPrice = convertBetween(parseFloat(tradePrice), priceCurrency, instrumentCurrency)
+      const convertedFees = convertBetween(parseFloat(tradeFees || '0'), priceCurrency, instrumentCurrency)
+
       const payload = {
-        date: tradeDate, side: tradeSide, instrument_symbol: tradeSymbol.toUpperCase().trim(),
-        quantity: tradeQty, price: tradePrice, fees: tradeFees || '0',
+        date: tradeDate, side: tradeSide, instrument_symbol: sym,
+        quantity: tradeQty,
+        price: convertedPrice.toFixed(8),
+        fees: convertedFees.toFixed(8),
         label: tradeLabel || undefined,
       }
       if (modal?.type === 'create') {
         await createTrade.mutateAsync(payload)
       } else if (modal?.type === 'edit') {
-        await patchTrade.mutateAsync({ tradeId: modal.trade.id, payload: { date: tradeDate, quantity: tradeQty, price: tradePrice, fees: tradeFees || '0', label: tradeLabel || undefined } })
+        await patchTrade.mutateAsync({ tradeId: modal.trade.id, payload: { date: tradeDate, quantity: tradeQty, price: convertedPrice.toFixed(8), fees: convertedFees.toFixed(8), label: tradeLabel || undefined } })
       }
       setModal(null)
     } catch (err: unknown) {
@@ -463,7 +475,12 @@ export default function PortfolioDetailPage() {
                   <div className="flex gap-2">
                     <select
                       value={tradeSymbol}
-                      onChange={(e) => setTradeSymbol(e.target.value)}
+                      onChange={(e) => {
+                        const sym = e.target.value
+                        setTradeSymbol(sym)
+                        const inst = instruments.find((i) => i.symbol === sym)
+                        if (inst?.currency) setPriceCurrency(inst.currency)
+                      }}
                       disabled={modal.type === 'edit'}
                       className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 disabled:bg-gray-50"
                     >
@@ -489,42 +506,52 @@ export default function PortfolioDetailPage() {
                 />
               </div>
 
-              {/* Quantité + Prix + Frais */}
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1.5">Quantité</label>
-                  <input
-                    type="number"
-                    step="any"
-                    min="0"
-                    value={tradeQty}
-                    onChange={(e) => setTradeQty(e.target.value)}
-                    placeholder="0"
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
-                  />
-                </div>
+              {/* Quantité */}
+              <div className="w-1/2 pr-1.5">
+                <label className="block text-xs font-medium text-gray-700 mb-1.5">Quantité</label>
+                <input
+                  type="number"
+                  step="any"
+                  min="0"
+                  value={tradeQty}
+                  onChange={(e) => setTradeQty(e.target.value)}
+                  placeholder="0"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1.5">Prix unit.</label>
-                  <input
-                    type="number"
+                  <CurrencyAmountInput
+                    value={tradePrice}
+                    onChange={setTradePrice}
+                    inputCurrency={priceCurrency}
+                    onCurrencyChange={setPriceCurrency}
+                    nativeCurrency={(() => {
+                      const sym = tradeSymbol.toUpperCase().trim()
+                      const inst = instruments.find((i) => i.symbol === sym)
+                      return inst?.currency ?? portfolio?.currency ?? 'EUR'
+                    })()}
                     step="any"
                     min="0"
-                    value={tradePrice}
-                    onChange={(e) => setTradePrice(e.target.value)}
                     placeholder="0.00"
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
                   />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1.5">Frais</label>
-                  <input
-                    type="number"
+                  <CurrencyAmountInput
+                    value={tradeFees}
+                    onChange={setTradeFees}
+                    inputCurrency={priceCurrency}
+                    onCurrencyChange={setPriceCurrency}
+                    nativeCurrency={(() => {
+                      const sym = tradeSymbol.toUpperCase().trim()
+                      const inst = instruments.find((i) => i.symbol === sym)
+                      return inst?.currency ?? portfolio?.currency ?? 'EUR'
+                    })()}
                     step="any"
                     min="0"
-                    value={tradeFees}
-                    onChange={(e) => setTradeFees(e.target.value)}
                     placeholder="0"
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
                   />
                 </div>
               </div>
@@ -535,10 +562,14 @@ export default function PortfolioDetailPage() {
                   <span className="text-xs text-gray-500">Total</span>
                   <span className={`text-sm font-semibold tabular-nums ${tradeSide === 'BUY' ? 'text-red-600' : 'text-emerald-600'}`}>
                     {(() => {
-                      const gross = parseFloat(tradeQty) * parseFloat(tradePrice)
-                      const fees = parseFloat(tradeFees || '0')
+                      const sym = tradeSymbol.toUpperCase().trim()
+                      const inst = instruments.find((i) => i.symbol === sym)
+                      const instCurrency = inst?.currency ?? portfolio?.currency ?? 'EUR'
+                      const price = convertBetween(parseFloat(tradePrice), priceCurrency, instCurrency)
+                      const fees = convertBetween(parseFloat(tradeFees || '0'), priceCurrency, instCurrency)
+                      const gross = parseFloat(tradeQty) * price
                       const total = tradeSide === 'BUY' ? -(gross + fees) : gross - fees
-                      return format(total.toString(), portfolio?.currency ?? 'EUR')
+                      return format(total.toString(), instCurrency)
                     })()}
                   </span>
                 </div>

@@ -32,7 +32,7 @@ export default function RegisterPage() {
       await register(email.trim().toLowerCase(), password)
       // Auto-connexion après inscription
       await login(email.trim().toLowerCase(), password)
-      navigate('/', { replace: true })
+      navigate('/select-workspace', { replace: true })
     } catch (err: unknown) {
       const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
       if (typeof detail === 'string') {

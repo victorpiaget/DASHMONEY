@@ -21,6 +21,7 @@ export const api = axios.create({
 
 // Access token stocké en mémoire (jamais dans localStorage)
 let _accessToken: string | null = null
+let _profileId: string | null = null
 
 export function setAccessToken(token: string | null) {
   _accessToken = token
@@ -30,10 +31,21 @@ export function getAccessToken(): string | null {
   return _accessToken
 }
 
-// Injecte l'access token dans chaque requête
+export function setProfileId(id: string | null) {
+  _profileId = id
+}
+
+export function getProfileId(): string | null {
+  return _profileId
+}
+
+// Injecte l'access token + profile_id dans chaque requête
 api.interceptors.request.use((config) => {
   if (_accessToken) {
     config.headers.Authorization = `Bearer ${_accessToken}`
+  }
+  if (_profileId) {
+    config.params = { profile_id: _profileId, ...config.params }
   }
   return config
 })

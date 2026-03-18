@@ -59,6 +59,8 @@ interface CurrencyContextValue {
   isError: boolean
   /** Convertit un montant de sa devise native vers la devise d'affichage. */
   convert: (amount: number | string, fromCurrency: string) => number
+  /** Convertit entre deux devises quelconques (sans passer par displayCurrency). */
+  convertBetween: (amount: number | string, from: string, to: string) => number
   /** Convertit + formate (ex: "1 234,56 $") */
   format: (amount: number | string, fromCurrency: string) => string
 }
@@ -103,6 +105,15 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
     return num * (rateTo / rateFrom)
   }
 
+  const convertBetween = (amount: number | string, from: string, to: string): number => {
+    const num = typeof amount === 'string' ? parseFloat(amount) : amount
+    if (isNaN(num)) return 0
+    if (from === to) return num
+    const rateFrom = rates[from] ?? 1
+    const rateTo = rates[to] ?? 1
+    return num * (rateTo / rateFrom)
+  }
+
   const format = (amount: number | string, fromCurrency: string): string => {
     const converted = convert(amount, fromCurrency)
     const meta = SUPPORTED_CURRENCIES.find((c) => c.code === displayCurrency)
@@ -111,7 +122,7 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <CurrencyContext.Provider value={{ displayCurrency, setDisplayCurrency, rates, isLoading, isError, convert, format }}>
+    <CurrencyContext.Provider value={{ displayCurrency, setDisplayCurrency, rates, isLoading, isError, convert, convertBetween, format }}>
       {children}
     </CurrencyContext.Provider>
   )

@@ -6,6 +6,7 @@ import { useCreateTransfer } from '../hooks/useTransfers'
 import { useCategories } from '../hooks/useCategories'
 import { formatDate } from '../lib/formatters'
 import { useCurrency } from '../context/CurrencyContext'
+import { CurrencyAmountInput } from '../components/CurrencyAmountInput'
 import type { Transaction, TransactionKind, CreateTransactionPayload, TransactionFilters, SortField, SortDir } from '../lib/transactionsApi'
 
 const TYPE_LABELS: Record<string, string> = {
@@ -454,10 +455,12 @@ interface TransactionModalProps {
 
 function TransactionModal({ mode, currency, categories, onClose, onSubmit, isLoading, error }: TransactionModalProps) {
   const existing = mode.type === 'edit' ? mode.tx : null
+  const { displayCurrency, convertBetween } = useCurrency()
 
   const [date, setDate] = useState(existing?.date ?? new Date().toISOString().split('T')[0])
   const [kind, setKind] = useState<TransactionKind>(existing?.kind ?? 'EXPENSE')
   const [amount, setAmount] = useState(existing ? Math.abs(parseFloat(existing.amount)).toFixed(2) : '')
+  const [inputCurrency, setInputCurrency] = useState(displayCurrency)
   const [category, setCategory] = useState(existing?.category ?? '')
   const [subcategory, setSubcategory] = useState(existing?.subcategory ?? '')
   const [label, setLabel] = useState(existing?.label ?? '')
@@ -474,7 +477,8 @@ function TransactionModal({ mode, currency, categories, onClose, onSubmit, isLoa
     if (mode.type === 'create') {
       const absAmount = Math.abs(parseFloat(amount))
       if (isNaN(absAmount) || absAmount === 0) return
-      const signedAmount = kind === 'EXPENSE' ? `-${absAmount.toFixed(2)}` : absAmount.toFixed(2)
+      const converted = convertBetween(absAmount, inputCurrency, currency)
+      const signedAmount = kind === 'EXPENSE' ? `-${converted.toFixed(2)}` : converted.toFixed(2)
       await onSubmit({
         date,
         amount: signedAmount,
@@ -546,16 +550,17 @@ function TransactionModal({ mode, currency, categories, onClose, onSubmit, isLoa
 
             {mode.type === 'create' && (
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Montant ({currency})</label>
-                <input
-                  type="number"
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Montant</label>
+                <CurrencyAmountInput
+                  value={amount}
+                  onChange={setAmount}
+                  inputCurrency={inputCurrency}
+                  onCurrencyChange={setInputCurrency}
+                  nativeCurrency={currency}
                   required
                   min="0.01"
                   step="0.01"
                   placeholder="0,00"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  className={inputClass}
                   autoFocus
                 />
               </div>
@@ -652,20 +657,23 @@ interface TransferModalProps {
 function TransferModal({ fromCurrency, accounts, onClose, onSubmit, isLoading, error }: TransferModalProps) {
   const sameCurrency = accounts.filter((a) => a.currency === fromCurrency)
   const otherCurrency = accounts.filter((a) => a.currency !== fromCurrency)
+  const { displayCurrency, convertBetween } = useCurrency()
 
   const [toAccountId, setToAccountId] = useState(sameCurrency[0]?.id ?? accounts[0]?.id ?? '')
   const [date, setDate] = useState(new Date().toISOString().split('T')[0])
   const [amount, setAmount] = useState('')
+  const [inputCurrency, setInputCurrency] = useState(displayCurrency)
   const [label, setLabel] = useState('')
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     const abs = parseFloat(amount)
     if (isNaN(abs) || abs <= 0) return
+    const converted = convertBetween(abs, inputCurrency, fromCurrency)
     await onSubmit({
       to_account_id: toAccountId,
       date,
-      amount: abs.toFixed(2),
+      amount: converted.toFixed(2),
       category: 'Virement',
       label: label.trim() || undefined,
     })
@@ -717,16 +725,17 @@ function TransferModal({ fromCurrency, accounts, onClose, onSubmit, isLoading, e
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Montant ({fromCurrency})</label>
-              <input
-                type="number"
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Montant</label>
+              <CurrencyAmountInput
+                value={amount}
+                onChange={setAmount}
+                inputCurrency={inputCurrency}
+                onCurrencyChange={setInputCurrency}
+                nativeCurrency={fromCurrency}
                 required
                 min="0.01"
                 step="0.01"
                 placeholder="0,00"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                className={inputClass}
                 autoFocus
               />
             </div>

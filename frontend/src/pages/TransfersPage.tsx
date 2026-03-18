@@ -537,8 +537,6 @@ function sortTransfers(transfers: Transfer[], field: TransferSortField, dir: Sor
 
 // ── Page principale ────────────────────────────────────────────────────────────
 
-type ActiveTab = 'cash' | 'assets'
-
 export default function TransfersPage() {
   const { data: accounts = [] } = useAccounts()
   const { data: portfolios = [] } = usePortfolios()
@@ -548,7 +546,6 @@ export default function TransfersPage() {
   const createTransfer = useCreateTransfer()
   const deleteTransfer = useDeleteTransfer()
 
-  const [activeTab, setActiveTab] = useState<ActiveTab>('cash')
   const [showForm, setShowForm] = useState(false)
   const [fromId, setFromId] = useState('')
   const [toId, setToId] = useState('')
@@ -612,34 +609,15 @@ export default function TransfersPage() {
           <h1 className="text-2xl font-semibold text-gray-900">Virements</h1>
           <p className="text-sm text-gray-400 mt-0.5">Transferts internes entre vos comptes et portefeuilles</p>
         </div>
-        {activeTab === 'cash' && (
-          <button
-            onClick={() => setShowForm((v) => !v)}
-            className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-800 transition-colors"
-          >
-            {showForm ? 'Annuler' : '+ Nouveau virement'}
-          </button>
-        )}
+        <button
+          onClick={() => setShowForm((v) => !v)}
+          className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-800 transition-colors"
+        >
+          {showForm ? 'Annuler' : '+ Nouveau virement'}
+        </button>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-1 p-1 bg-gray-100 rounded-lg mb-6 w-fit">
-        {(['cash', 'assets'] as ActiveTab[]).map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
-              activeTab === tab ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            {tab === 'cash' ? 'Espèces' : 'Actifs (Ledger / Exchange)'}
-          </button>
-        ))}
-      </div>
-
-      {/* ── Onglet Espèces ── */}
-      {activeTab === 'cash' && (
-        <>
+      <>
           {/* Formulaire */}
           {showForm && (
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 mb-6">
@@ -798,13 +776,7 @@ export default function TransfersPage() {
               </div>
             )}
           </div>
-        </>
-      )}
-
-      {/* ── Onglet Actifs ── */}
-      {activeTab === 'assets' && (
-        <AssetTransferSection portfolios={portfolios} />
-      )}
+      </>
 
       {/* Confirm delete */}
       {confirmDelete && (

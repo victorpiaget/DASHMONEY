@@ -9,7 +9,7 @@ from app.domain.profile import Profile
 from app.domain.workspace import Workspace
 from app.repositories.profile_repository import ProfileRepository
 from app.repositories.workspace_repository import WorkspaceRepository, WorkspaceMember
-from app.repositories.sql_identity_models import ProfileAccessRow, ProfileRow, UserRow, WorkspaceRow, WorkspaceMembershipRow
+from app.repositories.sql_identity_models import ProfileAccessRow, ProfileRow, UserRow, WorkspaceRow, WorkspaceMembershipRow, WorkspaceProfileLinkRow
 
 
 class SqlWorkspaceRepository(WorkspaceRepository):
@@ -39,6 +39,19 @@ class SqlWorkspaceRepository(WorkspaceRepository):
         with new_session() as s:
             row = WorkspaceRow(id=wid, name=n)
             s.add(row)
+            s.commit()
+            s.refresh(row)
+            return self._to_domain(row)
+
+    def rename_workspace(self, *, workspace_id: str, name: str) -> Workspace:
+        n = (name or "").strip()
+        if not n:
+            raise ValueError("name cannot be empty")
+        with new_session() as s:
+            row = s.get(WorkspaceRow, workspace_id)
+            if row is None:
+                raise KeyError(f"unknown workspace_id '{workspace_id}'")
+            row.name = n
             s.commit()
             s.refresh(row)
             return self._to_domain(row)
@@ -132,6 +145,38 @@ class SqlWorkspaceRepository(WorkspaceRepository):
             )
             s.commit()
 
+    def link_profile_to_workspace(self, *, workspace_id: str, profile_id: str) -> None:
+        with new_session() as s:
+            existing = s.execute(
+                select(WorkspaceProfileLinkRow).where(
+                    WorkspaceProfileLinkRow.workspace_id == workspace_id,
+                    WorkspaceProfileLinkRow.profile_id == profile_id,
+                )
+            ).scalar_one_or_none()
+            if existing is None:
+                s.add(WorkspaceProfileLinkRow(workspace_id=workspace_id, profile_id=profile_id))
+                s.commit()
+
+    def unlink_profile_from_workspace(self, *, workspace_id: str, profile_id: str) -> None:
+        with new_session() as s:
+            s.execute(
+                sql_delete(WorkspaceProfileLinkRow).where(
+                    WorkspaceProfileLinkRow.workspace_id == workspace_id,
+                    WorkspaceProfileLinkRow.profile_id == profile_id,
+                )
+            )
+            s.commit()
+
+    def has_profile_link(self, *, workspace_id: str, profile_id: str) -> bool:
+        with new_session() as s:
+            row = s.execute(
+                select(WorkspaceProfileLinkRow).where(
+                    WorkspaceProfileLinkRow.workspace_id == workspace_id,
+                    WorkspaceProfileLinkRow.profile_id == profile_id,
+                )
+            ).scalar_one_or_none()
+            return row is not None
+
     @staticmethod
     def _to_domain(row: WorkspaceRow) -> Workspace:
         return Workspace(
@@ -153,7 +198,8 @@ class SqlProfileRepository(ProfileRepository):
             rows = (
                 s.execute(
                     select(ProfileRow)
-                    .where(ProfileRow.workspace_id == wid)
+                    .join(WorkspaceProfileLinkRow, ProfileRow.id == WorkspaceProfileLinkRow.profile_id)
+                    .where(WorkspaceProfileLinkRow.workspace_id == wid)
                     .order_by(ProfileRow.created_at.asc())
                 )
                 .scalars()
@@ -188,6 +234,8 @@ class SqlProfileRepository(ProfileRepository):
         with new_session() as s:
             row = ProfileRow(id=pid, workspace_id=wid, display_name=dn)
             s.add(row)
+            s.flush()
+            s.add(WorkspaceProfileLinkRow(workspace_id=wid, profile_id=pid))
             s.commit()
             s.refresh(row)
             return self._to_domain(row)
@@ -269,12 +317,27 @@ class SqlProfileRepository(ProfileRepository):
                 .where(
                     ProfileAccessRow.user_id == user_id,
                     ProfileAccessRow.profile_id.in_(
-                        select(ProfileRow.id).where(ProfileRow.workspace_id == workspace_id)
+                        select(WorkspaceProfileLinkRow.profile_id).where(
+                            WorkspaceProfileLinkRow.workspace_id == workspace_id
+                        )
                     ),
                 )
                 .values(permission=permission)
             )
             s.commit()
+
+    def rename_profile(self, *, profile_id: str, display_name: str) -> Profile:
+        dn = (display_name or "").strip()
+        if not dn:
+            raise ValueError("display_name cannot be empty")
+        with new_session() as s:
+            row = s.get(ProfileRow, profile_id)
+            if row is None:
+                raise KeyError(f"unknown profile_id '{profile_id}'")
+            row.display_name = dn
+            s.commit()
+            s.refresh(row)
+            return self._to_domain(row)
 
     def revoke_workspace_access(self, *, user_id: str, workspace_id: str) -> None:
         with new_session() as s:
@@ -282,8 +345,20 @@ class SqlProfileRepository(ProfileRepository):
                 sql_delete(ProfileAccessRow).where(
                     ProfileAccessRow.user_id == user_id,
                     ProfileAccessRow.profile_id.in_(
-                        select(ProfileRow.id).where(ProfileRow.workspace_id == workspace_id)
+                        select(WorkspaceProfileLinkRow.profile_id).where(
+                            WorkspaceProfileLinkRow.workspace_id == workspace_id
+                        )
                     ),
+                )
+            )
+            s.commit()
+
+    def revoke_profile_access(self, *, user_id: str, profile_id: str) -> None:
+        with new_session() as s:
+            s.execute(
+                sql_delete(ProfileAccessRow).where(
+                    ProfileAccessRow.user_id == user_id,
+                    ProfileAccessRow.profile_id == profile_id,
                 )
             )
             s.commit()

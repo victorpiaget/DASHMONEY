@@ -27,6 +27,37 @@ export interface WorkspaceMember {
   role: 'OWNER' | 'MEMBER' | 'READ_ONLY'
 }
 
+export interface ProfileNetWorthEntry {
+  profile_id: string
+  display_name: string
+  accounts_eur: string
+  portfolios_eur: string
+  total_eur: string
+}
+
+export interface WorkspaceNetWorth {
+  workspace_id: string
+  currency: string
+  at: string | null
+  total_eur: string
+  profiles: ProfileNetWorthEntry[]
+}
+
+export interface WorkspaceNetWorthPoint {
+  bucket: string
+  total_eur: string
+  by_profile: Record<string, string>
+}
+
+export interface WorkspaceNetWorthTimeseries {
+  workspace_id: string
+  currency: string
+  date_from: string
+  date_to: string
+  granularity: string
+  points: WorkspaceNetWorthPoint[]
+}
+
 export const workspaceApi = {
   me: (): Promise<MeData> =>
     api.get<MeData>('/me').then((r: AxiosResponse<MeData>) => r.data),
@@ -53,4 +84,47 @@ export const workspaceApi = {
     api
       .patch<WorkspaceMember>(`/workspaces/${workspaceId}/members/${userId}`, { role })
       .then((r: AxiosResponse<WorkspaceMember>) => r.data),
+
+  renameWorkspace: (workspaceId: string, name: string): Promise<{ id: string; name: string; created_at: string }> =>
+    api
+      .patch<{ id: string; name: string; created_at: string }>(`/workspaces/${workspaceId}`, { name })
+      .then((r) => r.data),
+
+  createProfile: (workspaceId: string, displayName: string): Promise<WorkspaceProfile> =>
+    api
+      .post<WorkspaceProfile>(`/workspaces/${workspaceId}/profiles`, { display_name: displayName })
+      .then((r: AxiosResponse<WorkspaceProfile>) => r.data),
+
+  renameProfile: (workspaceId: string, profileId: string, displayName: string): Promise<WorkspaceProfile> =>
+    api
+      .patch<WorkspaceProfile>(`/workspaces/${workspaceId}/profiles/${profileId}`, { display_name: displayName })
+      .then((r: AxiosResponse<WorkspaceProfile>) => r.data),
+
+  deleteProfile: (profileId: string): Promise<void> =>
+    api.delete(`/profiles/${profileId}`).then(() => undefined),
+
+  linkProfile: (workspaceId: string, profileId: string): Promise<WorkspaceProfile> =>
+    api
+      .post<WorkspaceProfile>(`/workspaces/${workspaceId}/profiles/${profileId}/link`)
+      .then((r: AxiosResponse<WorkspaceProfile>) => r.data),
+
+  unlinkProfile: (workspaceId: string, profileId: string): Promise<void> =>
+    api.delete(`/workspaces/${workspaceId}/profiles/${profileId}/link`).then(() => undefined),
+
+  getWorkspaceNetWorth: (workspaceId: string, at?: string): Promise<WorkspaceNetWorth> =>
+    api
+      .get<WorkspaceNetWorth>(`/workspaces/${workspaceId}/net-worth`, { params: at ? { at } : {} })
+      .then((r: AxiosResponse<WorkspaceNetWorth>) => r.data),
+
+  getWorkspaceNetWorthTimeseries: (
+    workspaceId: string,
+    from: string,
+    to: string,
+    granularity = 'monthly',
+  ): Promise<WorkspaceNetWorthTimeseries> =>
+    api
+      .get<WorkspaceNetWorthTimeseries>(`/workspaces/${workspaceId}/net-worth/timeseries`, {
+        params: { from, to, granularity },
+      })
+      .then((r: AxiosResponse<WorkspaceNetWorthTimeseries>) => r.data),
 }

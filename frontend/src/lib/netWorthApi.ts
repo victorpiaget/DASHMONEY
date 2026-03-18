@@ -13,10 +13,25 @@ export interface NetWorthGroupedResponse {
   groups: { key: string; net_worth: string }[]
 }
 
+export interface CashFlowMonth {
+  month: string
+  income: string
+  expenses: string
+}
+
+export interface CashFlowResponse {
+  currency: string
+  current: CashFlowMonth
+  previous: CashFlowMonth
+}
+
 export const netWorthApi = {
   get: (): Promise<NetWorthResponse> =>
     api.get<NetWorthResponse>('/net-worth').then((r) => r.data),
 
   getGrouped: (): Promise<NetWorthGroupedResponse> =>
     api.get<NetWorthGroupedResponse>('/net-worth/grouped').then((r) => r.data),
+
+  getCashFlow: (): Promise<CashFlowResponse> =>
+    api.get<CashFlowResponse>('/net-worth/cash-flow').then((r) => r.data),
 }

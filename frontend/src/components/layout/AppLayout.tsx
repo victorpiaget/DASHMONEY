@@ -1,28 +1,51 @@
-import { NavLink, Outlet } from 'react-router-dom'
+import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
+import { useProfile } from '../../context/ProfileContext'
 import { useCurrency, SUPPORTED_CURRENCIES } from '../../context/CurrencyContext'
 
 const NAV_ITEMS = [
   { to: '/', label: 'Dashboard', icon: '◈' },
   { to: '/accounts', label: 'Comptes', icon: '◉' },
+  { to: '/transactions', label: 'Transactions', icon: '⇌' },
   { to: '/transfers', label: 'Transferts', icon: '⇄' },
   { to: '/portfolios', label: 'Portefeuilles', icon: '◎' },
   { to: '/categories', label: 'Catégories', icon: '⊟' },
   { to: '/instruments', label: 'Actifs', icon: '◫' },
-  { to: '/workspace', label: 'Workspace', icon: '⊕' },
 ]
 
 export default function AppLayout() {
   const { logout } = useAuth()
+  const { profileName, workspaceName, clearProfile } = useProfile()
   const { displayCurrency, setDisplayCurrency, isError } = useCurrency()
+  const navigate = useNavigate()
+
+  const handleSwitchProfile = () => {
+    clearProfile()
+    navigate('/select-workspace')
+  }
 
   return (
     <div className="flex h-screen bg-gray-50">
       {/* Sidebar */}
       <aside className="w-56 flex-shrink-0 flex flex-col bg-white border-r border-gray-100">
-        {/* Logo */}
-        <div className="h-16 flex items-center px-6 border-b border-gray-100">
-          <span className="font-semibold text-gray-900 tracking-tight">DashMoney</span>
+        {/* Logo + contexte workspace/profil */}
+        <div className="px-5 py-4 border-b border-gray-100">
+          <span className="font-semibold text-gray-900 tracking-tight text-sm">DashMoney</span>
+          {(workspaceName || profileName) && (
+            <div className="mt-2.5 flex items-center justify-between">
+              <div className="min-w-0">
+                <p className="text-[10px] text-gray-400 uppercase tracking-wider font-medium truncate">{workspaceName}</p>
+                <p className="text-xs font-semibold text-gray-700 truncate mt-0.5">{profileName}</p>
+              </div>
+              <button
+                onClick={handleSwitchProfile}
+                title="Changer de profil"
+                className="ml-2 text-[10px] text-gray-400 hover:text-gray-700 transition-colors flex-shrink-0 border border-gray-200 rounded-md px-1.5 py-0.5 hover:border-gray-400"
+              >
+                ⇄
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Navigation */}
