@@ -1,6 +1,7 @@
 import React from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { ThemeProvider } from './context/ThemeContext'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { CurrencyProvider } from './context/CurrencyContext'
 import { ProfileProvider, useProfile } from './context/ProfileContext'
@@ -80,6 +81,7 @@ function AuthOnlyRoute({ children }: { children: React.ReactElement }) {
 
 export default function App() {
   return (
+    <ThemeProvider>
     <QueryClientProvider client={queryClient}>
       <ProfileProvider>
         <AuthProvider>
@@ -132,5 +134,6 @@ export default function App() {
         </AuthProvider>
       </ProfileProvider>
     </QueryClientProvider>
+    </ThemeProvider>
   )
 }
