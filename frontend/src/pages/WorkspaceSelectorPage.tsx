@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useMe, useWorkspaceMembers } from '../hooks/useWorkspace'
 import { useAuth } from '../context/AuthContext'
 import WorkspaceManagementDrawer from '../components/workspace/WorkspaceManagementDrawer'
+import ThemeToggle from '../components/ThemeToggle'
 import type { WorkspaceInfo } from '../lib/workspaceApi'
 
 function useMyRole(workspaceId: string | null, myUserId: string | undefined): 'OWNER' | 'MEMBER' | 'READ_ONLY' | null {
@@ -40,7 +41,10 @@ export default function WorkspaceSelectorPage() {
       <div className="w-full max-w-lg">
 
         {/* Logo */}
-        <div className="text-center mb-10">
+        <div className="text-center mb-10 relative">
+          <div className="absolute right-0 top-0">
+            <ThemeToggle />
+          </div>
           <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">DashMoney</h1>
           <p className="text-sm text-gray-400 mt-1">Choisissez un workspace</p>
         </div>

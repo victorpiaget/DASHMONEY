@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react'
 import { useNetWorthGrouped, useCashFlow } from '../hooks/useNetWorth'
 import { usePnlCurve } from '../hooks/usePortfolios'
 import { useCurrency } from '../context/CurrencyContext'
+import { useTheme } from '../context/ThemeContext'
 import type { PnlPoint } from '../lib/portfoliosApi'
 
 const NW_TYPE_LABELS: Record<string, string> = {
@@ -34,12 +35,16 @@ function KpiCard({
 
 // ── Donut Chart ───────────────────────────────────────────────────────────────
 
-const DONUT_COLORS = ['#111827', '#4b5563', '#9ca3af', '#d1d5db', '#374151', '#6b7280']
+const DONUT_COLORS_LIGHT = ['#111827', '#374151', '#6b7280', '#9ca3af', '#d1d5db', '#4b5563']
+const DONUT_COLORS_DARK  = ['#f1f5f9', '#cbd5e1', '#94a3b8', '#64748b', '#475569', '#e2e8f0']
 
 interface DonutSlice { key: string; value: number; label: string }
 
 function DonutChart({ slices }: { slices: DonutSlice[] }) {
   const { format } = useCurrency()
+  const { theme } = useTheme()
+  const isDark = theme === 'dark'
+  const DONUT_COLORS = isDark ? DONUT_COLORS_DARK : DONUT_COLORS_LIGHT
   const [hovered, setHovered] = useState<string | null>(null)
 
   const total = slices.reduce((s, d) => s + d.value, 0)
@@ -95,7 +100,7 @@ function DonutChart({ slices }: { slices: DonutSlice[] }) {
           <text x={cx} y={cy - 10} textAnchor="middle" fontSize={9} fill="#9ca3af">
             {hov ? hov.label : 'Total'}
           </text>
-          <text x={cx} y={cy + 8} textAnchor="middle" fontSize={14} fontWeight={700} fill="#111827">
+          <text x={cx} y={cy + 8} textAnchor="middle" fontSize={14} fontWeight={700} fill={isDark ? '#f1f5f9' : '#111827'}>
             {hov ? `${hov.pct.toFixed(1)}%` : '100%'}
           </text>
           {hov && (
@@ -138,6 +143,10 @@ function DonutChart({ slices }: { slices: DonutSlice[] }) {
 
 function PnlChart({ data }: { data: PnlPoint[] }) {
   const { format } = useCurrency()
+  const { theme } = useTheme()
+  const isDark = theme === 'dark'
+  const lineColor = isDark ? '#e2e8f0' : '#111827'
+  const gridColor = isDark ? '#334155' : '#f3f4f6'
   const [hovered, setHovered] = useState<number | null>(null)
 
   const sorted = useMemo(() => [...data].sort((a, b) => a.date.localeCompare(b.date)), [data])
@@ -199,7 +208,7 @@ function PnlChart({ data }: { data: PnlPoint[] }) {
 
         {yTicks.map((t, i) => (
           <g key={i}>
-            <line x1={pad.left} y1={t.y} x2={W - pad.right} y2={t.y} stroke="#f3f4f6" strokeWidth={1} />
+            <line x1={pad.left} y1={t.y} x2={W - pad.right} y2={t.y} stroke={gridColor} strokeWidth={1} />
             <text x={pad.left - 5} y={t.y} textAnchor="end" dominantBaseline="middle" fontSize={8.5} fill="#9ca3af">
               {new Intl.NumberFormat('fr-FR', { notation: 'compact', maximumFractionDigits: 1 }).format(t.val)}
             </text>
@@ -208,7 +217,7 @@ function PnlChart({ data }: { data: PnlPoint[] }) {
 
         <path d={pnlAreaPath} fill={isPositive ? 'url(#pnlGradPos)' : 'url(#pnlGradNeg)'} />
         <path d={investedPath} fill="none" stroke="#d1d5db" strokeWidth={1.5} strokeDasharray="4,3" strokeLinejoin="round" />
-        <path d={valuePath} fill="none" stroke="#111827" strokeWidth={2} strokeLinejoin="round" />
+        <path d={valuePath} fill="none" stroke={lineColor} strokeWidth={2} strokeLinejoin="round" />
 
         {xTickIndices.map((idx) => (
           <text key={idx} x={toX(idx)} y={H - pad.bottom + 13} textAnchor="middle" fontSize={8.5} fill="#9ca3af">
@@ -223,7 +232,7 @@ function PnlChart({ data }: { data: PnlPoint[] }) {
         {hovered !== null && (
           <>
             <line x1={toX(hovered)} y1={pad.top} x2={toX(hovered)} y2={H - pad.bottom} stroke="#d1d5db" strokeWidth={1} strokeDasharray="3,2" />
-            <circle cx={toX(hovered)} cy={toY(sorted[hovered].portfolio_value)} r={3.5} fill="#111827" />
+            <circle cx={toX(hovered)} cy={toY(sorted[hovered].portfolio_value)} r={3.5} fill={lineColor} />
             <circle cx={toX(hovered)} cy={toY(sorted[hovered].net_invested)} r={2.5} fill="#d1d5db" stroke="#9ca3af" strokeWidth={1} />
           </>
         )}

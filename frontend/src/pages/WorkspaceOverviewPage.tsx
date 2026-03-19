@@ -2,6 +2,7 @@ import { useState, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useWorkspaceNetWorth, useWorkspaceNetWorthTimeseries, useMe } from '../hooks/useWorkspace'
 import { useProfile } from '../context/ProfileContext'
+import { useTheme } from '../context/ThemeContext'
 import PeriodPicker, { resolveDates } from '../components/PeriodPicker'
 import type { PeriodSelection } from '../components/PeriodPicker'
 import type { WorkspaceNetWorthPoint } from '../lib/workspaceApi'
@@ -21,14 +22,18 @@ const TYPE_LABELS: Record<string, string> = {
   PORTFOLIOS: 'Portefeuilles', OTHER: 'Autre',
 }
 const TYPE_ORDER = ['CHECKING', 'SAVINGS', 'INVESTMENT', 'PORTFOLIOS', 'OTHER']
-const TYPE_COLORS: Record<string, string> = {
+const TYPE_COLORS_LIGHT: Record<string, string> = {
   CHECKING: '#111827', SAVINGS: '#4b5563', INVESTMENT: '#6b7280',
   PORTFOLIOS: '#9ca3af', OTHER: '#d1d5db',
+}
+const TYPE_COLORS_DARK: Record<string, string> = {
+  CHECKING: '#f1f5f9', SAVINGS: '#cbd5e1', INVESTMENT: '#94a3b8',
+  PORTFOLIOS: '#64748b', OTHER: '#475569',
 }
 
 interface DonutSlice { key: string; label: string; value: number; color: string }
 
-function WorkspaceDonut({ slices }: { slices: DonutSlice[] }) {
+function WorkspaceDonut({ slices, isDark }: { slices: DonutSlice[]; isDark: boolean }) {
   const [hovered, setHovered] = useState<string | null>(null)
   const total = slices.reduce((s, d) => s + Math.max(0, d.value), 0)
 
@@ -62,7 +67,7 @@ function WorkspaceDonut({ slices }: { slices: DonutSlice[] }) {
             style={{ cursor: 'pointer', transition: 'stroke-width 0.12s' }} />
         ))}
         <text x={cx} y={cy - 9} textAnchor="middle" fontSize={8} fill="#9ca3af">{hov ? hov.label : 'Total'}</text>
-        <text x={cx} y={cy + 7} textAnchor="middle" fontSize={13} fontWeight={700} fill="#111827">
+        <text x={cx} y={cy + 7} textAnchor="middle" fontSize={13} fontWeight={700} fill={isDark ? '#f1f5f9' : '#111827'}>
           {hov ? `${hov.pct.toFixed(1)}%` : '100%'}
         </text>
         {hov && <text x={cx} y={cy + 22} textAnchor="middle" fontSize={8} fill="#6b7280">{fmt(hov.value.toFixed(2), 2)}</text>}
@@ -88,13 +93,16 @@ function WorkspaceDonut({ slices }: { slices: DonutSlice[] }) {
 
 // ── Chart ────────────────────────────────────────────────────────────────────
 
-function NwChartDetailed({ points, profileNames, profileColors }: {
+function NwChartDetailed({ points, profileNames, profileColors, isDark }: {
   points: WorkspaceNetWorthPoint[]
   profileNames: Record<string, string>
   profileColors: Record<string, string>
+  isDark: boolean
 }) {
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null)
   const svgRef = useRef<SVGSVGElement>(null)
+  const totalColor = isDark ? '#e2e8f0' : '#111827'
+  const zeroLineColor = isDark ? '#334155' : '#e5e7eb'
 
   if (!points.length)
     return <p className="text-xs text-gray-400 text-center py-8">Pas de données historiques.</p>
@@ -139,7 +147,7 @@ function NwChartDetailed({ points, profileNames, profileColors }: {
   return (
     <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} className="w-full h-full" preserveAspectRatio="xMidYMid meet"
       onMouseMove={handleMouseMove} onMouseLeave={() => setHoveredIdx(null)} style={{ cursor: 'crosshair', display: 'block' }}>
-      {minVal < 0 && <line x1={pad.left} y1={yZero} x2={W - pad.right} y2={yZero} stroke="#e5e7eb" strokeWidth={1} strokeDasharray="4 3" />}
+      {minVal < 0 && <line x1={pad.left} y1={yZero} x2={W - pad.right} y2={yZero} stroke={zeroLineColor} strokeWidth={1} strokeDasharray="4 3" />}
       {profileIds.map((pid) => {
         const color = profileColors[pid] ?? '#6366f1'
         const vals = points.map((p) => parseFloat(p.by_profile[pid] ?? '0'))
@@ -152,9 +160,9 @@ function NwChartDetailed({ points, profileNames, profileColors }: {
           </g>
         )
       })}
-      <path d={linePath(totalVals)} stroke="#111827" strokeWidth={2.5} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+      <path d={linePath(totalVals)} stroke={totalColor} strokeWidth={2.5} fill="none" strokeLinecap="round" strokeLinejoin="round" />
       <text x={W - pad.right + 8} y={Math.min(Math.max(yAt(totalVals[totalVals.length - 1]), pad.top + 8), pad.top + ch - 8)}
-        dominantBaseline="middle" fontSize={10} fill="#111827" fontWeight={700}>Total</text>
+        dominantBaseline="middle" fontSize={10} fill={totalColor} fontWeight={700}>Total</text>
       {[0, points.length - 1].map((i) => (
         <text key={i} x={xAt(i)} y={H - 4} textAnchor={i === 0 ? 'start' : 'end'} fontSize={10} fill="#9ca3af">{points[i].bucket.slice(0, 7)}</text>
       ))}
@@ -167,7 +175,7 @@ function NwChartDetailed({ points, profileNames, profileColors }: {
               <circle key={pid} cx={hovX} cy={yAt(parseFloat(pt.by_profile[pid] ?? '0'))} r={4}
                 fill={profileColors[pid] ?? '#6366f1'} stroke="white" strokeWidth={1.5} />
             ))}
-            <circle cx={hovX} cy={yAt(parseFloat(pt.total_eur))} r={4.5} fill="#111827" stroke="white" strokeWidth={1.5} />
+            <circle cx={hovX} cy={yAt(parseFloat(pt.total_eur))} r={4.5} fill={totalColor} stroke="white" strokeWidth={1.5} />
             <rect x={tipX} y={pad.top + 4} width={tipW} height={tipH} rx={7} fill="#1f2937" />
             <text x={tipX + 10} y={pad.top + 18} fontSize={10} fill="#9ca3af">{pt.bucket}</text>
             <text x={tipX + 10} y={pad.top + 34} fontSize={10} fill="white" fontWeight={700}>Total</text>
@@ -194,6 +202,9 @@ export default function WorkspaceOverviewPage() {
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const navigate = useNavigate()
   const { selectProfile } = useProfile()
+  const { theme } = useTheme()
+  const isDark = theme === 'dark'
+  const TYPE_COLORS = isDark ? TYPE_COLORS_DARK : TYPE_COLORS_LIGHT
   const { data: me } = useMe()
   const { data: nw, isLoading: nwLoading } = useWorkspaceNetWorth(workspaceId)
   const [period, setPeriod] = useState<PeriodSelection>({ type: 'preset', preset: '1A' })
@@ -263,6 +274,7 @@ export default function WorkspaceOverviewPage() {
               <div className="flex-1 min-h-0">
                 {Object.keys(nw.by_type).length > 0 ? (
                   <WorkspaceDonut
+                    isDark={isDark}
                     slices={TYPE_ORDER.filter((k) => k in nw.by_type).map((k) => ({
                       key: k, label: TYPE_LABELS[k] ?? k,
                       value: parseFloat(nw.by_type[k]),
@@ -338,7 +350,7 @@ export default function WorkspaceOverviewPage() {
               </div>
               <div className="flex-1 min-h-0">
                 {ts && ts.points.length > 0 ? (
-                  <NwChartDetailed points={ts.points} profileNames={profileNames} profileColors={profileColors} />
+                  <NwChartDetailed points={ts.points} profileNames={profileNames} profileColors={profileColors} isDark={isDark} />
                 ) : (
                   <div className="flex items-center justify-center h-full text-xs text-gray-400">Pas de données historiques.</div>
                 )}

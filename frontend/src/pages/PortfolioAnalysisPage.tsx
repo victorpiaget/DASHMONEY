@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { usePortfolios, useTrades, usePositions, useSnapshots, useAddSnapshot, useInstruments, useLatestPrices, usePriceHistory } from '../hooks/usePortfolios'
 import { pricesApi } from '../lib/portfoliosApi'
 import { useCurrency } from '../context/CurrencyContext'
+import { useTheme } from '../context/ThemeContext'
 import PeriodPicker, { type PeriodSelection, resolveDates } from '../components/PeriodPicker'
 import type { PortfolioSnapshot, Instrument } from '../lib/portfoliosApi'
 
@@ -25,6 +26,10 @@ const TYPE_COLORS: Record<string, string> = {
 
 function SnapshotChart({ snapshots }: { snapshots: PortfolioSnapshot[] }) {
   const { format } = useCurrency()
+  const { theme } = useTheme()
+  const isDark = theme === 'dark'
+  const lineColor = isDark ? '#e2e8f0' : '#111827'
+  const gridColor = isDark ? '#334155' : '#f3f4f6'
   const [hovered, setHovered] = useState<number | null>(null)
 
   const sorted = useMemo(() => [...snapshots].sort((a, b) => a.date.localeCompare(b.date)), [snapshots])
@@ -65,20 +70,20 @@ function SnapshotChart({ snapshots }: { snapshots: PortfolioSnapshot[] }) {
       >
         <defs>
           <linearGradient id="snapGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#111827" stopOpacity={0.1} />
-            <stop offset="100%" stopColor="#111827" stopOpacity={0} />
+            <stop offset="0%" stopColor={lineColor} stopOpacity={0.12} />
+            <stop offset="100%" stopColor={lineColor} stopOpacity={0} />
           </linearGradient>
         </defs>
         {yTicks.map((t, i) => (
           <g key={i}>
-            <line x1={pad.left} y1={t.y} x2={W - pad.right} y2={t.y} stroke="#f3f4f6" strokeWidth={1} />
+            <line x1={pad.left} y1={t.y} x2={W - pad.right} y2={t.y} stroke={gridColor} strokeWidth={1} />
             <text x={pad.left - 5} y={t.y} textAnchor="end" dominantBaseline="middle" fontSize={8.5} fill="#9ca3af">
               {new Intl.NumberFormat('fr-FR', { notation: 'compact', maximumFractionDigits: 1 }).format(t.val)}
             </text>
           </g>
         ))}
         <path d={areaPath} fill="url(#snapGrad)" />
-        <path d={linePath} fill="none" stroke="#111827" strokeWidth={1.5} strokeLinejoin="round" />
+        <path d={linePath} fill="none" stroke={lineColor} strokeWidth={1.5} strokeLinejoin="round" />
         {xTickIndices.map((idx) => (
           <text key={idx} x={toX(idx)} y={H - pad.bottom + 13} textAnchor="middle" fontSize={8.5} fill="#9ca3af">
             {new Date(sorted[idx].date + 'T00:00:00').toLocaleDateString('fr-FR', { month: 'short', year: '2-digit' })}
@@ -90,7 +95,7 @@ function SnapshotChart({ snapshots }: { snapshots: PortfolioSnapshot[] }) {
         {hovered !== null && (
           <>
             <line x1={toX(hovered)} y1={pad.top} x2={toX(hovered)} y2={H - pad.bottom} stroke="#d1d5db" strokeWidth={1} strokeDasharray="3,2" />
-            <circle cx={toX(hovered)} cy={toY(parseFloat(sorted[hovered].value))} r={3} fill="#111827" />
+            <circle cx={toX(hovered)} cy={toY(parseFloat(sorted[hovered].value))} r={3} fill={lineColor} />
           </>
         )}
       </svg>
@@ -109,6 +114,9 @@ function SnapshotChart({ snapshots }: { snapshots: PortfolioSnapshot[] }) {
 interface PerfPoint { date: string; portfolioPct: number; benchmarkPct: number | null }
 
 function PnlBenchmarkChart({ points, benchmarkLabel }: { points: PerfPoint[]; benchmarkLabel: string }) {
+  const { theme } = useTheme()
+  const isDark = theme === 'dark'
+  const gridColor = isDark ? '#334155' : '#f3f4f6'
   const [hovered, setHovered] = useState<number | null>(null)
 
   const W = 600, H = 320
@@ -183,7 +191,7 @@ function PnlBenchmarkChart({ points, benchmarkLabel }: { points: PerfPoint[]; be
         {yTicks.map((t, i) => (
           <g key={i}>
             <line x1={pad.left} y1={t.y} x2={W - pad.right} y2={t.y}
-              stroke={Math.abs(t.val) < 0.01 ? '#d1d5db' : '#f3f4f6'}
+              stroke={Math.abs(t.val) < 0.01 ? (isDark ? '#64748b' : '#d1d5db') : gridColor}
               strokeWidth={Math.abs(t.val) < 0.01 ? 1.5 : 1} />
             <text x={W - pad.right + 3} y={t.y} dominantBaseline="middle" fontSize={8.5} fill="#9ca3af">
               {t.val >= 0 ? '+' : ''}{t.val.toFixed(1)}%
