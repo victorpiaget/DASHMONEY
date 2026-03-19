@@ -1,9 +1,11 @@
 import { useState, useMemo } from 'react'
-import { useNetWorthGrouped, useCashFlow } from '../hooks/useNetWorth'
+import { useNetWorthGrouped, useCashFlow, useNetWorthFullTimeseries } from '../hooks/useNetWorth'
 import { usePnlCurve } from '../hooks/usePortfolios'
 import { useCurrency } from '../context/CurrencyContext'
 import { useTheme } from '../context/ThemeContext'
+import PeriodPicker, { resolveDates, type PeriodSelection } from '../components/PeriodPicker'
 import type { PnlPoint } from '../lib/portfoliosApi'
+import type { NetWorthFullTimeseriesPoint } from '../lib/netWorthApi'
 
 const NW_TYPE_LABELS: Record<string, string> = {
   CHECKING: 'Courant', SAVINGS: 'Épargne', INVESTMENT: 'Investissement', OTHER: 'Autre',
@@ -263,7 +265,7 @@ function PnlChart({ data }: { data: PnlPoint[] }) {
 
       <div className="flex items-center gap-5 pt-2 px-1 flex-shrink-0">
         <div className="flex items-center gap-1.5">
-          <div className="w-4 h-0.5 bg-gray-900 rounded" />
+          <div className="w-4 h-0.5 rounded" style={{ backgroundColor: lineColor }} />
           <span className="text-[10px] text-gray-400">Valorisation</span>
         </div>
         <div className="flex items-center gap-1.5">
@@ -271,10 +273,96 @@ function PnlChart({ data }: { data: PnlPoint[] }) {
           <span className="text-[10px] text-gray-400">Net investi</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <div className={`w-3 h-3 rounded-sm ${isPositive ? 'bg-emerald-100' : 'bg-red-100'}`} />
+          <div className={`w-3 h-3 rounded-sm opacity-60`}
+            style={{ backgroundColor: isPositive ? '#10b981' : '#ef4444' }} />
           <span className="text-[10px] text-gray-400">P&L</span>
         </div>
       </div>
+    </div>
+  )
+}
+
+// ── Patrimoine Chart ──────────────────────────────────────────────────────────
+
+function PatrimoineChart({ points }: { points: NetWorthFullTimeseriesPoint[] }) {
+  const { format } = useCurrency()
+  const { theme } = useTheme()
+  const isDark = theme === 'dark'
+  const lineColor = isDark ? '#e2e8f0' : '#111827'
+  const gridColor = isDark ? '#334155' : '#f3f4f6'
+  const [hovered, setHovered] = useState<number | null>(null)
+
+  const W = 700, H = 220
+  const pad = { top: 16, right: 12, bottom: 28, left: 72 }
+  const innerW = W - pad.left - pad.right
+  const innerH = H - pad.top - pad.bottom
+
+  const values = points.map((p) => parseFloat(p.balance_end))
+  const minV = Math.min(...values)
+  const maxV = Math.max(...values)
+  const range = maxV - minV || 1
+
+  const toX = (i: number) =>
+    pad.left + (points.length === 1 ? innerW / 2 : (i / (points.length - 1)) * innerW)
+  const toY = (v: number) => pad.top + (1 - (v - minV) / range) * innerH
+
+  const linePath = 'M ' + points.map((p, i) => `${toX(i)},${toY(parseFloat(p.balance_end))}`).join(' L ')
+  const areaPath = `${linePath} L ${toX(points.length - 1)} ${H - pad.bottom} L ${toX(0)} ${H - pad.bottom} Z`
+
+  const yTicks = [0, 0.5, 1].map((t) => ({ y: pad.top + (1 - t) * innerH, val: minV + t * range }))
+  const step = Math.max(1, Math.ceil((points.length - 1) / 6))
+  const xTickIndices = [...new Set([
+    ...Array.from({ length: points.length }, (_, i) => i).filter((i) => i % step === 0),
+    points.length - 1,
+  ])]
+
+  return (
+    <div className="relative flex flex-col h-full">
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        preserveAspectRatio="xMidYMid meet"
+        style={{ width: '100%', flex: 1, minHeight: 0 }}
+        onMouseLeave={() => setHovered(null)}
+      >
+        <defs>
+          <linearGradient id="nwGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={lineColor} stopOpacity={0.1} />
+            <stop offset="100%" stopColor={lineColor} stopOpacity={0} />
+          </linearGradient>
+        </defs>
+        {yTicks.map((t, i) => (
+          <g key={i}>
+            <line x1={pad.left} y1={t.y} x2={W - pad.right} y2={t.y} stroke={gridColor} strokeWidth={1} />
+            <text x={pad.left - 5} y={t.y} textAnchor="end" dominantBaseline="middle" fontSize={8.5} fill="#9ca3af">
+              {new Intl.NumberFormat('fr-FR', { notation: 'compact', maximumFractionDigits: 1 }).format(t.val)}
+            </text>
+          </g>
+        ))}
+        <path d={areaPath} fill="url(#nwGrad)" />
+        <path d={linePath} fill="none" stroke={lineColor} strokeWidth={2} strokeLinejoin="round" />
+        {xTickIndices.map((idx) => (
+          <text key={idx} x={toX(idx)} y={H - pad.bottom + 13} textAnchor="middle" fontSize={8.5} fill="#9ca3af">
+            {new Date(points[idx].bucket + 'T00:00:00').toLocaleDateString('fr-FR', { month: 'short', year: '2-digit' })}
+          </text>
+        ))}
+        {points.map((_, i) => (
+          <rect key={i} x={toX(i) - 10} y={pad.top} width={20} height={innerH} fill="transparent" onMouseEnter={() => setHovered(i)} />
+        ))}
+        {hovered !== null && (
+          <>
+            <line x1={toX(hovered)} y1={pad.top} x2={toX(hovered)} y2={H - pad.bottom} stroke="#9ca3af" strokeWidth={1} strokeDasharray="3,2" />
+            <circle cx={toX(hovered)} cy={toY(parseFloat(points[hovered].balance_end))} r={3.5} fill={lineColor} stroke="white" strokeWidth={1.5} />
+          </>
+        )}
+      </svg>
+      {hovered !== null && (
+        <div className="absolute top-1 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs px-3 py-2 rounded-xl pointer-events-none whitespace-nowrap shadow-xl z-10">
+          <div className="text-gray-400 text-center mb-1">
+            {new Date(points[hovered].bucket + 'T00:00:00').toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: '2-digit' })}
+          </div>
+          <div className="font-semibold">{format(parseFloat(points[hovered].balance_end).toFixed(2), 'EUR')}</div>
+        </div>
+      )}
     </div>
   )
 }
@@ -286,6 +374,10 @@ export default function DashboardPage() {
   const { data: nw, isLoading: nwLoading } = useNetWorthGrouped()
   const { data: pnlData = [], isLoading: pnlLoading } = usePnlCurve()
   const { data: cf, isLoading: cfLoading } = useCashFlow()
+  const [chartTab, setChartTab] = useState<'patrimoine' | 'pnl'>('patrimoine')
+  const [nwPeriod, setNwPeriod] = useState<PeriodSelection>({ type: 'preset', preset: '1A' })
+  const { from: nwFrom, to: nwTo } = resolveDates(nwPeriod, '2015-01-01')
+  const { data: nwTs, isLoading: nwTsLoading } = useNetWorthFullTimeseries(nwFrom, nwTo)
 
   const currency = nw?.currency ?? 'EUR'
   const lastPnl = pnlData.length > 0 ? pnlData[pnlData.length - 1] : null
@@ -371,44 +463,95 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* P&L Chart — 3/5 */}
+        {/* Chart — 3/5 */}
         <div className="col-span-3 bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex flex-col min-h-0">
+
+          {/* Header + Tabs */}
           <div className="flex-none flex items-start justify-between mb-3">
-            <div>
-              <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-1">
-                Performance portefeuilles
-              </p>
-              {lastPnl && !pnlLoading && (
-                <div className="flex items-baseline gap-2">
-                  <span className={`text-lg font-semibold tabular-nums ${lastPnl.pnl >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                    {lastPnl.pnl >= 0 ? '+' : ''}{format(lastPnl.pnl.toFixed(2), 'EUR')}
+            <div className="flex flex-col gap-1.5">
+              {/* Tabs */}
+              <div className="flex items-center gap-1 bg-gray-100 dark:bg-slate-700/50 rounded-lg p-0.5 w-fit">
+                <button
+                  onClick={() => setChartTab('patrimoine')}
+                  className={`px-3 py-1 text-[11px] font-medium rounded-md transition-all ${
+                    chartTab === 'patrimoine'
+                      ? 'bg-white dark:bg-slate-600 shadow-sm text-gray-900 dark:text-slate-100'
+                      : 'text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200'
+                  }`}
+                >
+                  Patrimoine
+                </button>
+                <button
+                  onClick={() => setChartTab('pnl')}
+                  className={`px-3 py-1 text-[11px] font-medium rounded-md transition-all ${
+                    chartTab === 'pnl'
+                      ? 'bg-white dark:bg-slate-600 shadow-sm text-gray-900 dark:text-slate-100'
+                      : 'text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200'
+                  }`}
+                >
+                  P&L Portefeuilles
+                </button>
+              </div>
+
+              {/* Sous-titre selon le tab actif */}
+              {chartTab === 'patrimoine' ? (
+                nwTs && (
+                  <span className="text-lg font-semibold tabular-nums text-gray-900">
+                    {format(parseFloat(nwTs.points[nwTs.points.length - 1]?.balance_end ?? '0').toFixed(2), 'EUR')}
                   </span>
-                  <span className={`text-xs font-medium px-1.5 py-0.5 rounded-full ${lastPnl.pnl >= 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'}`}>
-                    {lastPnl.pnl >= 0 ? '+' : ''}{lastPnl.pnl_pct.toFixed(1)}%
-                  </span>
+                )
+              ) : (
+                lastPnl && !pnlLoading && (
+                  <div className="flex items-baseline gap-2">
+                    <span className={`text-lg font-semibold tabular-nums ${lastPnl.pnl >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                      {lastPnl.pnl >= 0 ? '+' : ''}{format(lastPnl.pnl.toFixed(2), 'EUR')}
+                    </span>
+                    <span className={`text-xs font-medium px-1.5 py-0.5 rounded-full ${lastPnl.pnl >= 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'}`}>
+                      {lastPnl.pnl >= 0 ? '+' : ''}{lastPnl.pnl_pct.toFixed(1)}%
+                    </span>
+                  </div>
+                )
+              )}
+            </div>
+
+            <div className="flex items-center gap-3">
+              {chartTab === 'patrimoine' && (
+                <PeriodPicker selection={nwPeriod} onChange={setNwPeriod} minMonth="2015-01" />
+              )}
+              {chartTab === 'pnl' && lastPnl && !pnlLoading && (
+                <div className="text-right">
+                  <p className="text-[10px] text-gray-400">Net investi</p>
+                  <p className="text-sm font-medium text-gray-700 tabular-nums">
+                    {format(lastPnl.net_invested.toFixed(2), 'EUR')}
+                  </p>
                 </div>
               )}
             </div>
-            {lastPnl && !pnlLoading && (
-              <div className="text-right">
-                <p className="text-[10px] text-gray-400">Net investi</p>
-                <p className="text-sm font-medium text-gray-700 tabular-nums">
-                  {format(lastPnl.net_invested.toFixed(2), 'EUR')}
-                </p>
-              </div>
-            )}
           </div>
 
           <div className="flex-1 min-h-0">
-            {pnlLoading ? (
-              <div className="h-full bg-gray-50 rounded-xl animate-pulse" />
-            ) : pnlData.length < 2 ? (
-              <div className="flex flex-col items-center justify-center h-full gap-2 text-gray-400">
-                <span className="text-4xl opacity-20">◎</span>
-                <p className="text-sm">Pas encore assez de snapshots</p>
-              </div>
+            {chartTab === 'patrimoine' ? (
+              nwTsLoading ? (
+                <div className="h-full bg-gray-50 rounded-xl animate-pulse" />
+              ) : !nwTs || nwTs.points.length < 2 ? (
+                <div className="flex flex-col items-center justify-center h-full gap-2 text-gray-400">
+                  <span className="text-4xl opacity-20">◎</span>
+                  <p className="text-sm">Pas encore assez de données</p>
+                </div>
+              ) : (
+                <PatrimoineChart points={nwTs.points} />
+              )
             ) : (
-              <PnlChart data={pnlData} />
+              pnlLoading ? (
+                <div className="h-full bg-gray-50 rounded-xl animate-pulse" />
+              ) : pnlData.length < 2 ? (
+                <div className="flex flex-col items-center justify-center h-full gap-2 text-gray-400">
+                  <span className="text-4xl opacity-20">◎</span>
+                  <p className="text-sm">Pas encore assez de snapshots</p>
+                </div>
+              ) : (
+                <PnlChart data={pnlData} />
+              )
             )}
           </div>
         </div>

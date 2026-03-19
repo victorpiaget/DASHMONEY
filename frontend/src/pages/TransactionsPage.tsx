@@ -58,7 +58,7 @@ export default function TransactionsPage() {
     q: q.trim() || undefined,
     sort_by: 'date' as const,
     sort_dir: 'desc' as const,
-    limit: 1000,
+    limit: 5000,
   }), [dates, selectedAccountIds, selectedKinds, q])
 
   const { data: transactions = [], isLoading, isError, error } = useGlobalTransactions(apiFilters)

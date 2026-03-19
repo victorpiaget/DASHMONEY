@@ -91,3 +91,21 @@
 .dark ::-webkit-scrollbar-track { background: #0f172a; }
 .dark ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
 .dark ::-webkit-scrollbar-thumb:hover { background: #475569; }
+
+/* Badges et chips colorés (bg-*-50, bg-*-100) */
+.dark .bg-emerald-50  { background-color: rgb(6 78 59 / 0.35); }
+.dark .bg-red-50      { background-color: rgb(127 29 29 / 0.35); }
+.dark .bg-blue-50     { background-color: rgb(30 58 138 / 0.35); }
+.dark .bg-amber-50    { background-color: rgb(120 53 15 / 0.35); }
+.dark .bg-emerald-100 { background-color: rgb(6 78 59 / 0.4); }
+.dark .bg-red-100     { background-color: rgb(127 29 29 / 0.4); }
+.dark .bg-blue-100    { background-color: rgb(30 58 138 / 0.4); }
+
+/* Textes colorés dans badges */
+.dark .text-emerald-700 { color: #34d399; }
+.dark .text-red-600     { color: #f87171; }
+.dark .text-blue-700    { color: #60a5fa; }
+
+/* Tab switcher dans dashboard */
+.dark .bg-gray-100 { background-color: #1e293b; }
+.dark .bg-gray-100 .bg-white { background-color: #334155; }

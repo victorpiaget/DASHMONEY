@@ -14,3 +14,11 @@ export function useCashFlow() {
     queryFn: netWorthApi.getCashFlow,
   })
 }
+
+export function useNetWorthFullTimeseries(from: string, to: string) {
+  return useQuery({
+    queryKey: ['net-worth-full', 'timeseries', from, to],
+    queryFn: () => netWorthApi.getFullTimeseries(from, to),
+    enabled: !!from && !!to,
+  })
+}

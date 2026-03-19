@@ -29,7 +29,7 @@ def list_transactions(
     q: str | None = Query(default=None, description="Search label"),
     sort_by: SortBy = Query(default="date"),
     sort_dir: SortDir = Query(default="desc"),
-    limit: int = Query(default=500, le=2000),
+    limit: int = Query(default=5000, le=10000),
     ctx: RequestContext = Depends(get_request_context),
 ) -> list[GlobalTransactionResponse]:
     acc_repo = get_account_repo()

@@ -1,4 +1,5 @@
 import { api } from './api'
+import type { AxiosResponse } from 'axios'
 
 export interface NetWorthResponse {
   currency: string
@@ -25,6 +26,19 @@ export interface CashFlowResponse {
   previous: CashFlowMonth
 }
 
+export interface NetWorthFullTimeseriesPoint {
+  bucket: string
+  balance_end: string
+}
+
+export interface NetWorthFullTimeseriesResponse {
+  currency: string
+  date_from: string
+  date_to: string
+  granularity: string
+  points: NetWorthFullTimeseriesPoint[]
+}
+
 export const netWorthApi = {
   get: (): Promise<NetWorthResponse> =>
     api.get<NetWorthResponse>('/net-worth').then((r) => r.data),
@@ -34,4 +48,9 @@ export const netWorthApi = {
 
   getCashFlow: (): Promise<CashFlowResponse> =>
     api.get<CashFlowResponse>('/net-worth/cash-flow').then((r) => r.data),
+
+  getFullTimeseries: (from: string, to: string, granularity = 'auto'): Promise<NetWorthFullTimeseriesResponse> =>
+    api
+      .get<NetWorthFullTimeseriesResponse>('/net-worth/full/timeseries', { params: { from, to, granularity } })
+      .then((r: AxiosResponse<NetWorthFullTimeseriesResponse>) => r.data),
 }
