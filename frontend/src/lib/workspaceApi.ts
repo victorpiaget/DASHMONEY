@@ -41,6 +41,7 @@ export interface WorkspaceNetWorth {
   at: string | null
   total_eur: string
   profiles: ProfileNetWorthEntry[]
+  by_type: Record<string, string>
 }
 
 export interface WorkspaceNetWorthPoint {

@@ -80,6 +80,7 @@ class WorkspaceNetWorthResponse(BaseModel):
     at: dt.date | None
     total_eur: str
     profiles: list[ProfileNetWorthEntry]
+    by_type: dict[str, str] = {}
 
 
 class WorkspaceNetWorthPoint(BaseModel):

@@ -379,6 +379,7 @@ def workspace_net_worth(
 
     profile_entries: list[ProfileNetWorthEntry] = []
     total_eur = Decimal("0")
+    by_type: dict[str, Decimal] = {}
 
     for p in accessible:
         accounts = account_repo.list_accounts(profile_id=p.id)
@@ -396,7 +397,10 @@ def workspace_net_worth(
                 transactions=acc_txs,
                 at=today,
             )
-            accounts_eur += _to_eur(balance.amount, account.currency.value, rates)
+            val = _to_eur(balance.amount, account.currency.value, rates)
+            accounts_eur += val
+            type_key = account.account_type.value
+            by_type[type_key] = by_type.get(type_key, Decimal("0")) + val
 
         portfolios_eur = Decimal("0")
         for portfolio in portfolios:
@@ -404,7 +408,9 @@ def workspace_net_worth(
             if not relevant:
                 continue
             latest = max(relevant, key=lambda s: (s.date, str(s.id)))
-            portfolios_eur += _to_eur(latest.value.amount, portfolio.currency.value, rates)
+            val = _to_eur(latest.value.amount, portfolio.currency.value, rates)
+            portfolios_eur += val
+            by_type["PORTFOLIOS"] = by_type.get("PORTFOLIOS", Decimal("0")) + val
 
         profile_total = accounts_eur + portfolios_eur
         total_eur += profile_total
@@ -422,6 +428,7 @@ def workspace_net_worth(
         at=today,
         total_eur=str(total_eur.quantize(Decimal("0.01"))),
         profiles=profile_entries,
+        by_type={k: str(v.quantize(Decimal("0.01"))) for k, v in by_type.items()},
     )
 
 

@@ -11,18 +11,6 @@ function useMyRole(workspaceId: string | null, myUserId: string | undefined): 'O
   return (members.find((m) => m.user_id === myUserId)?.role ?? null) as 'OWNER' | 'MEMBER' | 'READ_ONLY' | null
 }
 
-function OverviewButton({ onClick }: { onClick: () => void }) {
-  return (
-    <button
-      onClick={(e) => { e.stopPropagation(); onClick() }}
-      className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors text-sm"
-      title="Vue d'ensemble du patrimoine"
-    >
-      ↗
-    </button>
-  )
-}
-
 function ManageButton({ onClick }: { onClick: () => void }) {
   return (
     <button
@@ -70,22 +58,34 @@ export default function WorkspaceSelectorPage() {
             {me.workspaces.map((ws) => (
               <div
                 key={ws.id}
-                className="w-full flex items-center bg-white border border-gray-200 rounded-2xl px-6 py-5 hover:border-gray-400 hover:shadow-sm transition-all group"
+                className="w-full bg-white border border-gray-200 rounded-2xl overflow-hidden hover:border-gray-400 hover:shadow-sm transition-all group"
               >
-                <button
-                  onClick={() => handleSelect(ws.id)}
-                  className="flex-1 flex items-center justify-between text-left min-w-0"
-                >
-                  <div className="min-w-0">
-                    <p className="text-base font-semibold text-gray-900">{ws.name}</p>
-                    <p className="text-xs text-gray-400 mt-0.5">
-                      {ws.profiles.length} profil{ws.profiles.length > 1 ? 's' : ''}
-                    </p>
-                  </div>
-                  <span className="text-gray-300 group-hover:text-gray-600 transition-colors text-lg mr-3">→</span>
-                </button>
-                <OverviewButton onClick={() => navigate(`/workspaces/${ws.id}/overview`)} />
-                <ManageButton onClick={() => setManagingWorkspace(ws)} />
+                {/* Sélection du profil */}
+                <div className="flex items-center px-6 py-5">
+                  <button
+                    onClick={() => handleSelect(ws.id)}
+                    className="flex-1 flex items-center justify-between text-left min-w-0"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-base font-semibold text-gray-900">{ws.name}</p>
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        {ws.profiles.length} profil{ws.profiles.length > 1 ? 's' : ''} · Sélectionner un profil
+                      </p>
+                    </div>
+                    <span className="text-gray-300 group-hover:text-gray-600 transition-colors text-lg mr-3">→</span>
+                  </button>
+                  <ManageButton onClick={() => setManagingWorkspace(ws)} />
+                </div>
+                {/* Vue d'ensemble */}
+                <div className="border-t border-gray-100">
+                  <button
+                    onClick={() => navigate(`/workspaces/${ws.id}/overview`)}
+                    className="w-full flex items-center justify-between px-6 py-2.5 text-xs text-gray-400 hover:text-gray-700 hover:bg-gray-50 transition-colors text-left"
+                  >
+                    <span>Vue d'ensemble du patrimoine</span>
+                    <span>↗</span>
+                  </button>
+                </div>
               </div>
             ))}
           </div>
