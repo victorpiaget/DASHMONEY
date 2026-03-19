@@ -12,6 +12,7 @@ const NAV_ITEMS = [
   { to: '/portfolios', label: 'Portefeuilles', icon: '◎' },
   { to: '/categories', label: 'Catégories', icon: '⊟' },
   { to: '/instruments', label: 'Actifs', icon: '◫' },
+  { to: '/import', label: 'Import CSV', icon: '↑' },
 ]
 
 export default function AppLayout() {

@@ -374,7 +374,9 @@ def test_positions_empty_after_full_sell(client):
     assert r.status_code == 200
     pos = r.json()
     # position nulle => on ne l'affiche pas (ou qty==0)
-    assert all(p["quantity"] == "0" or True for p in pos)  # accepte les deux comportements
+    # Apres vente totale : soit la position n existe plus, soit qty == "0"
+    pos_for_instrument = [p for p in pos if p["instrument_symbol"] == "POS_FULL_SELL"]
+    assert pos_for_instrument == [] or all(p["quantity"] == "0" for p in pos_for_instrument)
 
 
 def test_positions_as_of_date(client):

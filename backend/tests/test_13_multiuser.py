@@ -156,8 +156,10 @@ def test_refresh_token_rotation_revokes_old(client):
     r1 = client.post("/auth/refresh", json={"refresh_token": old_refresh})
     assert r1.status_code == 200
 
-    # Réutilisation de l'ancien → 401 + tous les tokens révoqués
-    r2 = client.post("/auth/refresh", json={"refresh_token": old_refresh})
+    # Réutilisation de l'ancien → 401
+    # On utilise un client vierge pour éviter que le cookie issu de r1 ne prenne la priorité
+    fresh = TestClient(app, raise_server_exceptions=True)
+    r2 = fresh.post("/auth/refresh", json={"refresh_token": old_refresh})
     assert r2.status_code == 401
 
 

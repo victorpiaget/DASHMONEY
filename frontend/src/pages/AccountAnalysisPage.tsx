@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { useAccounts, useAccountBalance } from '../hooks/useAccounts'
 import { useAccountTimeSeries, useAccountBudgetSummary } from '../hooks/useAccountAnalysis'
 import { useCurrency } from '../context/CurrencyContext'
+import { useTheme } from '../context/ThemeContext'
 import PeriodPicker, { type PeriodSelection, resolveDates } from '../components/PeriodPicker'
 import type { TimeSeriesPoint } from '../lib/analysisApi'
 
@@ -57,6 +58,10 @@ const GRANULARITIES: { key: Granularity; label: string }[] = [
 
 function BalanceChart({ points, currency }: { points: TimeSeriesPoint[]; currency: string }) {
   const { format } = useCurrency()
+  const { theme } = useTheme()
+  const isDark = theme === 'dark'
+  const lineColor = isDark ? '#e2e8f0' : '#111827'
+  const gridColor = isDark ? '#334155' : '#f3f4f6'
   const [hovered, setHovered] = useState<number | null>(null)
 
   const W = 600, H = 320
@@ -65,18 +70,19 @@ function BalanceChart({ points, currency }: { points: TimeSeriesPoint[]; currenc
   const innerH = H - pad.top - pad.bottom
 
   const values = points.map((p) => parseFloat(p.balance_end))
-  const minV = Math.min(...values)
-  const maxV = Math.max(...values)
+  const minV = Math.min(0, ...values)
+  const maxV = Math.max(...values, 0)
   const range = maxV - minV || 1
 
   const toX = (i: number) => pad.left + (points.length === 1 ? innerW / 2 : (i / (points.length - 1)) * innerW)
   const toY = (v: number) => pad.top + (1 - (v - minV) / range) * innerH
+  const zeroY = toY(0)
 
   const pathPts = points.map((p, i) => `${toX(i)},${toY(parseFloat(p.balance_end))}`)
   const linePath = 'M ' + pathPts.join(' L ')
-  const areaPath = `${linePath} L ${toX(points.length - 1)} ${H - pad.bottom} L ${toX(0)} ${H - pad.bottom} Z`
+  const areaPath = `${linePath} L ${toX(points.length - 1)} ${zeroY} L ${toX(0)} ${zeroY} Z`
 
-  const yTicks = [0, 0.5, 1].map((t) => ({ y: pad.top + (1 - t) * innerH, val: minV + t * range }))
+  const yTicks = [0, 0.25, 0.5, 0.75, 1].map((t) => ({ y: pad.top + (1 - t) * innerH, val: minV + t * range }))
   const step = Math.max(1, Math.ceil((points.length - 1) / 5))
   const xTickIndices = [...new Set([
     ...Array.from({ length: points.length }, (_, i) => i).filter((i) => i % step === 0),
@@ -95,20 +101,20 @@ function BalanceChart({ points, currency }: { points: TimeSeriesPoint[]; currenc
       >
         <defs>
           <linearGradient id="balGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#111827" stopOpacity={0.1} />
-            <stop offset="100%" stopColor="#111827" stopOpacity={0} />
+            <stop offset="0%" stopColor={lineColor} stopOpacity={0.12} />
+            <stop offset="100%" stopColor={lineColor} stopOpacity={0} />
           </linearGradient>
         </defs>
         {yTicks.map((t, i) => (
           <g key={i}>
-            <line x1={pad.left} y1={t.y} x2={W - pad.right} y2={t.y} stroke="#f3f4f6" strokeWidth={1} />
+            <line x1={pad.left} y1={t.y} x2={W - pad.right} y2={t.y} stroke={gridColor} strokeWidth={1} />
             <text x={pad.left - 5} y={t.y} textAnchor="end" dominantBaseline="middle" fontSize={8.5} fill="#9ca3af">
               {new Intl.NumberFormat('fr-FR', { notation: 'compact', maximumFractionDigits: 1 }).format(t.val)}
             </text>
           </g>
         ))}
         <path d={areaPath} fill="url(#balGrad)" />
-        <path d={linePath} fill="none" stroke="#111827" strokeWidth={1.5} strokeLinejoin="round" />
+        <path d={linePath} fill="none" stroke={lineColor} strokeWidth={1.5} strokeLinejoin="round" />
         {xTickIndices.map((idx) => (
           <text key={idx} x={toX(idx)} y={H - pad.bottom + 13} textAnchor="middle" fontSize={8.5} fill="#9ca3af">
             {formatBucketLabel(points[idx].bucket)}
@@ -119,8 +125,8 @@ function BalanceChart({ points, currency }: { points: TimeSeriesPoint[]; currenc
         ))}
         {hovered !== null && (
           <>
-            <line x1={toX(hovered)} y1={pad.top} x2={toX(hovered)} y2={H - pad.bottom} stroke="#d1d5db" strokeWidth={1} strokeDasharray="3,2" />
-            <circle cx={toX(hovered)} cy={toY(parseFloat(points[hovered].balance_end))} r={3} fill="#111827" />
+            <line x1={toX(hovered)} y1={pad.top} x2={toX(hovered)} y2={H - pad.bottom} stroke={gridColor} strokeWidth={1} strokeDasharray="3,2" />
+            <circle cx={toX(hovered)} cy={toY(parseFloat(points[hovered].balance_end))} r={3} fill={lineColor} />
           </>
         )}
       </svg>
@@ -186,75 +192,171 @@ function MonthlyChart({ bars, currency }: { bars: MonthBar[]; currency: string }
   )
 }
 
-// ── Category Bars ──────────────────────────────────────────────────────────────
+// ── Cashflow Panel ─────────────────────────────────────────────────────────────
 
-function CategoryBars({
-  data, subcategoryData, currency,
+function CashflowPanel({
+  incomeByCategory, incomeBySubcategory, expenseByCategory, expenseBySubcategory, income, expense, currency,
 }: {
-  data: { category: string; total: string }[]
-  subcategoryData: { category: string; subcategory: string; total: string }[]
+  incomeByCategory: { category: string; total: string }[]
+  incomeBySubcategory: { category: string; subcategory: string; total: string }[]
+  expenseByCategory: { category: string; total: string }[]
+  expenseBySubcategory: { category: string; subcategory: string; total: string }[]
+  income: string
+  expense: string
   currency: string
 }) {
   const { format } = useCurrency()
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
-  const max = Math.max(...data.map((d) => Math.abs(parseFloat(d.total))), 1)
 
   const toggle = (cat: string) =>
     setExpanded((prev) => { const next = new Set(prev); next.has(cat) ? next.delete(cat) : next.add(cat); return next })
 
-  const subsByCat = useMemo(() => {
+  const incomeSubsByCat = useMemo(() => {
     const map: Record<string, { subcategory: string; total: string }[]> = {}
-    for (const s of subcategoryData) {
+    for (const s of incomeBySubcategory) {
       if (!map[s.category]) map[s.category] = []
       map[s.category].push({ subcategory: s.subcategory, total: s.total })
     }
     return map
-  }, [subcategoryData])
+  }, [incomeBySubcategory])
+
+  const subsByCat = useMemo(() => {
+    const map: Record<string, { subcategory: string; total: string }[]> = {}
+    for (const s of expenseBySubcategory) {
+      if (!map[s.category]) map[s.category] = []
+      map[s.category].push({ subcategory: s.subcategory, total: s.total })
+    }
+    return map
+  }, [expenseBySubcategory])
+
+  const totalIn = parseFloat(income)
+  const totalOut = Math.abs(parseFloat(expense))
+  const net = totalIn - totalOut
+  const maxIncome = Math.max(...incomeByCategory.map((d) => parseFloat(d.total)), 1)
+  const maxExpense = Math.max(...expenseByCategory.map((d) => Math.abs(parseFloat(d.total))), 1)
 
   return (
-    <div className="space-y-0.5">
-      {data.map((d) => {
-        const pct = (Math.abs(parseFloat(d.total)) / max) * 100
-        const isExpanded = expanded.has(d.category)
-        const subs = subsByCat[d.category] ?? []
-        const hasSubs = subs.length > 0
-        const subMax = Math.max(...subs.map((s) => Math.abs(parseFloat(s.total))), 1)
-        return (
-          <div key={d.category}>
+    <div className="flex flex-col h-full gap-3">
+      {/* Net flow bar */}
+      <div className="flex-none">
+        <div className="flex items-center justify-between mb-1.5">
+          <span className="text-[10px] font-medium text-gray-400 uppercase tracking-wider">Cash flow net</span>
+          <span className={`text-sm font-semibold tabular-nums ${net >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+            {net >= 0 ? '+' : ''}{format(net.toFixed(2), currency)}
+          </span>
+        </div>
+        {(totalIn > 0 || totalOut > 0) && (
+          <div className="h-2 rounded-full bg-gray-100 overflow-hidden flex">
             <div
-              className={`flex items-center gap-2 px-2 py-1.5 rounded-lg transition-colors ${hasSubs ? 'cursor-pointer hover:bg-gray-50' : ''}`}
-              onClick={() => hasSubs && toggle(d.category)}
-            >
-              <div className="flex items-center gap-1 w-36 flex-shrink-0 min-w-0">
-                {hasSubs && (
-                  <span className={`text-gray-400 text-[9px] transition-transform inline-block ${isExpanded ? 'rotate-90' : ''}`}>▶</span>
-                )}
-                <span className="text-xs text-gray-600 truncate">{d.category || '—'}</span>
-              </div>
-              <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                <div className="h-full bg-red-400 rounded-full" style={{ width: `${pct}%` }} />
-              </div>
-              <span className="text-xs text-gray-700 tabular-nums w-24 text-right flex-shrink-0">{format(d.total, currency)}</span>
-            </div>
-            {isExpanded && subs.length > 0 && (
-              <div className="ml-5 space-y-0.5 border-l-2 border-gray-100 pl-2.5">
-                {subs.map((s) => {
-                  const subPct = (Math.abs(parseFloat(s.total)) / subMax) * 100
-                  return (
-                    <div key={s.subcategory} className="flex items-center gap-2 py-1">
-                      <span className="text-[10px] text-gray-400 w-32 truncate flex-shrink-0">{s.subcategory || '—'}</span>
-                      <div className="flex-1 h-1 bg-gray-100 rounded-full overflow-hidden">
-                        <div className="h-full bg-red-300 rounded-full" style={{ width: `${subPct}%` }} />
-                      </div>
-                      <span className="text-[10px] text-gray-500 tabular-nums w-24 text-right flex-shrink-0">{format(s.total, currency)}</span>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
+              className="h-full bg-emerald-400 rounded-full transition-all"
+              style={{ width: `${Math.min(100, (totalIn / Math.max(totalIn, totalOut)) * 100)}%` }}
+            />
           </div>
-        )
-      })}
+        )}
+        <div className="flex justify-between mt-1">
+          <span className="text-[10px] text-emerald-600 tabular-nums">+{format(income, currency)}</span>
+          <span className="text-[10px] text-red-500 tabular-nums">{format(expense, currency)}</span>
+        </div>
+      </div>
+
+      <div className="flex-1 min-h-0 flex gap-3 overflow-hidden">
+        {/* Revenus */}
+        <div className="flex-1 min-w-0 flex flex-col gap-1 overflow-y-auto">
+          <p className="text-[9px] font-semibold text-emerald-600 uppercase tracking-wider flex-none">Revenus</p>
+          {incomeByCategory.length === 0 ? (
+            <p className="text-[10px] text-gray-400 italic">Aucun revenu</p>
+          ) : incomeByCategory.map((d) => {
+            const pct = (parseFloat(d.total) / maxIncome) * 100
+            const isExpanded = expanded.has('in_' + d.category)
+            const subs = incomeSubsByCat[d.category] ?? []
+            const hasSubs = subs.length > 0
+            const subMax = Math.max(...subs.map((s) => parseFloat(s.total)), 1)
+            return (
+              <div key={d.category}>
+                <div
+                  className={`flex items-center gap-1.5 py-0.5 rounded transition-colors ${hasSubs ? 'cursor-pointer hover:bg-gray-50' : ''}`}
+                  onClick={() => hasSubs && toggle('in_' + d.category)}
+                >
+                  {hasSubs && (
+                    <span className={`text-[8px] text-gray-400 flex-shrink-0 transition-transform inline-block ${isExpanded ? 'rotate-90' : ''}`}>▶</span>
+                  )}
+                  <span className="text-[10px] text-gray-600 truncate w-20 flex-shrink-0">{d.category || '—'}</span>
+                  <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                    <div className="h-full bg-emerald-400 rounded-full" style={{ width: `${pct}%` }} />
+                  </div>
+                  <span className="text-[10px] text-gray-500 tabular-nums w-16 text-right flex-shrink-0">{format(d.total, currency)}</span>
+                </div>
+                {isExpanded && subs.length > 0 && (
+                  <div className="ml-3 border-l border-gray-100 pl-2 space-y-0.5 mb-0.5">
+                    {subs.map((s) => {
+                      const sp = (parseFloat(s.total) / subMax) * 100
+                      return (
+                        <div key={s.subcategory} className="flex items-center gap-1.5 py-0.5">
+                          <span className="text-[9px] text-gray-400 truncate w-20 flex-shrink-0">{s.subcategory || '—'}</span>
+                          <div className="flex-1 h-1 bg-gray-100 rounded-full overflow-hidden">
+                            <div className="h-full bg-emerald-300 rounded-full" style={{ width: `${sp}%` }} />
+                          </div>
+                          <span className="text-[9px] text-gray-400 tabular-nums w-16 text-right flex-shrink-0">{format(s.total, currency)}</span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+
+        {/* Séparateur */}
+        <div className="w-px bg-gray-100 flex-none" />
+
+        {/* Dépenses */}
+        <div className="flex-1 min-w-0 flex flex-col gap-0.5 overflow-y-auto">
+          <p className="text-[9px] font-semibold text-red-500 uppercase tracking-wider flex-none mb-0.5">Dépenses</p>
+          {expenseByCategory.length === 0 ? (
+            <p className="text-[10px] text-gray-400 italic">Aucune dépense</p>
+          ) : expenseByCategory.map((d) => {
+            const pct = (Math.abs(parseFloat(d.total)) / maxExpense) * 100
+            const isExpanded = expanded.has(d.category)
+            const subs = subsByCat[d.category] ?? []
+            const hasSubs = subs.length > 0
+            const subMax = Math.max(...subs.map((s) => Math.abs(parseFloat(s.total))), 1)
+            return (
+              <div key={d.category}>
+                <div
+                  className={`flex items-center gap-1.5 py-0.5 rounded transition-colors ${hasSubs ? 'cursor-pointer hover:bg-gray-50' : ''}`}
+                  onClick={() => hasSubs && toggle(d.category)}
+                >
+                  {hasSubs && (
+                    <span className={`text-[8px] text-gray-400 flex-shrink-0 transition-transform inline-block ${isExpanded ? 'rotate-90' : ''}`}>▶</span>
+                  )}
+                  <span className="text-[10px] text-gray-600 truncate w-20 flex-shrink-0">{d.category || '—'}</span>
+                  <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                    <div className="h-full bg-red-400 rounded-full" style={{ width: `${pct}%` }} />
+                  </div>
+                  <span className="text-[10px] text-gray-500 tabular-nums w-16 text-right flex-shrink-0">{format(d.total, currency)}</span>
+                </div>
+                {isExpanded && subs.length > 0 && (
+                  <div className="ml-3 border-l border-gray-100 pl-2 space-y-0.5 mb-0.5">
+                    {subs.map((s) => {
+                      const sp = (Math.abs(parseFloat(s.total)) / subMax) * 100
+                      return (
+                        <div key={s.subcategory} className="flex items-center gap-1.5 py-0.5">
+                          <span className="text-[9px] text-gray-400 truncate w-20 flex-shrink-0">{s.subcategory || '—'}</span>
+                          <div className="flex-1 h-1 bg-gray-100 rounded-full overflow-hidden">
+                            <div className="h-full bg-red-300 rounded-full" style={{ width: `${sp}%` }} />
+                          </div>
+                          <span className="text-[9px] text-gray-400 tabular-nums w-16 text-right flex-shrink-0">{format(s.total, currency)}</span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      </div>
     </div>
   )
 }
@@ -403,28 +505,27 @@ export default function AccountAnalysisPage() {
 
         </div>
 
-        {/* Right — catégories */}
+        {/* Right — cashflow */}
         <div className="col-span-2 bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex flex-col min-h-0">
-          <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-3 flex-none">
-            Dépenses par catégorie
-          </p>
-          <div className="flex-1 min-h-0 overflow-y-auto">
-            {budgetLoading ? (
-              <div className="space-y-2">
-                {[1, 2, 3, 4, 5].map((i) => <div key={i} className="h-8 bg-gray-50 rounded-lg animate-pulse" />)}
-              </div>
-            ) : budget && budget.expense_by_category.length > 0 ? (
-              <CategoryBars
-                data={budget.expense_by_category}
-                subcategoryData={budget.expense_by_subcategory}
-                currency={currency}
-              />
-            ) : (
-              <div className="flex items-center justify-center h-full text-sm text-gray-400">
-                Aucune dépense catégorisée
-              </div>
-            )}
-          </div>
+          {budgetLoading ? (
+            <div className="space-y-2">
+              {[1, 2, 3, 4, 5].map((i) => <div key={i} className="h-8 bg-gray-50 rounded-lg animate-pulse" />)}
+            </div>
+          ) : budget ? (
+            <CashflowPanel
+              incomeByCategory={budget.income_by_category ?? []}
+              incomeBySubcategory={budget.income_by_subcategory ?? []}
+              expenseByCategory={budget.expense_by_category}
+              expenseBySubcategory={budget.expense_by_subcategory}
+              income={income}
+              expense={expense}
+              currency={currency}
+            />
+          ) : (
+            <div className="flex items-center justify-center h-full text-sm text-gray-400">
+              Aucune donnée sur cette période
+            </div>
+          )}
         </div>
 
       </div>

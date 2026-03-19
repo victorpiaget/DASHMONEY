@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { accountsApi, type CreateAccountPayload } from '../lib/accountsApi'
+import { accountsApi, type CreateAccountPayload, type BankImportResult } from '../lib/accountsApi'
 
 export function useAccountBalance(accountId: string) {
   return useQuery({
@@ -28,13 +28,14 @@ export function useDeleteAccount() {
   })
 }
 
-export function useImportVictor(accountId: string) {
+export function useImportBank(accountId: string) {
   const qc = useQueryClient()
-  return useMutation({
-    mutationFn: (file: File) => accountsApi.importVictor(accountId, file),
+  return useMutation<BankImportResult, Error, File>({
+    mutationFn: (file: File) => accountsApi.importBank(accountId, file),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['accounts'] })
       qc.invalidateQueries({ queryKey: ['account-balance', accountId] })
+      qc.invalidateQueries({ queryKey: ['transactions'] })
     },
   })
 }

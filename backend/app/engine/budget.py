@@ -64,6 +64,20 @@ def totals_by_kind(txs: list[Transaction], *, currency: Currency) -> list[KindTo
     return out
 
 
+def income_totals_by_category(txs: list[Transaction], *, currency: Currency) -> list[CategoryTotal]:
+    acc: dict[str, Decimal] = defaultdict(Decimal)
+    for t in txs:
+        if t.kind != TransactionKind.INCOME:
+            continue
+        acc[t.category] += t.amount.amount
+    out = [
+        CategoryTotal(category=c, total=SignedMoney.from_str(f"{v:.2f}", currency))
+        for c, v in acc.items()
+    ]
+    out.sort(key=lambda x: (-x.total.amount, x.category.casefold()))
+    return out
+
+
 def expense_totals_by_category(txs: list[Transaction], *, currency: Currency) -> list[CategoryTotal]:
     acc: dict[str, Decimal] = defaultdict(Decimal)
 
@@ -79,6 +93,22 @@ def expense_totals_by_category(txs: list[Transaction], *, currency: Currency) ->
     # tri déterministe : plus grosse dépense (valeur la plus négative) d'abord ?
     # On reste descriptif : on trie par montant croissant (ex: -500, -20) => gros postes en haut
     out.sort(key=lambda x: (x.total.amount, x.category.casefold()))
+    return out
+
+
+def income_totals_by_subcategory(txs: list[Transaction], *, currency: Currency) -> list[SubcategoryTotal]:
+    acc: dict[tuple[str, str], Decimal] = defaultdict(Decimal)
+    for t in txs:
+        if t.kind != TransactionKind.INCOME:
+            continue
+        if t.subcategory is None:
+            continue
+        acc[(t.category, t.subcategory)] += t.amount.amount
+    out = [
+        SubcategoryTotal(category=cat, subcategory=sub, total=SignedMoney.from_str(f"{v:.2f}", currency))
+        for (cat, sub), v in acc.items()
+    ]
+    out.sort(key=lambda x: (-x.total.amount, x.category.casefold(), x.subcategory.casefold()))
     return out
 
 

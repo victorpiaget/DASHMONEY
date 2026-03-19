@@ -39,6 +39,20 @@ export interface NetWorthFullTimeseriesResponse {
   points: NetWorthFullTimeseriesPoint[]
 }
 
+export interface NetWorthGroupedTimeseriesGroup {
+  key: string
+  points: { bucket: string; balance_end: string }[]
+}
+
+export interface NetWorthGroupedTimeseriesResponse {
+  currency: string
+  date_from: string
+  date_to: string
+  granularity: string
+  total_points: { bucket: string; balance_end: string }[]
+  groups: NetWorthGroupedTimeseriesGroup[]
+}
+
 export const netWorthApi = {
   get: (): Promise<NetWorthResponse> =>
     api.get<NetWorthResponse>('/net-worth').then((r) => r.data),
@@ -53,4 +67,9 @@ export const netWorthApi = {
     api
       .get<NetWorthFullTimeseriesResponse>('/net-worth/full/timeseries', { params: { from, to, granularity } })
       .then((r: AxiosResponse<NetWorthFullTimeseriesResponse>) => r.data),
+
+  getGroupedTimeseries: (from: string, to: string, granularity = 'auto'): Promise<NetWorthGroupedTimeseriesResponse> =>
+    api
+      .get<NetWorthGroupedTimeseriesResponse>('/net-worth/timeseries/grouped', { params: { from, to, granularity } })
+      .then((r: AxiosResponse<NetWorthGroupedTimeseriesResponse>) => r.data),
 }

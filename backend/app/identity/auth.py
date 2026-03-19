@@ -4,6 +4,7 @@ import hashlib
 import os
 import secrets
 from datetime import datetime, timedelta, timezone
+from uuid import uuid4
 
 import bcrypt
 import jwt
@@ -30,7 +31,7 @@ def verify_password(plain: str, hashed: str) -> bool:
 
 def create_access_token(user_id: str, email: str) -> str:
     expire = datetime.now(timezone.utc) + timedelta(minutes=_ACCESS_TOKEN_EXPIRE_MINUTES)
-    payload = {"sub": user_id, "email": email, "exp": expire}
+    payload = {"sub": user_id, "email": email, "exp": expire, "jti": str(uuid4())}
     return jwt.encode(payload, _secret_key(), algorithm=_ALGORITHM)
 
 

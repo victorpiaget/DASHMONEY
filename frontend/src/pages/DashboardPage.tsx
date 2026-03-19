@@ -1,11 +1,11 @@
 import { useState, useMemo } from 'react'
-import { useNetWorthGrouped, useCashFlow, useNetWorthFullTimeseries } from '../hooks/useNetWorth'
+import { useNetWorthGrouped, useCashFlow, useNetWorthFullTimeseries, useNetWorthGroupedTimeseries } from '../hooks/useNetWorth'
 import { usePnlCurve } from '../hooks/usePortfolios'
 import { useCurrency } from '../context/CurrencyContext'
 import { useTheme } from '../context/ThemeContext'
 import PeriodPicker, { resolveDates, type PeriodSelection } from '../components/PeriodPicker'
 import type { PnlPoint } from '../lib/portfoliosApi'
-import type { NetWorthFullTimeseriesPoint } from '../lib/netWorthApi'
+import type { NetWorthFullTimeseriesPoint, NetWorthGroupedTimeseriesGroup } from '../lib/netWorthApi'
 
 const NW_TYPE_LABELS: Record<string, string> = {
   CHECKING: 'Courant', SAVINGS: 'Épargne', INVESTMENT: 'Investissement', OTHER: 'Autre',
@@ -284,37 +284,113 @@ function PnlChart({ data }: { data: PnlPoint[] }) {
 
 // ── Patrimoine Chart ──────────────────────────────────────────────────────────
 
-function PatrimoineChart({ points }: { points: NetWorthFullTimeseriesPoint[] }) {
+const STACK_ORDER = ['CHECKING', 'SAVINGS', 'INVESTMENT', 'OTHER', 'PORTFOLIOS']
+const STACK_LABELS: Record<string, string> = {
+  CHECKING: 'Courant', SAVINGS: 'Épargne', INVESTMENT: 'Investissement',
+  OTHER: 'Autre', PORTFOLIOS: 'Portefeuilles',
+}
+const STACK_COLORS_LIGHT: Record<string, string> = {
+  CHECKING: '#1e293b', SAVINGS: '#334155', INVESTMENT: '#6366f1',
+  OTHER: '#94a3b8', PORTFOLIOS: '#a78bfa',
+}
+const STACK_COLORS_DARK: Record<string, string> = {
+  CHECKING: '#cbd5e1', SAVINGS: '#64748b', INVESTMENT: '#818cf8',
+  OTHER: '#475569', PORTFOLIOS: '#c4b5fd',
+}
+
+function parseBucket(bucket: string): Date {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(bucket)) return new Date(bucket + 'T00:00:00')
+  if (/^\d{4}-W\d{2}$/.test(bucket)) {
+    const [yearStr, weekStr] = bucket.split('-W')
+    const year = parseInt(yearStr), week = parseInt(weekStr)
+    const jan4 = new Date(year, 0, 4)
+    const dayOfWeek = jan4.getDay() || 7
+    const monday = new Date(jan4)
+    monday.setDate(jan4.getDate() - (dayOfWeek - 1) + (week - 1) * 7)
+    return monday
+  }
+  if (/^\d{4}-\d{2}$/.test(bucket)) {
+    const [y, m] = bucket.split('-')
+    return new Date(parseInt(y), parseInt(m) - 1, 1)
+  }
+  if (/^\d{4}$/.test(bucket)) return new Date(parseInt(bucket), 0, 1)
+  return new Date(bucket)
+}
+function fmtBucket(bucket: string, long = false): string {
+  const d = parseBucket(bucket)
+  if (/^\d{4}-W\d{2}$/.test(bucket)) return d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })
+  if (/^\d{4}-\d{2}-\d{2}$/.test(bucket)) return d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })
+  if (long) return d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: '2-digit' })
+  return d.toLocaleDateString('fr-FR', { month: 'short', year: '2-digit' })
+}
+
+function PatrimoineChart({ fullPoints, groups }: {
+  fullPoints: NetWorthFullTimeseriesPoint[]
+  groups: NetWorthGroupedTimeseriesGroup[]
+}) {
   const { format } = useCurrency()
   const { theme } = useTheme()
   const isDark = theme === 'dark'
-  const lineColor = isDark ? '#e2e8f0' : '#111827'
+  const STACK_COLORS = isDark ? STACK_COLORS_DARK : STACK_COLORS_LIGHT
   const gridColor = isDark ? '#334155' : '#f3f4f6'
+  const lineColor = isDark ? '#f1f5f9' : '#111827'
   const [hovered, setHovered] = useState<number | null>(null)
 
-  const W = 700, H = 220
-  const pad = { top: 16, right: 12, bottom: 28, left: 72 }
+  const n = fullPoints.length
+  if (n < 2) return (
+    <div className="flex items-center justify-center h-full text-xs text-gray-400">Pas encore assez de données.</div>
+  )
+
+  // Valeurs par groupe (accounts)
+  const groupMap: Record<string, number[]> = {}
+  for (const g of groups) {
+    groupMap[g.key] = g.points.map((p) => Math.max(0, parseFloat(p.balance_end)))
+  }
+
+  // Patrimoine total (comptes + portefeuilles)
+  const totalVals = fullPoints.map((p) => Math.max(0, parseFloat(p.balance_end)))
+
+  // Portefeuilles = total - somme des comptes
+  const accountSum = (i: number) =>
+    ['CHECKING', 'SAVINGS', 'INVESTMENT', 'OTHER'].reduce((s, k) => s + (groupMap[k]?.[i] ?? 0), 0)
+  groupMap['PORTFOLIOS'] = totalVals.map((tot, i) => Math.max(0, tot - accountSum(i)))
+
+  // Y axis démarre à 0
+  const maxVal = Math.max(...totalVals, 1)
+
+  const W = 700, H = 210
+  const pad = { top: 12, right: 12, bottom: 26, left: 72 }
   const innerW = W - pad.left - pad.right
   const innerH = H - pad.top - pad.bottom
 
-  const values = points.map((p) => parseFloat(p.balance_end))
-  const minV = Math.min(...values)
-  const maxV = Math.max(...values)
-  const range = maxV - minV || 1
+  const xAt = (i: number) => pad.left + (n === 1 ? innerW / 2 : (i / (n - 1)) * innerW)
+  const yAt = (v: number) => pad.top + (1 - Math.min(v, maxVal) / maxVal) * innerH
 
-  const toX = (i: number) =>
-    pad.left + (points.length === 1 ? innerW / 2 : (i / (points.length - 1)) * innerW)
-  const toY = (v: number) => pad.top + (1 - (v - minV) / range) * innerH
+  // Calcul des aires empilées cumulatives
+  const cumVals: Record<string, number[]> = {}
+  let prev = new Array(n).fill(0)
+  for (const key of STACK_ORDER) {
+    const vals = groupMap[key] ?? new Array(n).fill(0)
+    cumVals[key] = vals.map((v, i) => prev[i] + v)
+    prev = cumVals[key]
+  }
 
-  const linePath = 'M ' + points.map((p, i) => `${toX(i)},${toY(parseFloat(p.balance_end))}`).join(' L ')
-  const areaPath = `${linePath} L ${toX(points.length - 1)} ${H - pad.bottom} L ${toX(0)} ${H - pad.bottom} Z`
+  function buildArea(topKey: string, botKey: string | null): string {
+    const top = cumVals[topKey]
+    const bot = botKey ? cumVals[botKey] : new Array(n).fill(0)
+    const fwd = top.map((v, i) => `${xAt(i).toFixed(1)},${yAt(v).toFixed(1)}`).join(' L ')
+    const bwd = [...bot].reverse().map((v, i) => `${xAt(n - 1 - i).toFixed(1)},${yAt(v).toFixed(1)}`).join(' L ')
+    return `M ${fwd} L ${bwd} Z`
+  }
 
-  const yTicks = [0, 0.5, 1].map((t) => ({ y: pad.top + (1 - t) * innerH, val: minV + t * range }))
-  const step = Math.max(1, Math.ceil((points.length - 1) / 6))
+  const yTicks = [0, 0.25, 0.5, 0.75, 1].map((t) => ({ y: pad.top + (1 - t) * innerH, val: t * maxVal }))
+  const step = Math.max(1, Math.ceil((n - 1) / 6))
   const xTickIndices = [...new Set([
-    ...Array.from({ length: points.length }, (_, i) => i).filter((i) => i % step === 0),
-    points.length - 1,
+    ...Array.from({ length: n }, (_, i) => i).filter((i) => i % step === 0),
+    n - 1,
   ])]
+
+  const activeGroups = STACK_ORDER.filter((k) => (groupMap[k] ?? []).some((v) => v > 1))
 
   return (
     <div className="relative flex flex-col h-full">
@@ -324,45 +400,80 @@ function PatrimoineChart({ points }: { points: NetWorthFullTimeseriesPoint[] }) 
         style={{ width: '100%', flex: 1, minHeight: 0 }}
         onMouseLeave={() => setHovered(null)}
       >
-        <defs>
-          <linearGradient id="nwGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={lineColor} stopOpacity={0.1} />
-            <stop offset="100%" stopColor={lineColor} stopOpacity={0} />
-          </linearGradient>
-        </defs>
+        {/* Grid */}
         {yTicks.map((t, i) => (
           <g key={i}>
             <line x1={pad.left} y1={t.y} x2={W - pad.right} y2={t.y} stroke={gridColor} strokeWidth={1} />
-            <text x={pad.left - 5} y={t.y} textAnchor="end" dominantBaseline="middle" fontSize={8.5} fill="#9ca3af">
-              {new Intl.NumberFormat('fr-FR', { notation: 'compact', maximumFractionDigits: 1 }).format(t.val)}
+            <text x={pad.left - 5} y={t.y} textAnchor="end" dominantBaseline="middle" fontSize={8} fill="#9ca3af">
+              {new Intl.NumberFormat('fr-FR', { notation: 'compact', maximumFractionDigits: 0 }).format(t.val)}
             </text>
           </g>
         ))}
-        <path d={areaPath} fill="url(#nwGrad)" />
-        <path d={linePath} fill="none" stroke={lineColor} strokeWidth={2} strokeLinejoin="round" />
+
+        {/* Aires empilées */}
+        {STACK_ORDER.map((key, idx) => (
+          <path
+            key={key}
+            d={buildArea(key, idx > 0 ? STACK_ORDER[idx - 1] : null)}
+            fill={STACK_COLORS[key]}
+            opacity={0.7}
+          />
+        ))}
+
+        {/* Ligne totale */}
+        <path
+          d={'M ' + totalVals.map((v, i) => `${xAt(i).toFixed(1)},${yAt(v).toFixed(1)}`).join(' L ')}
+          fill="none" stroke={lineColor} strokeWidth={1.5} strokeLinejoin="round"
+        />
+
+        {/* Labels X */}
         {xTickIndices.map((idx) => (
-          <text key={idx} x={toX(idx)} y={H - pad.bottom + 13} textAnchor="middle" fontSize={8.5} fill="#9ca3af">
-            {new Date(points[idx].bucket + 'T00:00:00').toLocaleDateString('fr-FR', { month: 'short', year: '2-digit' })}
+          <text key={idx} x={xAt(idx)} y={H - pad.bottom + 12} textAnchor="middle" fontSize={8} fill="#9ca3af">
+            {fmtBucket(fullPoints[idx].bucket)}
           </text>
         ))}
-        {points.map((_, i) => (
-          <rect key={i} x={toX(i) - 10} y={pad.top} width={20} height={innerH} fill="transparent" onMouseEnter={() => setHovered(i)} />
+
+        {/* Zones hover invisibles */}
+        {fullPoints.map((_, i) => (
+          <rect key={i} x={xAt(i) - 10} y={pad.top} width={20} height={innerH}
+            fill="transparent" onMouseEnter={() => setHovered(i)} />
         ))}
+
+        {/* Crosshair */}
         {hovered !== null && (
           <>
-            <line x1={toX(hovered)} y1={pad.top} x2={toX(hovered)} y2={H - pad.bottom} stroke="#9ca3af" strokeWidth={1} strokeDasharray="3,2" />
-            <circle cx={toX(hovered)} cy={toY(parseFloat(points[hovered].balance_end))} r={3.5} fill={lineColor} stroke="white" strokeWidth={1.5} />
+            <line x1={xAt(hovered)} y1={pad.top} x2={xAt(hovered)} y2={pad.top + innerH}
+              stroke="#9ca3af" strokeWidth={1} strokeDasharray="3,2" />
+            <circle cx={xAt(hovered)} cy={yAt(totalVals[hovered])} r={3}
+              fill={lineColor} stroke="white" strokeWidth={1.5} />
           </>
         )}
       </svg>
+
+      {/* Tooltip */}
       {hovered !== null && (
         <div className="absolute top-1 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs px-3 py-2 rounded-xl pointer-events-none whitespace-nowrap shadow-xl z-10">
-          <div className="text-gray-400 text-center mb-1">
-            {new Date(points[hovered].bucket + 'T00:00:00').toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: '2-digit' })}
-          </div>
-          <div className="font-semibold">{format(parseFloat(points[hovered].balance_end).toFixed(2), 'EUR')}</div>
+          <div className="text-gray-400 text-center mb-1.5">{fmtBucket(fullPoints[hovered].bucket, true)}</div>
+          <div className="font-semibold mb-1">{format(totalVals[hovered].toFixed(2), 'EUR')}</div>
+          {activeGroups.filter((k) => (groupMap[k]?.[hovered] ?? 0) > 1).map((k) => (
+            <div key={k} className="flex items-center gap-3">
+              <div className="w-2 h-2 rounded-sm flex-shrink-0" style={{ backgroundColor: STACK_COLORS[k] }} />
+              <span className="text-gray-400">{STACK_LABELS[k]}</span>
+              <span className="ml-auto tabular-nums">{format((groupMap[k]?.[hovered] ?? 0).toFixed(0), 'EUR')}</span>
+            </div>
+          ))}
         </div>
       )}
+
+      {/* Légende */}
+      <div className="flex items-center gap-3 pt-1 px-1 flex-shrink-0 flex-wrap">
+        {activeGroups.map((k) => (
+          <div key={k} className="flex items-center gap-1.5">
+            <div className="w-2.5 h-2.5 rounded-sm opacity-70" style={{ backgroundColor: STACK_COLORS[k] }} />
+            <span className="text-[10px] text-gray-400">{STACK_LABELS[k]}</span>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
@@ -378,6 +489,7 @@ export default function DashboardPage() {
   const [nwPeriod, setNwPeriod] = useState<PeriodSelection>({ type: 'preset', preset: '1A' })
   const { from: nwFrom, to: nwTo } = resolveDates(nwPeriod, '2015-01-01')
   const { data: nwTs, isLoading: nwTsLoading } = useNetWorthFullTimeseries(nwFrom, nwTo)
+  const { data: nwGrouped, isLoading: nwGroupedLoading } = useNetWorthGroupedTimeseries(nwFrom, nwTo)
 
   const currency = nw?.currency ?? 'EUR'
   const lastPnl = pnlData.length > 0 ? pnlData[pnlData.length - 1] : null
@@ -531,7 +643,7 @@ export default function DashboardPage() {
 
           <div className="flex-1 min-h-0">
             {chartTab === 'patrimoine' ? (
-              nwTsLoading ? (
+              nwTsLoading || nwGroupedLoading ? (
                 <div className="h-full bg-gray-50 rounded-xl animate-pulse" />
               ) : !nwTs || nwTs.points.length < 2 ? (
                 <div className="flex flex-col items-center justify-center h-full gap-2 text-gray-400">
@@ -539,7 +651,7 @@ export default function DashboardPage() {
                   <p className="text-sm">Pas encore assez de données</p>
                 </div>
               ) : (
-                <PatrimoineChart points={nwTs.points} />
+                <PatrimoineChart fullPoints={nwTs.points} groups={nwGrouped?.groups ?? []} />
               )
             ) : (
               pnlLoading ? (

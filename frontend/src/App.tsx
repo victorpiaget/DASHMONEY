@@ -23,6 +23,7 @@ import InstrumentsPage from './pages/InstrumentsPage'
 import TransactionsPage from './pages/TransactionsPage'
 import PortfoliosComparePage from './pages/PortfoliosComparePage'
 import WorkspaceOverviewPage from './pages/WorkspaceOverviewPage'
+import ImportPage from './pages/ImportPage'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -125,6 +126,7 @@ export default function App() {
                   <Route path="portfolios/compare" element={<PortfoliosComparePage />} />
                   <Route path="instruments" element={<InstrumentsPage />} />
                   <Route path="transactions" element={<TransactionsPage />} />
+                  <Route path="import" element={<ImportPage />} />
                 </Route>
 
                 <Route path="*" element={<Navigate to="/" replace />} />

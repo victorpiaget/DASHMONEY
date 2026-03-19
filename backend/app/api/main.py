@@ -17,7 +17,6 @@ from app.api.routes.accounts import router as accounts_router
 from app.api.routes.account_transactions import router as account_transactions_router
 from app.api.routes.budgets import router as budgets_router
 from app.api.routes.import_csv import router as import_csv_router
-from app.api.routes.import_victor import router as import_victor_router
 from app.api.routes.portfolios import router as portfolios_router
 from app.api.routes.net_worth_full import router as net_worth_full_router
 from app.api.routes.instruments import router as instruments_router
@@ -34,6 +33,7 @@ from app.api.routes.snapshots import router as snapshots_router
 from app.api.routes.me import router as me_router
 from app.api.routes.exchange_rates import router as exchange_rates_router
 from app.api.routes.transactions_global import router as transactions_global_router
+from app.api.routes.import_bank import router as import_bank_router
 
 
 @asynccontextmanager
@@ -66,7 +66,6 @@ app.include_router(accounts_router)
 app.include_router(account_transactions_router)
 app.include_router(budgets_router)
 app.include_router(import_csv_router)
-app.include_router(import_victor_router)
 app.include_router(portfolios_router)
 app.include_router(net_worth_full_router)
 app.include_router(instruments_router)
@@ -85,3 +84,4 @@ app.include_router(snapshots_router)
 app.include_router(me_router)
 app.include_router(exchange_rates_router)
 app.include_router(transactions_global_router)
+app.include_router(import_bank_router)

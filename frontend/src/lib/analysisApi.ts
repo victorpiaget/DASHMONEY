@@ -23,6 +23,8 @@ export interface BudgetSummary {
   currency: string
   range: { date_from: string | null; date_to: string | null }
   totals_by_kind: { kind: string; total: string }[]
+  income_by_category: { category: string; total: string }[]
+  income_by_subcategory: { category: string; subcategory: string; total: string }[]
   expense_by_category: { category: string; total: string }[]
   expense_by_subcategory: { category: string; subcategory: string; total: string }[]
   monthly_by_kind: { year: number; month: number; kind: string; total: string }[]

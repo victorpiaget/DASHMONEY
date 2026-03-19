@@ -28,6 +28,7 @@ from app.repositories.sql_identity_models import (
     ProfileRow,
     UserRow,
     WorkspaceMembershipRow,
+    WorkspaceProfileLinkRow,
     WorkspaceRow,
 )
 
@@ -86,7 +87,17 @@ def _seed_default_identity() -> None:
         # Force insert of profile before profile_access FK
         s.flush()
 
-        # --- 3) FK rows: workspace_membership + profile_access ---
+        # --- 3) workspace_profile_link (required by list_profiles JOIN) ---
+        link1 = s.execute(
+            select(WorkspaceProfileLinkRow).where(
+                WorkspaceProfileLinkRow.workspace_id == DEFAULT_WORKSPACE_ID,
+                WorkspaceProfileLinkRow.profile_id == DEFAULT_PROFILE_ID,
+            )
+        ).scalar_one_or_none()
+        if link1 is None:
+            s.add(WorkspaceProfileLinkRow(workspace_id=DEFAULT_WORKSPACE_ID, profile_id=DEFAULT_PROFILE_ID))
+
+        # --- 4) FK rows: workspace_membership + profile_access ---
         membership = s.execute(
             select(WorkspaceMembershipRow).where(
                 WorkspaceMembershipRow.workspace_id == DEFAULT_WORKSPACE_ID,
@@ -146,6 +157,17 @@ def _seed_default_identity() -> None:
                     display_name=DEFAULT_PROFILE2_NAME,
                 )
             )
+
+        s.flush()
+
+        link2 = s.execute(
+            select(WorkspaceProfileLinkRow).where(
+                WorkspaceProfileLinkRow.workspace_id == DEFAULT_WORKSPACE2_ID,
+                WorkspaceProfileLinkRow.profile_id == DEFAULT_PROFILE2_ID,
+            )
+        ).scalar_one_or_none()
+        if link2 is None:
+            s.add(WorkspaceProfileLinkRow(workspace_id=DEFAULT_WORKSPACE2_ID, profile_id=DEFAULT_PROFILE2_ID))
 
         s.flush()
 

@@ -215,13 +215,22 @@ def delete_asset_transfer(
 
     # Trouver et supprimer le BUY correspondant
     all_trades = t_repo.list(profile_id=ctx.profile_id)
-    dest_name = (sell.label or "").removeprefix("Transfert vers ").strip()
+    # Le SELL est labelle "Transfert vers {dest_name}" et le BUY est labelle
+    # "Transfert depuis {from_portfolio_name}". Pour retrouver le BUY on a besoin
+    # du nom du portfolio source (celui qui contient le SELL).
+    p_repo = get_portfolio_repo()
+    try:
+        from_portfolio = p_repo.get(sell.portfolio_id, profile_id=ctx.profile_id)
+        from_portfolio_name = from_portfolio.name
+    except KeyError:
+        from_portfolio_name = None
 
     for t in all_trades:
         if (
             t.side == TradeSide.BUY
             and t.linked_cash_tx_id is None
-            and (t.label or "") == f"Transfert depuis {dest_name}"
+            and from_portfolio_name is not None
+            and (t.label or "") == f"Transfert depuis {from_portfolio_name}"
             and t.instrument_symbol.upper() == sell.instrument_symbol.upper()
             and t.date == sell.date
             and t.quantity == sell.quantity

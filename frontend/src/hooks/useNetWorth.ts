@@ -22,3 +22,11 @@ export function useNetWorthFullTimeseries(from: string, to: string) {
     enabled: !!from && !!to,
   })
 }
+
+export function useNetWorthGroupedTimeseries(from: string, to: string) {
+  return useQuery({
+    queryKey: ['net-worth-grouped', 'timeseries', from, to],
+    queryFn: () => netWorthApi.getGroupedTimeseries(from, to),
+    enabled: !!from && !!to,
+  })
+}

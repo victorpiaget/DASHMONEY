@@ -1,8 +1,9 @@
-import { type FormEvent, useRef, useState } from 'react'
+import { type FormEvent, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useAccountBalance, useAccounts, useCreateAccount, useDeleteAccount, useImportVictor } from '../hooks/useAccounts'
+import { useAccountBalance, useAccounts, useCreateAccount, useDeleteAccount } from '../hooks/useAccounts'
 import { useCurrency } from '../context/CurrencyContext'
-import type { Account, ImportResult } from '../lib/accountsApi'
+import { CurrencyAmountInput } from '../components/CurrencyAmountInput'
+import type { Account } from '../lib/accountsApi'
 
 const ACCOUNT_TYPE_LABELS: Record<string, string> = {
   CHECKING: 'Courant',
@@ -93,117 +94,56 @@ export default function AccountsPage() {
 
 function AccountRow({ account, onDelete }: { account: Account; onDelete: () => void }) {
   const [confirmDelete, setConfirmDelete] = useState(false)
-  const [importResult, setImportResult] = useState<ImportResult | null>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  const importMutation = useImportVictor(account.id)
   const { data: balanceData } = useAccountBalance(account.id)
   const { format } = useCurrency()
   const navigate = useNavigate()
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    try {
-      const result = await importMutation.mutateAsync(file)
-      setImportResult(result)
-    } catch {
-      setImportResult({ imported: 0, errors_count: 1, errors_preview: ['Erreur lors de l\'import'] })
-    }
-    // reset input pour permettre de re-sélectionner le même fichier
-    e.target.value = ''
-  }
-
   return (
-    <>
-      <tr
-        className="hover:bg-gray-50/50 group cursor-pointer"
-        onClick={() => navigate(`/accounts/${account.id}`)}
-      >
-        <td className="px-6 py-4">
-          <span className="text-sm font-medium text-gray-900">{account.name}</span>
-        </td>
-        <td className="px-6 py-4">
-          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${ACCOUNT_TYPE_COLORS[account.account_type] ?? 'bg-gray-100 text-gray-600'}`}>
-            {ACCOUNT_TYPE_LABELS[account.account_type] ?? account.account_type}
-          </span>
-        </td>
-        <td className="px-6 py-4 text-right">
-          <span className={`text-sm font-medium tabular-nums ${balanceData && parseFloat(balanceData.balance) < 0 ? 'text-red-600' : 'text-gray-900'}`}>
-            {balanceData ? format(balanceData.balance, balanceData.currency) : '—'}
-          </span>
-        </td>
-        <td className="px-4 py-4 text-right" onClick={(e) => e.stopPropagation()}>
-          <span className="flex items-center justify-end gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
-            {/* Import CSV */}
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".csv,.txt,.tsv"
-              className="hidden"
-              onChange={handleFileChange}
-            />
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={importMutation.isPending}
-              className="text-xs text-gray-400 hover:text-indigo-600 font-medium disabled:opacity-50 transition-colors"
-              title="Importer CSV (format classeur Victor)"
-            >
-              {importMutation.isPending ? 'Import…' : '↑ CSV'}
-            </button>
-
-            {/* Supprimer */}
-            {confirmDelete ? (
-              <span className="flex items-center gap-2">
-                <button
-                  onClick={() => { onDelete(); setConfirmDelete(false) }}
-                  className="text-xs text-red-600 hover:text-red-700 font-medium"
-                >
-                  Confirmer
-                </button>
-                <button
-                  onClick={() => setConfirmDelete(false)}
-                  className="text-xs text-gray-400 hover:text-gray-600"
-                >
-                  ×
-                </button>
-              </span>
-            ) : (
+    <tr
+      className="hover:bg-gray-50/50 group cursor-pointer"
+      onClick={() => navigate(`/accounts/${account.id}`)}
+    >
+      <td className="px-6 py-4">
+        <span className="text-sm font-medium text-gray-900">{account.name}</span>
+      </td>
+      <td className="px-6 py-4">
+        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${ACCOUNT_TYPE_COLORS[account.account_type] ?? 'bg-gray-100 text-gray-600'}`}>
+          {ACCOUNT_TYPE_LABELS[account.account_type] ?? account.account_type}
+        </span>
+      </td>
+      <td className="px-6 py-4 text-right">
+        <span className={`text-sm font-medium tabular-nums ${balanceData && parseFloat(balanceData.balance) < 0 ? 'text-red-600' : 'text-gray-900'}`}>
+          {balanceData ? format(balanceData.balance, balanceData.currency) : '—'}
+        </span>
+      </td>
+      <td className="px-4 py-4 text-right" onClick={(e) => e.stopPropagation()}>
+        <span className="flex items-center justify-end gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
+          {confirmDelete ? (
+            <span className="flex items-center gap-2">
               <button
-                onClick={() => setConfirmDelete(true)}
-                className="text-xs text-gray-300 hover:text-red-500 transition-colors"
+                onClick={() => { onDelete(); setConfirmDelete(false) }}
+                className="text-xs text-red-600 hover:text-red-700 font-medium"
               >
-                Supprimer
+                Confirmer
               </button>
-            )}
-          </span>
-        </td>
-      </tr>
-
-      {/* Résultat import inline */}
-      {importResult && (
-        <tr className="bg-gray-50">
-          <td colSpan={4} className="px-6 py-3">
-            <div className="flex items-start gap-3">
-              <span className={`text-xs font-medium ${importResult.errors_count === 0 ? 'text-emerald-600' : 'text-amber-600'}`}>
-                {importResult.imported} transaction{importResult.imported !== 1 ? 's' : ''} importée{importResult.imported !== 1 ? 's' : ''}
-                {importResult.errors_count > 0 && ` · ${importResult.errors_count} erreur${importResult.errors_count > 1 ? 's' : ''}`}
-              </span>
-              {importResult.errors_preview.length > 0 && (
-                <span className="text-xs text-gray-400 font-mono truncate max-w-lg">
-                  {importResult.errors_preview[0]}
-                </span>
-              )}
               <button
-                onClick={() => setImportResult(null)}
-                className="ml-auto text-xs text-gray-300 hover:text-gray-500"
+                onClick={() => setConfirmDelete(false)}
+                className="text-xs text-gray-400 hover:text-gray-600"
               >
                 ×
               </button>
-            </div>
-          </td>
-        </tr>
-      )}
-    </>
+            </span>
+          ) : (
+            <button
+              onClick={() => setConfirmDelete(true)}
+              className="text-xs text-gray-300 hover:text-red-500 transition-colors"
+            >
+              Supprimer
+            </button>
+          )}
+        </span>
+      </td>
+    </tr>
   )
 }
 
@@ -236,19 +176,23 @@ interface ModalProps {
 }
 
 function CreateAccountModal({ onClose, onSubmit, isLoading, error }: ModalProps) {
+  const { displayCurrency, convertBetween } = useCurrency()
   const [name, setName] = useState('')
   const [currency, setCurrency] = useState('EUR')
-  const [openingBalance, setOpeningBalance] = useState('0.00')
+  const [openingBalance, setOpeningBalance] = useState('0')
+  const [inputCurrency, setInputCurrency] = useState(displayCurrency)
   const [openedOn, setOpenedOn] = useState(new Date().toISOString().split('T')[0])
   const [accountType, setAccountType] = useState('CHECKING')
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
+    const raw = parseFloat(openingBalance) || 0
+    const native = convertBetween(raw, inputCurrency, currency)
     await onSubmit({
       id: crypto.randomUUID(),
       name: name.trim(),
       currency,
-      opening_balance: parseFloat(openingBalance).toFixed(2),
+      opening_balance: native.toFixed(2),
       opened_on: openedOn,
       account_type: accountType,
     })
@@ -291,12 +235,14 @@ function CreateAccountModal({ onClose, onSubmit, isLoading, error }: ModalProps)
           </div>
 
           <Field label="Solde d'ouverture">
-            <input
-              type="number"
-              step="0.01"
+            <CurrencyAmountInput
               value={openingBalance}
-              onChange={(e) => setOpeningBalance(e.target.value)}
-              className={inputClass}
+              onChange={setOpeningBalance}
+              inputCurrency={inputCurrency}
+              onCurrencyChange={setInputCurrency}
+              nativeCurrency={currency}
+              step="0.01"
+              placeholder="0"
             />
           </Field>
 

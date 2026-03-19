@@ -158,7 +158,7 @@ Un user ne peut accéder qu'aux profils pour lesquels il a une entrée dans `pro
 - Engine de calcul (balance, timeseries, net worth)
 - Repositories SQL avec Alembic
 - Système identity/profils (Workspace → Profile) + authentification JWT complète
-- Tests d'intégration (**153 tests**, base PostgreSQL dédiée)
+- Tests d'intégration (**200 tests**, base PostgreSQL dédiée)
 - **Authentification JWT sur toute l'API** — access token 15min, refresh token 30j avec rotation
 - **Profile scoping complet** vérifié par `profile_access` à chaque requête
 - Multi-user réel avec isolation stricte entre workspaces
@@ -166,19 +166,23 @@ Un user ne peut accéder qu'aux profils pour lesquels il a une entrée dans `pro
 - **Page d'inscription** — RegisterPage.tsx avec auto-login, lien depuis LoginPage
 - **Frontend complet** (React + Vite + Tailwind) — toutes les pages principales implémentées
 - **APScheduler** — snapshots automatiques quotidiens (20h UTC) + catch-up au démarrage si jours manqués
-- **Imports CSV** — Boursorama et Binance (fichiers officiels), format perso Victor
+- **Imports CSV** — Boursorama et Binance (fichiers officiels) + import bancaire auto-détecté (`POST /accounts/{id}/import-bank`)
 - **Transferts d'actifs inter-portefeuilles** — `trade_type = TRANSFER` distingue les vrais trades des mouvements internes (pas de faux P&L)
 - **Prix yfinance** — récupération automatique via `yfinance` + `GET /prices/latest-all` + historique
-- **Courbe P&L globale** sur le dashboard (valeur totale vs net investi dans le temps)
+- **Courbe patrimoine empilée** sur le dashboard — aires par type (Courant/Épargne/Investissement/Autre/Portefeuilles) + onglet P&L Portefeuilles
 - **Page d'analyse par portefeuille** — valorisation actuelle, P&L all-time, positions enrichies, benchmark auto-détecté
 - **Bouton Virement sur AccountDetailPage** — modal coordonné compte source → compte destination via `POST /accounts/{id}/transfers`
 - **Édition inline des actifs** — nom, type, ticker ET devise éditables dans InstrumentsPage
 - **Système multi-devises complet** — 11 devises (EUR USD GBP CHF JPY CAD AUD SGD BTC ETH USDT) ; taux yfinance stockés en base (`exchange_rates`) ; refresh quotidien via scheduler ; `CurrencyContext` React avec `convert()` + `format()` ; sélecteur dans la sidebar ; préférence `localStorage` ; toutes les pages converties
+- **Saisie multi-devise** — `CurrencyAmountInput` déployé sur transactions, virements, création de compte (solde d'ouverture), et trades (prix + frais). Conversion via `convertBetween()` du `CurrencyContext` avant envoi au backend
+- **Dark mode complet** — `ThemeContext` + classe `.dark` sur `<html>` ; toggle dans sidebar et pages de sélection ; graphiques SVG thématisés ; overrides CSS globaux pour bg-white/bg-gray-50
+- **Animations et transitions** — `page-enter` keyframes sur changement de route ; micro-animations hover/bouton
+- **Import CSV bancaire** — `POST /accounts/{id}/import-bank` auto-détecte Boursorama compte, BNP, Crédit Agricole, LCL, SG, CIC, générique ; page `/import` avec drag & drop ; `import_victor` supprimé
+- **CashflowPanel sur AccountAnalysisPage** — revenus par catégorie (vert) + dépenses par catégorie (rouge) avec drill-down sous-catégories des deux côtés ; barre de cash flow net ; budget engine expose `income_by_category` et `income_by_subcategory`
+- **Axe Y des courbes à 0** — `BalanceChart` et `PatrimoineChart` partent de 0 ; l'aire remonte jusqu'à la ligne zéro
 
 ### Prochaines étapes identifiées
-- Nouvelles fonctionnalités métier (budget prévisionnel, objectifs, etc.)
-- **TODO : Import CSV banque automatique** — parser les formats exportés par les applis bancaires (BNP, Crédit Agricole, Boursorama, etc.) sans configuration manuelle. L'endpoint `import-victor` gère le format perso de Victor (8 colonnes). Il faudra un système de détection automatique du format + mapping configurable.
-- **TODO : Système de devises — saisie multi-devise** — quand l'user saisit un montant dans un formulaire (transaction, trade, compte), permettre de choisir la devise de saisie et convertir automatiquement vers la devise native avant envoi au backend.
+- Nouvelles fonctionnalités métier (budget prévisionnel avec enveloppes par catégorie, objectifs d'épargne, projections patrimoine)
 
 ### Décisions de design arrêtées
 - `profile_id` est retourné dans toutes les réponses API de type AccountResponse (explicite)
@@ -220,6 +224,8 @@ Un user ne peut accéder qu'aux profils pour lesquels il a une entrée dans `pro
 | `backend/app/api/routes/snapshots.py` | `GET /snapshots/pnl-curve`, auto-snapshot, backfill |
 | `backend/app/api/routes/prices.py` | `GET /prices/latest-all`, historique, mise à jour manuelle |
 | `backend/app/api/routes/asset_transfers.py` | Transferts d'actifs inter-portefeuilles (trade_type=TRANSFER) |
+| `backend/app/api/routes/import_bank.py` | `POST /accounts/{id}/import-bank` — import bancaire auto-détecté |
+| `backend/app/engine/budget.py` | `income/expense_totals_by_category/subcategory`, `monthly_totals_by_kind` |
 | `backend/app/api/scheduler.py` | APScheduler — snapshots quotidiens + catch-up au démarrage |
 | `backend/app/services/auto_snapshot_service.py` | Calcul snapshot = positions × prix yfinance |
 | `backend/app/services/update_prices_service.py` | Récupération prix via yfinance |

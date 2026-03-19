@@ -8,6 +8,8 @@ from app.api.deps import get_account_repo, get_tx_repo, get_request_context
 from app.identity.request_context import RequestContext
 from app.engine.budget import (
     totals_by_kind,
+    income_totals_by_category,
+    income_totals_by_subcategory,
     expense_totals_by_category,
     expense_totals_by_subcategory,
     monthly_totals_by_kind,
@@ -34,6 +36,8 @@ def budget_summary(
             txs = [t for t in txs if t.date <= date_to]
 
         kb = totals_by_kind(txs, currency=acc.currency)
+        by_income_cat = income_totals_by_category(txs, currency=acc.currency)
+        by_income_sub = income_totals_by_subcategory(txs, currency=acc.currency)
         by_cat = expense_totals_by_category(txs, currency=acc.currency)
         by_sub = expense_totals_by_subcategory(txs, currency=acc.currency)
         by_month_kind = monthly_totals_by_kind(txs, currency=acc.currency)
@@ -46,6 +50,11 @@ def budget_summary(
                 "date_to": date_to.isoformat() if date_to else None,
             },
             "totals_by_kind": [{"kind": x.kind.value, "total": f"{x.total.amount:.2f}"} for x in kb],
+            "income_by_category": [{"category": x.category, "total": f"{x.total.amount:.2f}"} for x in by_income_cat],
+            "income_by_subcategory": [
+                {"category": x.category, "subcategory": x.subcategory, "total": f"{x.total.amount:.2f}"}
+                for x in by_income_sub
+            ],
             "expense_by_category": [{"category": x.category, "total": f"{x.total.amount:.2f}"} for x in by_cat],
             "expense_by_subcategory": [
                 {"category": x.category, "subcategory": x.subcategory, "total": f"{x.total.amount:.2f}"}

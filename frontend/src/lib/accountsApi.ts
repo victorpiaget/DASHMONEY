@@ -24,8 +24,11 @@ export interface CreateAccountPayload {
   account_type: string
 }
 
-export interface ImportResult {
+export interface BankImportResult {
+  format_detected: string
+  format_label: string
   imported: number
+  skipped_zero: number
   errors_count: number
   errors_preview: string[]
 }
@@ -43,11 +46,11 @@ export const accountsApi = {
   getBalance: (accountId: string): Promise<AccountBalance> =>
     api.get<AccountBalance>(`/accounts/${accountId}/balance`).then((r) => r.data),
 
-  importVictor: (accountId: string, file: File): Promise<ImportResult> => {
+  importBank: (accountId: string, file: File): Promise<BankImportResult> => {
     const form = new FormData()
     form.append('file', file)
     return api
-      .post<ImportResult>(`/accounts/${accountId}/import-victor`, form, {
+      .post<BankImportResult>(`/accounts/${accountId}/import-bank`, form, {
         headers: { 'Content-Type': 'multipart/form-data' },
       })
       .then((r) => r.data)
