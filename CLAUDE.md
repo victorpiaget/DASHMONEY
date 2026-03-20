@@ -180,6 +180,7 @@ Un user ne peut accéder qu'aux profils pour lesquels il a une entrée dans `pro
 - **Import CSV bancaire** — `POST /accounts/{id}/import-bank` auto-détecte Boursorama compte, BNP, Crédit Agricole, LCL, SG, CIC, générique ; page `/import` avec drag & drop ; `import_victor` supprimé
 - **CashflowPanel sur AccountAnalysisPage** — revenus par catégorie (vert) + dépenses par catégorie (rouge) avec drill-down sous-catégories des deux côtés ; barre de cash flow net ; budget engine expose `income_by_category` et `income_by_subcategory`
 - **Axe Y des courbes à 0** — `BalanceChart` et `PatrimoineChart` partent de 0 ; l'aire remonte jusqu'à la ligne zéro
+- **Environnement démo** — `dev-demo.ps1` + `backend/scripts/seed_demo.py` ; base `dashmoney_demo` isolée ; Léa Dupont (51 mois, PEA/CTO/Crypto) + Thomas Bernard (14 mois, CTO concentré NVDA) ; Thomas MEMBER/READ dans le workspace de Léa ; comptes demo : `lea@dashmoney.app` / `thomas@dashmoney.app` — `Demo1234!` ; backend port 8001, frontend port 5174
 
 ### Prochaines étapes identifiées
 - Nouvelles fonctionnalités métier (budget prévisionnel avec enveloppes par catégorie, objectifs d'épargne, projections patrimoine)
