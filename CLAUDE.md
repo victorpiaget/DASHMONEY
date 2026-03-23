@@ -25,14 +25,48 @@ Priorités :
 
 ## Projet
 
-**DASHMONEY** — Dashboard personnel de gestion patrimoniale.
+**DASHMONEY** — Conseiller patrimonial augmenté par l'IA, accessible à tous.
 
-Objectif : remplacer un suivi Excel par un système structuré, déterministe, simulable.
+Objectif initial : remplacer un suivi Excel par un système structuré, déterministe, simulable.
+Objectif actuel : devenir un **produit commercial** (SaaS) qui démocratise le conseil patrimonial grâce à l'IA.
+
+Le produit se positionne sur 3 niveaux de valeur :
+1. **Diagnostic** — Analyse factuelle de la situation patrimoniale (répartition, taux d'épargne, fonds d'urgence, concentration des risques). Pas de recommandation, un miroir intelligent.
+2. **Éducation contextualisée** — Explique les concepts financiers en les reliant à la situation de l'utilisateur (ex. "votre fonds d'urgence couvre 1.8 mois, la recommandation courante est 3-6 mois"). Pas de "faites ça", mais "voici ce que votre situation signifie".
+3. **Simulation** — L'utilisateur pose des hypothèses ("et si j'épargnais 500€/mois de plus ?") et l'IA montre les conséquences projetées. L'utilisateur décide, l'IA calcule.
 
 Ce n'est PAS :
-- un conseiller financier
 - un système de trading
-- un moteur de recommandation
+- un moteur de recommandation d'achat/vente (activité régulée CIF/AMF)
+
+**⚠️ Réglementation** : le wording de toute fonctionnalité IA doit rester dans le cadre analyse/éducation/simulation. Ne jamais générer de recommandation personnalisée d'investissement (achat/vente de produits financiers spécifiques) — c'est une activité régulée par l'AMF qui nécessite le statut CIF.
+
+---
+
+## Équipe
+
+| Personne | Profil | Rôle sur DashMoney |
+|---|---|---|
+| Victor | Ingénieur méca, a construit tout le socle | Architecture backend + frontend + infrastructure |
+| Pote IA | Dernière année école d'ingé IA | Prompt engineering, diagnostic IA, exploration RAG |
+| Pote L3 | L3 informatique | Frontend, landing page, onboarding |
+
+Side project à 3, pas une activité principale (pour l'instant).
+
+---
+
+## Vision produit & monétisation
+
+**Cible** : le plus large possible — tout particulier qui veut mieux comprendre et piloter son patrimoine.
+
+**Modèle économique envisagé** : freemium
+- Gratuit : suivi de base (comptes, transactions, dashboard patrimoine)
+- Premium : diagnostic IA, éducation contextualisée, simulations, alertes intelligentes
+
+**Concurrence FR** : Finary (agrégation auto + suivi), Bankin'/Linxo (agrégation bancaire), Portfolio Performance (open source desktop).
+**Angle différenciant visé** : l'IA comme couche d'intelligence personnalisée (diagnostic, éducation, simulation) — ce que les concurrents ne font pas ou peu.
+
+**Agrégation bancaire** : pas prioritaire pour le MVP. L'import CSV couvre les besoins des premiers utilisateurs. Agrégation via Bridge, Powens ou Plaid à envisager quand il y aura des utilisateurs payants et du revenu pour couvrir le coût (plusieurs centaines €/mois minimum).
 
 ---
 
@@ -182,8 +216,53 @@ Un user ne peut accéder qu'aux profils pour lesquels il a une entrée dans `pro
 - **Axe Y des courbes à 0** — `BalanceChart` et `PatrimoineChart` partent de 0 ; l'aire remonte jusqu'à la ligne zéro
 - **Environnement démo** — `dev-demo.ps1` + `backend/scripts/seed_demo.py` ; base `dashmoney_demo` isolée ; Léa Dupont (51 mois, PEA/CTO/Crypto) + Thomas Bernard (14 mois, CTO concentré NVDA) ; Thomas MEMBER/READ dans le workspace de Léa ; comptes demo : `lea@dashmoney.app` / `thomas@dashmoney.app` — `Demo1234!` ; backend port 8001, frontend port 5174
 
-### Prochaines étapes identifiées
-- Nouvelles fonctionnalités métier (budget prévisionnel avec enveloppes par catégorie, objectifs d'épargne, projections patrimoine)
+### Stratégie IA
+
+**Phase 1 — Approche LLM via API** (court terme)
+- Appel API LLM (OpenAI / Anthropic / Mistral) depuis le backend
+- Endpoint type `POST /ai/diagnostic` : construit un prompt avec les données patrimoniales de l'utilisateur, appelle l'API, retourne l'analyse
+- Prompt système très cadré : rôle analyste patrimonial, jamais de recommandation d'achat/vente, analyse factuelle uniquement
+- Garde-fous obligatoires : vérification que le LLM ne hallucine pas de chiffres, disclaimer systématique
+- Coût à l'usage (quelques centimes par appel)
+
+**Phase 2 — RAG (Retrieval-Augmented Generation)** (moyen terme)
+- Base de connaissances financières fiables : guides AMF, principes d'allocation, fiscalité PEA/AV/CTO, etc.
+- Base vectorielle via **pgvector** (extension PostgreSQL — évite une infra séparée)
+- Pipeline : embedding des documents → stockage vecteurs → retrieval des passages pertinents → injection dans le prompt LLM
+- Réduit les hallucinations, ancre les réponses dans des sources vérifiables
+- Sujet d'exploration pour le pote IA
+
+**Phase 3 — Fine-tuning / modèle spécialisé** (long terme, pas prioritaire)
+- Fine-tuning sur données financières françaises si le besoin se confirme
+- Prématuré pour un side project — à garder en tête
+
+### Roadmap produit
+
+**Horizon 1 — Valider le marché (1-2 mois)**
+- [ ] Landing page (promesse + screenshots démo + collecte emails)
+- [ ] Distribution : Reddit r/vosfinances, forums finance, LinkedIn, X finance FR
+- [ ] Consultation avocat fintech sur le cadre AMF/CIF (positionnement diagnostic/éducation/simulation)
+- [ ] Appel commercial Bridge ou Powens (comprendre les conditions startup pour plus tard)
+
+**Horizon 2 — MVP public (2-4 mois)**
+- [ ] Onboarding simplifié : flow guidé en 3 étapes (inscription → import CSV → premier dashboard)
+- [ ] Diagnostic patrimonial basique (engine pur, sans IA) : taux d'épargne, fonds d'urgence en mois, répartition, concentration
+- [ ] Premier endpoint IA (appel API LLM) : analyse contextualisée du patrimoine
+- [ ] Budget prévisionnel : enveloppes par catégorie, comparaison réel vs prévu
+- [ ] Infrastructure monétisation : Stripe, plans free/premium, flag `is_premium`, limites par tier
+
+**Horizon 3 — Croissance et différenciation (6-12 mois)**
+- [ ] RAG avec pgvector + base de connaissances financières
+- [ ] Objectifs d'épargne : définir un objectif, suivre la progression, alertes IA
+- [ ] Projections patrimoine : simulation selon scénarios (rendement, épargne mensuelle, événements)
+- [ ] Alertes intelligentes ("vos dépenses resto ont augmenté de 40% ce mois")
+- [ ] Agrégation bancaire (Bridge / Powens / Plaid) quand les revenus le justifient
+
+### Prochaines étapes techniques immédiates
+- Budget prévisionnel (domain → engine → API → frontend)
+- Onboarding flow simplifié (frontend React)
+- Landing page (HTML/Tailwind, hébergement Vercel/Netlify)
+- Premier endpoint IA diagnostic (backend, appel API LLM)
 
 ### Décisions de design arrêtées
 - `profile_id` est retourné dans toutes les réponses API de type AccountResponse (explicite)
