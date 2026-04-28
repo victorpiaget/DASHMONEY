@@ -29,7 +29,10 @@ from app.repositories.sql_user_repository import SqlUserRepository
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 _REFRESH_COOKIE_NAME = "refresh_token"
-_REFRESH_COOKIE_PATH = "/auth/refresh"
+# Path "/" : le cookie est envoye sur toutes les routes — necessaire car le
+# frontend Vite proxy le path en dev (/api/auth/refresh) alors que le backend
+# expose /auth/refresh. Securite preservee par httpOnly + samesite=strict.
+_REFRESH_COOKIE_PATH = "/"
 _REFRESH_COOKIE_MAX_AGE = 30 * 24 * 3600  # 30 jours en secondes
 _COOKIE_SECURE = os.getenv("DASHMONEY_COOKIE_SECURE", "false").lower() == "true"
 

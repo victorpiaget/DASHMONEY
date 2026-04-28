@@ -70,48 +70,59 @@ def upgrade() -> None:
     # Seed default identity objects (single-user bootstrap)
     bind = op.get_bind()
 
-    bind.execute(
-        sa.text(
-            "INSERT INTO users (id, email, password_hash, is_disabled) "
-            "VALUES (:id, :email, :ph, false) "
-            "ON CONFLICT (id) DO NOTHING"
-        ),
+    # Boolean false : Postgres accepte 'false', SQLite veut 0 → on utilise 0 partout.
+    # SQLAlchemy traduira correctement pour Postgres aussi.
+
+    def _insert_if_absent(table: str, where_clause: str, where_params: dict, insert_sql: str, insert_params: dict) -> None:
+        """
+        SELECT-then-INSERT portable PG/SQLite : remplace les ON CONFLICT
+        spécifiques Postgres par une logique standard SQL qui marche partout.
+        """
+        exists = bind.execute(
+            sa.text(f"SELECT 1 FROM {table} WHERE {where_clause} LIMIT 1"),
+            where_params,
+        ).scalar()
+        if not exists:
+            bind.execute(sa.text(insert_sql), insert_params)
+
+    _insert_if_absent(
+        "users",
+        "id = :id",
+        {"id": DEFAULT_USER_ID},
+        "INSERT INTO users (id, email, password_hash, is_disabled) "
+        "VALUES (:id, :email, :ph, 0)",
         {"id": DEFAULT_USER_ID, "email": "local@dashmoney", "ph": "DISABLED_UNTIL_AUTH"},
     )
 
-    bind.execute(
-        sa.text(
-            "INSERT INTO workspaces (id, name) "
-            "VALUES (:id, :name) "
-            "ON CONFLICT (id) DO NOTHING"
-        ),
+    _insert_if_absent(
+        "workspaces",
+        "id = :id",
+        {"id": DEFAULT_WORKSPACE_ID},
+        "INSERT INTO workspaces (id, name) VALUES (:id, :name)",
         {"id": DEFAULT_WORKSPACE_ID, "name": "Default"},
     )
 
-    bind.execute(
-        sa.text(
-            "INSERT INTO profiles (id, workspace_id, display_name) "
-            "VALUES (:id, :wid, :name) "
-            "ON CONFLICT (id) DO NOTHING"
-        ),
+    _insert_if_absent(
+        "profiles",
+        "id = :id",
+        {"id": DEFAULT_PROFILE_ID},
+        "INSERT INTO profiles (id, workspace_id, display_name) VALUES (:id, :wid, :name)",
         {"id": DEFAULT_PROFILE_ID, "wid": DEFAULT_WORKSPACE_ID, "name": "Default"},
     )
 
-    bind.execute(
-        sa.text(
-            "INSERT INTO workspace_memberships (workspace_id, user_id, role) "
-            "VALUES (:wid, :uid, :role) "
-            "ON CONFLICT DO NOTHING"
-        ),
+    _insert_if_absent(
+        "workspace_memberships",
+        "workspace_id = :wid AND user_id = :uid",
+        {"wid": DEFAULT_WORKSPACE_ID, "uid": DEFAULT_USER_ID},
+        "INSERT INTO workspace_memberships (workspace_id, user_id, role) VALUES (:wid, :uid, :role)",
         {"wid": DEFAULT_WORKSPACE_ID, "uid": DEFAULT_USER_ID, "role": "OWNER"},
     )
 
-    bind.execute(
-        sa.text(
-            "INSERT INTO profile_access (profile_id, user_id, permission) "
-            "VALUES (:pid, :uid, :perm) "
-            "ON CONFLICT DO NOTHING"
-        ),
+    _insert_if_absent(
+        "profile_access",
+        "profile_id = :pid AND user_id = :uid",
+        {"pid": DEFAULT_PROFILE_ID, "uid": DEFAULT_USER_ID},
+        "INSERT INTO profile_access (profile_id, user_id, permission) VALUES (:pid, :uid, :perm)",
         {"pid": DEFAULT_PROFILE_ID, "uid": DEFAULT_USER_ID, "perm": "OWNER"},
     )
 

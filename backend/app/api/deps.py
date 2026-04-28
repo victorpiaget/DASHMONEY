@@ -22,6 +22,7 @@ from app.repositories.sql_price_repository import SqlPriceRepository
 from app.repositories.sql_identity_repository import SqlProfileRepository, SqlWorkspaceRepository
 from app.repositories.sql_refresh_token_repository import SqlRefreshTokenRepository
 from app.repositories.sql_user_repository import SqlUserRepository
+from app.repositories.sql_budget_envelope_repository import SqlBudgetEnvelopeRepository
 from app.repositories.sql_category_repository import SqlCategoryRepository
 from app.repositories.sql_exchange_rate_repository import SqlExchangeRateRepository
 
@@ -85,6 +86,11 @@ def get_category_repo():
 @lru_cache
 def get_exchange_rate_repo():
     return SqlExchangeRateRepository()
+
+
+@lru_cache
+def get_budget_envelope_repo():
+    return SqlBudgetEnvelopeRepository()
 
 
 async def get_current_user(

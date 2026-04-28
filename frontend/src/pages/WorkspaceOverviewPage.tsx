@@ -257,7 +257,7 @@ export default function WorkspaceOverviewPage() {
           <div className="flex flex-col gap-4 min-h-0">
 
             {/* KPI */}
-            <div className="bg-white rounded-2xl border border-gray-200 px-6 py-5 flex-none">
+            <div className="rounded-xl border border-gray-100 px-5 py-4 flex-none">
               <p className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold mb-1">Patrimoine net total</p>
               <p className="text-4xl font-semibold text-gray-900 tabular-nums">{fmt(nw.total_eur)}</p>
               <p className="text-xs text-gray-400 mt-1.5">
@@ -267,7 +267,7 @@ export default function WorkspaceOverviewPage() {
             </div>
 
             {/* Répartition */}
-            <div className="bg-white rounded-2xl border border-gray-200 px-6 py-5 flex-1 min-h-0 flex flex-col">
+            <div className="rounded-xl border border-gray-100 px-5 py-4 flex-1 min-h-0 flex flex-col">
               <p className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold mb-4 flex-none">
                 Répartition du patrimoine
               </p>
@@ -302,7 +302,7 @@ export default function WorkspaceOverviewPage() {
                   const color = PROFILE_COLORS[idx % PROFILE_COLORS.length]
                   return (
                     <button key={p.profile_id} onClick={() => handleSelectProfile(p.profile_id, p.display_name)}
-                      className="bg-white rounded-2xl border border-gray-200 px-4 py-3.5 text-left hover:border-gray-400 hover:shadow-sm transition-all group">
+                      className="rounded-xl border border-gray-100 px-4 py-3.5 text-left hover:shadow-sm transition-all group">
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
                           <div className="w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-semibold text-white flex-shrink-0"
@@ -329,7 +329,7 @@ export default function WorkspaceOverviewPage() {
             </div>
 
             {/* Évolution */}
-            <div className="bg-white rounded-2xl border border-gray-200 px-5 py-4 flex-1 min-h-0 flex flex-col">
+            <div className="rounded-xl border border-gray-100 px-5 py-4 flex-1 min-h-0 flex flex-col">
               <div className="flex items-center justify-between mb-3 flex-none">
                 <div className="flex items-center gap-3">
                   <p className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold">Évolution</p>

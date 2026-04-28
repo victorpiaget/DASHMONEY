@@ -24,28 +24,33 @@ export default function ProfileSelectorPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-6">
+    <div className="min-h-screen bg-white dark:bg-gray-950 flex flex-col items-center justify-center p-6">
       <div className="w-full max-w-lg">
 
         {/* Logo + fil d'Ariane */}
-        <div className="text-center mb-10 relative">
+        <div className="text-center mb-12 relative">
           <div className="absolute right-0 top-0">
             <ThemeToggle />
           </div>
-          <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">DashMoney</h1>
+          <div className="flex justify-center mb-4">
+            <div className="w-10 h-10 rounded-xl bg-gray-900 dark:bg-gray-100 flex items-center justify-center">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z" /><path d="M2 17l10 5 10-5" /><path d="M2 12l10 5 10-5" /></svg>
+            </div>
+          </div>
+          <h1 className="text-xl font-semibold tracking-tight text-gray-900 dark:text-white">DashMoney</h1>
           {workspace && (
-            <div className="flex items-center justify-center gap-2 mt-2">
+            <div className="flex items-center justify-center gap-2 mt-3">
               <button
                 onClick={() => navigate('/select-workspace')}
-                className="text-xs text-gray-400 hover:text-gray-700 transition-colors"
+                className="text-xs text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-400 transition-colors"
               >
                 {workspace.name}
               </button>
-              <span className="text-gray-300 text-xs">›</span>
-              <span className="text-xs text-gray-600 font-medium">Choisissez un profil</span>
+              <span className="text-gray-300 dark:text-gray-600 text-xs">›</span>
+              <span className="text-xs text-gray-600 dark:text-gray-300 font-medium">Choisissez un profil</span>
               <button
                 onClick={() => setShowDrawer(true)}
-                className="ml-1 w-6 h-6 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-200 transition-colors text-xs"
+                className="ml-1 w-6 h-6 flex items-center justify-center rounded-lg text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-xs"
                 title="Gérer le workspace"
               >
                 ⚙
@@ -56,26 +61,26 @@ export default function ProfileSelectorPage() {
 
         {isLoading ? (
           <div className="flex justify-center py-12">
-            <div className="w-6 h-6 border-2 border-gray-200 border-t-gray-700 rounded-full animate-spin" />
+            <div className="w-6 h-6 border-2 border-gray-200 dark:border-gray-700 border-t-gray-700 dark:border-t-gray-300 rounded-full animate-spin" />
           </div>
         ) : !workspace ? (
-          <div className="text-center py-12 text-gray-400">
+          <div className="text-center py-12 text-gray-400 dark:text-gray-500">
             <p className="text-sm">Workspace introuvable.</p>
-            <button onClick={() => navigate('/select-workspace')} className="mt-3 text-xs text-gray-500 hover:text-gray-900 underline">
+            <button onClick={() => navigate('/select-workspace')} className="mt-3 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white underline">
               Retour
             </button>
           </div>
         ) : workspace.profiles.length === 0 ? (
-          <div className="text-center py-12 text-gray-400">
+          <div className="text-center py-12 text-gray-400 dark:text-gray-500">
             <p className="text-sm">Aucun profil accessible dans ce workspace.</p>
             <button
               onClick={() => setShowDrawer(true)}
-              className="mt-3 text-xs text-gray-700 hover:text-gray-900 underline"
+              className="mt-3 text-xs text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white underline"
             >
               Créer un profil
             </button>
             <br />
-            <button onClick={() => navigate('/select-workspace')} className="mt-2 text-xs text-gray-500 hover:text-gray-900 underline">
+            <button onClick={() => navigate('/select-workspace')} className="mt-2 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white underline">
               Retour
             </button>
           </div>
@@ -85,15 +90,15 @@ export default function ProfileSelectorPage() {
               <button
                 key={profile.id}
                 onClick={() => handleSelect(profile.id, profile.display_name)}
-                className="w-full flex items-center justify-between bg-white border border-gray-200 rounded-2xl px-6 py-5 hover:border-gray-400 hover:shadow-sm transition-all group text-left"
+                className="w-full flex items-center justify-between bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-xl px-6 py-5 hover:border-gray-300 dark:hover:border-gray-700 hover:shadow-sm transition-all group text-left"
               >
                 <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 font-semibold text-sm flex-shrink-0">
+                  <div className="w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-500 dark:text-gray-400 font-semibold text-sm flex-shrink-0">
                     {profile.display_name.charAt(0).toUpperCase()}
                   </div>
-                  <p className="text-base font-semibold text-gray-900">{profile.display_name}</p>
+                  <p className="text-sm font-semibold text-gray-900 dark:text-white">{profile.display_name}</p>
                 </div>
-                <span className="text-gray-300 group-hover:text-gray-600 transition-colors text-lg">→</span>
+                <span className="text-gray-300 dark:text-gray-600 group-hover:text-gray-600 dark:group-hover:text-gray-400 transition-colors text-lg">→</span>
               </button>
             ))}
           </div>
@@ -102,7 +107,7 @@ export default function ProfileSelectorPage() {
         <div className="mt-8 text-center">
           <button
             onClick={() => navigate('/select-workspace')}
-            className="text-xs text-gray-400 hover:text-gray-700 transition-colors"
+            className="text-xs text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-400 transition-colors"
           >
             ← Retour aux workspaces
           </button>

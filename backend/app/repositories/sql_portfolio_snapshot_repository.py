@@ -88,6 +88,21 @@ class SqlPortfolioSnapshotRepository(PortfolioSnapshotRepository):
             snaps.sort(key=lambda s2: (s2.date, str(s2.id)))
             return snaps
 
+    def delete_from(self, *, portfolio_id: UUID, from_date: dt.date, profile_id: str | None = None) -> int:
+        pid = resolve_profile_id(profile_id)
+        with new_session() as s:
+            rows = s.execute(
+                select(PortfolioSnapshotRow)
+                .where(PortfolioSnapshotRow.portfolio_id == str(portfolio_id))
+                .where(PortfolioSnapshotRow.profile_id == pid)
+                .where(PortfolioSnapshotRow.day >= from_date)
+            ).scalars().all()
+            count = len(rows)
+            for r in rows:
+                s.delete(r)
+            s.commit()
+        return count
+
     def delete_all(self, *, portfolio_id: UUID, profile_id: str | None = None) -> int:
         pid = resolve_profile_id(profile_id)
         with new_session() as s:

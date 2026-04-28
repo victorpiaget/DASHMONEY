@@ -281,32 +281,32 @@ function AddSnapshotModal({ portfolioId, currency, onClose }: {
 
   return (
     <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
-        <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
-          <h2 className="text-base font-semibold text-gray-900">Ajouter un snapshot</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-lg leading-none">×</button>
+      <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-sm">
+        <div className="px-6 py-5 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
+          <h2 className="text-base font-semibold text-gray-900 dark:text-white">Ajouter un snapshot</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-lg leading-none">×</button>
         </div>
         <form onSubmit={handleSubmit} className="px-6 py-5 space-y-4">
           <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1.5">Date</label>
+            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">Date</label>
             <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" />
+              className="w-full border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-300" />
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1.5">Valeur ({currency})</label>
+            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">Valeur ({currency})</label>
             <input value={value} onChange={(e) => setValue(e.target.value)} placeholder="12500.00" autoFocus
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" />
+              className="w-full border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-300" />
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1.5">Note (optionnel)</label>
+            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">Note (optionnel)</label>
             <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Valorisation…"
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" />
+              className="w-full border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-300" />
           </div>
-          {error && <p className="text-xs text-red-600">{error}</p>}
+          {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
           <div className="flex justify-end gap-2 pt-1">
-            <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900">Annuler</button>
+            <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">Annuler</button>
             <button type="submit" disabled={addSnapshot.isPending}
-              className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-800 disabled:opacity-60">
+              className="px-4 py-2 bg-gray-900 dark:bg-white text-white dark:text-gray-900 text-sm font-medium rounded-lg hover:bg-gray-800 dark:hover:bg-gray-100 disabled:opacity-60">
               {addSnapshot.isPending ? 'Enregistrement…' : 'Enregistrer'}
             </button>
           </div>
@@ -511,18 +511,18 @@ export default function PortfolioAnalysisPage() {
       {/* Header */}
       <div className="flex-none flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-3">
-          <Link to={`/portfolios/${portfolioId}`} className="text-xs text-gray-400 hover:text-gray-700 transition-colors">←</Link>
+          <Link to={`/portfolios/${portfolioId}`} className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">←</Link>
           <div className="flex items-center gap-2">
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-xl font-semibold text-gray-900">{portfolio?.name ?? '…'}</h1>
+                <h1 className="text-xl font-semibold text-gray-900 dark:text-white">{portfolio?.name ?? '…'}</h1>
                 {portfolio && (
                   <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-md ${TYPE_COLORS[portfolio.portfolio_type] ?? TYPE_COLORS.OTHER}`}>
                     {TYPE_LABELS[portfolio.portfolio_type] ?? portfolio.portfolio_type}
                   </span>
                 )}
               </div>
-              <p className="text-xs text-gray-400">Analyse · {currency}</p>
+              <p className="text-xs text-gray-400 dark:text-gray-500">Analyse · {currency}</p>
             </div>
           </div>
         </div>
@@ -530,7 +530,7 @@ export default function PortfolioAnalysisPage() {
           <button
             onClick={handleRefreshPrices}
             disabled={refreshing}
-            className="text-xs font-medium text-gray-500 hover:text-gray-900 transition-colors px-2.5 py-1.5 rounded-lg border border-gray-200 hover:border-gray-300 disabled:opacity-50 flex items-center gap-1.5"
+            className="text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 disabled:opacity-50 flex items-center gap-1.5"
           >
             <span className={refreshing ? 'animate-spin inline-block' : ''}>↻</span>
             {refreshing ? 'Actualisation…' : 'Actualiser les prix'}
@@ -557,7 +557,7 @@ export default function PortfolioAnalysisPage() {
           {
             label: 'Investi (période)',
             value: tradesLoading ? null : format(kpis.invested, currency),
-            color: 'text-gray-900',
+            color: 'text-gray-900 dark:text-white',
           },
           {
             label: 'Cédé (période)',
@@ -570,13 +570,13 @@ export default function PortfolioAnalysisPage() {
             color: 'text-red-600',
           },
         ].map(({ label, value, color, sub }) => (
-          <div key={label} className="bg-white rounded-xl border border-gray-100 shadow-sm px-4 py-3">
-            <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider">{label}</p>
+          <div key={label} className="rounded-xl border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 px-5 py-4 hover:shadow-sm dark:hover:shadow-none transition-shadow">
+            <p className="text-[10px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wider">{label}</p>
             {value !== null
-              ? <p className={`text-base font-semibold tabular-nums mt-1 ${color}`}>{value}</p>
-              : <div className="h-6 w-24 bg-gray-100 rounded animate-pulse mt-1" />
+              ? <p className={`text-base font-semibold tabular-nums tracking-tight mt-1 ${color}`}>{value}</p>
+              : <div className="h-6 w-24 bg-gray-100 dark:bg-gray-800 rounded animate-pulse mt-1" />
             }
-            {sub && value !== null && <p className="text-[10px] text-gray-400 mt-0.5">{sub}</p>}
+            {sub && value !== null && <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5">{sub}</p>}
           </div>
         ))}
       </div>
@@ -585,24 +585,24 @@ export default function PortfolioAnalysisPage() {
       <div className="flex-1 min-h-0 grid grid-cols-5 gap-4">
 
         {/* Left — chart */}
-        <div className="col-span-3 bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex flex-col min-h-0">
+        <div className="col-span-3 rounded-xl border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 p-4 flex flex-col min-h-0">
           <div className="flex-none flex items-center justify-between mb-3">
-            <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider">
+            <p className="text-[10px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wider">
               {chartView === 'value'
                 ? 'Évolution de la valeur'
                 : `Performance · vs ${benchmarkInstrument?.name || benchmarkSymbol || 'benchmark'}`}
             </p>
-            <div className="flex items-center gap-0.5 bg-gray-100 rounded-lg p-0.5">
+            <div className="flex items-center gap-0.5 bg-gray-100 dark:bg-gray-800 rounded-lg p-0.5">
               <button
                 onClick={() => setChartView('value')}
-                className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${chartView === 'value' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                className={`px-2.5 py-1 text-xs font-medium rounded-lg transition-colors ${chartView === 'value' ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}
               >
                 Valeur
               </button>
               <button
                 onClick={() => setChartView('perf')}
                 disabled={!hasBenchmark}
-                className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${chartView === 'perf' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'} disabled:opacity-40 disabled:cursor-not-allowed`}
+                className={`px-2.5 py-1 text-xs font-medium rounded-lg transition-colors ${chartView === 'perf' ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'} disabled:opacity-40 disabled:cursor-not-allowed`}
               >
                 Performance
               </button>
@@ -610,7 +610,7 @@ export default function PortfolioAnalysisPage() {
           </div>
           <div className="flex-1 min-h-0">
             {snapshotsLoading ? (
-              <div className="h-full bg-gray-50 rounded-xl animate-pulse" />
+              <div className="h-full bg-gray-50 dark:bg-gray-800 rounded-xl animate-pulse" />
             ) : chartView === 'perf' && hasBenchmark ? (
               <PnlBenchmarkChart
                 points={perfPoints}
@@ -619,12 +619,12 @@ export default function PortfolioAnalysisPage() {
             ) : hasSnapshot ? (
               <SnapshotChart snapshots={periodSnapshots} />
             ) : (
-              <div className="flex flex-col items-center justify-center h-full gap-3 text-gray-400">
+              <div className="flex flex-col items-center justify-center h-full gap-3 text-gray-400 dark:text-gray-500">
                 <span className="text-4xl opacity-20">◎</span>
                 <p className="text-sm">{snapshots.length === 0 ? 'Aucun snapshot enregistré' : 'Pas assez de snapshots sur la période'}</p>
                 <button
                   onClick={() => setShowSnapshotModal(true)}
-                  className="text-xs text-gray-500 hover:text-gray-900 border border-gray-200 rounded-lg px-3 py-1.5 transition-colors"
+                  className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1.5 transition-colors"
                 >
                   Ajouter un snapshot
                 </button>
@@ -634,9 +634,9 @@ export default function PortfolioAnalysisPage() {
         </div>
 
         {/* Right — table avec tabs */}
-        <div className="col-span-2 bg-white rounded-2xl border border-gray-100 shadow-sm flex flex-col min-h-0">
-          <div className="flex-none px-4 py-3 border-b border-gray-50 flex items-center justify-between">
-            <div className="flex items-center gap-0.5 bg-gray-100 rounded-lg p-0.5">
+        <div className="col-span-2 rounded-xl border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 flex flex-col min-h-0">
+          <div className="flex-none px-4 py-3 border-b border-gray-50 dark:border-gray-800 flex items-center justify-between">
+            <div className="flex items-center gap-0.5 bg-gray-100 dark:bg-gray-800 rounded-lg p-0.5">
               {([
                 { key: 'positions' as TableTab, label: 'Positions actuelles' },
                 { key: 'instruments' as TableTab, label: 'Analyse (période)' },
@@ -644,7 +644,7 @@ export default function PortfolioAnalysisPage() {
                 <button
                   key={o.key}
                   onClick={() => setTableTab(o.key)}
-                  className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${tableTab === o.key ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                  className={`px-2.5 py-1 text-xs font-medium rounded-lg transition-colors ${tableTab === o.key ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}
                 >
                   {o.label}
                 </button>
@@ -656,56 +656,56 @@ export default function PortfolioAnalysisPage() {
             {tableTab === 'positions' ? (
               positionsLoading ? (
                 <div className="flex items-center justify-center h-full">
-                  <div className="w-5 h-5 border-2 border-gray-200 border-t-gray-700 rounded-full animate-spin" />
+                  <div className="w-5 h-5 border-2 border-gray-200 dark:border-gray-700 border-t-gray-700 dark:border-t-gray-300 rounded-full animate-spin" />
                 </div>
               ) : enrichedPositions.length === 0 ? (
-                <div className="flex items-center justify-center h-full text-sm text-gray-400">Aucune position ouverte</div>
+                <div className="flex items-center justify-center h-full text-sm text-gray-400 dark:text-gray-500">Aucune position ouverte</div>
               ) : (
                 <table className="w-full text-xs">
-                  <thead className="sticky top-0 bg-white z-10">
-                    <tr className="border-b border-gray-100">
-                      <th className="text-left text-gray-400 font-medium py-2.5 px-4">Actif</th>
-                      <th className="text-right text-gray-400 font-medium py-2.5 px-3">Qté</th>
-                      <th className="text-right text-gray-400 font-medium py-2.5 px-3">Cours</th>
-                      <th className="text-right text-gray-400 font-medium py-2.5 px-3">Valeur</th>
-                      <th className="text-right text-gray-400 font-medium py-2.5 px-4">P&L latent</th>
+                  <thead className="sticky top-0 bg-white dark:bg-gray-900 z-10">
+                    <tr className="border-b border-gray-100 dark:border-gray-800">
+                      <th className="text-left text-gray-400 dark:text-gray-500 font-medium py-2.5 px-4 uppercase tracking-wider text-[10px]">Actif</th>
+                      <th className="text-right text-gray-400 dark:text-gray-500 font-medium py-2.5 px-3 uppercase tracking-wider text-[10px]">Qté</th>
+                      <th className="text-right text-gray-400 dark:text-gray-500 font-medium py-2.5 px-3 uppercase tracking-wider text-[10px]">Cours</th>
+                      <th className="text-right text-gray-400 dark:text-gray-500 font-medium py-2.5 px-3 uppercase tracking-wider text-[10px]">Valeur</th>
+                      <th className="text-right text-gray-400 dark:text-gray-500 font-medium py-2.5 px-4 uppercase tracking-wider text-[10px]">P&L latent</th>
                     </tr>
                   </thead>
                   <tbody>
                     {enrichedPositions.map((p) => {
                       const barPct = ((p.currentValue ?? p.qty) / positionsMaxValue) * 100
                       return (
-                        <tr key={p.instrument_symbol} className="border-b border-gray-50 hover:bg-gray-50">
+                        <tr key={p.instrument_symbol} className="border-b border-gray-50 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50">
                           <td className="py-2.5 px-4">
-                            <div className="font-medium text-gray-900">{instLabel(instruments, p.instrument_symbol)}</div>
-                            <div className="text-[10px] text-gray-400 font-mono">{p.instrument_symbol}</div>
-                            <div className="mt-1 h-0.5 w-20 bg-gray-100 rounded-full overflow-hidden">
-                              <div className="h-full bg-gray-500 rounded-full" style={{ width: `${barPct}%` }} />
+                            <div className="font-medium text-gray-900 dark:text-white">{instLabel(instruments, p.instrument_symbol)}</div>
+                            <div className="text-[10px] text-gray-400 dark:text-gray-500 font-mono">{p.instrument_symbol}</div>
+                            <div className="mt-1 h-0.5 w-20 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+                              <div className="h-full bg-gray-400 dark:bg-gray-500 rounded-full" style={{ width: `${barPct}%` }} />
                             </div>
                           </td>
-                          <td className="py-2.5 px-3 text-right text-gray-600 tabular-nums">{fmtQty(p.qty)}</td>
+                          <td className="py-2.5 px-3 text-right text-gray-600 dark:text-gray-400 tabular-nums">{fmtQty(p.qty)}</td>
                           <td className="py-2.5 px-3 text-right tabular-nums">
                             {p.latestPrice !== null ? (
                               <div>
-                                <div className="text-gray-700">{fmtPrice(p.latestPrice, currency)}</div>
-                                {p.priceDate && <div className="text-[10px] text-gray-400">{p.priceDate}</div>}
+                                <div className="text-gray-700 dark:text-gray-300">{fmtPrice(p.latestPrice, currency)}</div>
+                                {p.priceDate && <div className="text-[10px] text-gray-400 dark:text-gray-500">{p.priceDate}</div>}
                               </div>
-                            ) : <span className="text-gray-400">—</span>}
+                            ) : <span className="text-gray-400 dark:text-gray-500">—</span>}
                           </td>
-                          <td className="py-2.5 px-3 text-right text-gray-900 font-semibold tabular-nums">
+                          <td className="py-2.5 px-3 text-right text-gray-900 dark:text-white font-semibold tabular-nums">
                             {p.currentValue !== null ? format(p.currentValue.toFixed(2), currency) : '—'}
                           </td>
                           <td className="py-2.5 px-4 text-right tabular-nums">
-                            {p.pnl !== null ? <PnlBadge value={p.pnl} currency={currency} /> : <span className="text-gray-400">—</span>}
+                            {p.pnl !== null ? <PnlBadge value={p.pnl} currency={currency} /> : <span className="text-gray-400 dark:text-gray-500">—</span>}
                           </td>
                         </tr>
                       )
                     })}
                   </tbody>
-                  <tfoot className="sticky bottom-0 bg-white border-t border-gray-200">
+                  <tfoot className="sticky bottom-0 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700">
                     <tr>
-                      <td colSpan={3} className="pt-2.5 px-4 text-gray-500 font-medium">Total</td>
-                      <td className="pt-2.5 px-3 text-right text-gray-900 font-semibold tabular-nums">
+                      <td colSpan={3} className="pt-2.5 px-4 text-gray-500 dark:text-gray-400 font-medium">Total</td>
+                      <td className="pt-2.5 px-3 text-right text-gray-900 dark:text-white font-semibold tabular-nums">
                         {format(currentValuation.toFixed(2), currency)}
                       </td>
                       <td className="pt-2.5 px-4 text-right">
@@ -718,20 +718,20 @@ export default function PortfolioAnalysisPage() {
             ) : (
               tradesLoading ? (
                 <div className="flex items-center justify-center h-full">
-                  <div className="w-5 h-5 border-2 border-gray-200 border-t-gray-700 rounded-full animate-spin" />
+                  <div className="w-5 h-5 border-2 border-gray-200 dark:border-gray-700 border-t-gray-700 dark:border-t-gray-300 rounded-full animate-spin" />
                 </div>
               ) : instrumentStats.length === 0 ? (
-                <div className="flex items-center justify-center h-full text-sm text-gray-400">Aucun trade sur cette période</div>
+                <div className="flex items-center justify-center h-full text-sm text-gray-400 dark:text-gray-500">Aucun trade sur cette période</div>
               ) : (
                 <table className="w-full text-xs">
-                  <thead className="sticky top-0 bg-white z-10">
-                    <tr className="border-b border-gray-100">
-                      <th className="text-left text-gray-400 font-medium py-2.5 px-4">Symbole</th>
-                      <th className="text-right text-gray-400 font-medium py-2.5 px-3">Qté achetée</th>
-                      <th className="text-right text-gray-400 font-medium py-2.5 px-3">Montant investi</th>
-                      <th className="text-right text-gray-400 font-medium py-2.5 px-3">Prix moy.</th>
-                      <th className="text-right text-gray-400 font-medium py-2.5 px-3">Frais</th>
-                      <th className="text-right text-gray-400 font-medium py-2.5 px-4">Valeur actuelle</th>
+                  <thead className="sticky top-0 bg-white dark:bg-gray-900 z-10">
+                    <tr className="border-b border-gray-100 dark:border-gray-800">
+                      <th className="text-left text-gray-400 dark:text-gray-500 font-medium py-2.5 px-4 uppercase tracking-wider text-[10px]">Symbole</th>
+                      <th className="text-right text-gray-400 dark:text-gray-500 font-medium py-2.5 px-3 uppercase tracking-wider text-[10px]">Qté achetée</th>
+                      <th className="text-right text-gray-400 dark:text-gray-500 font-medium py-2.5 px-3 uppercase tracking-wider text-[10px]">Montant investi</th>
+                      <th className="text-right text-gray-400 dark:text-gray-500 font-medium py-2.5 px-3 uppercase tracking-wider text-[10px]">Prix moy.</th>
+                      <th className="text-right text-gray-400 dark:text-gray-500 font-medium py-2.5 px-3 uppercase tracking-wider text-[10px]">Frais</th>
+                      <th className="text-right text-gray-400 dark:text-gray-500 font-medium py-2.5 px-4 uppercase tracking-wider text-[10px]">Valeur actuelle</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -741,36 +741,36 @@ export default function PortfolioAnalysisPage() {
                       const pp = latestPrices.get(s.symbol.toUpperCase())
                       const currentVal = pp && posQty !== 0 ? posQty * parseFloat(pp.price) : null
                       return (
-                        <tr key={s.symbol} className="border-b border-gray-50 hover:bg-gray-50">
+                        <tr key={s.symbol} className="border-b border-gray-50 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50">
                           <td className="py-2 px-4">
-                            <div className="font-medium text-gray-900">{instLabel(instruments, s.symbol)}</div>
-                            <div className="text-[10px] text-gray-400 font-mono">{s.symbol}</div>
+                            <div className="font-medium text-gray-900 dark:text-white">{instLabel(instruments, s.symbol)}</div>
+                            <div className="text-[10px] text-gray-400 dark:text-gray-500 font-mono">{s.symbol}</div>
                           </td>
-                          <td className="py-2 px-3 text-right text-gray-600 tabular-nums">{fmtQty(s.buyQty)}</td>
-                          <td className="py-2 px-3 text-right text-gray-700 font-medium tabular-nums">{format(s.buyAmount.toFixed(2), currency)}</td>
-                          <td className="py-2 px-3 text-right text-gray-600 tabular-nums">
+                          <td className="py-2 px-3 text-right text-gray-600 dark:text-gray-400 tabular-nums">{fmtQty(s.buyQty)}</td>
+                          <td className="py-2 px-3 text-right text-gray-700 dark:text-gray-300 font-medium tabular-nums">{format(s.buyAmount.toFixed(2), currency)}</td>
+                          <td className="py-2 px-3 text-right text-gray-600 dark:text-gray-400 tabular-nums">
                             {s.buyQty > 0 ? format((s.buyAmount / s.buyQty).toFixed(4), currency) : '—'}
                           </td>
-                          <td className="py-2 px-3 text-right text-red-500 tabular-nums">
+                          <td className="py-2 px-3 text-right text-red-500 dark:text-red-400 tabular-nums">
                             {s.fees > 0 ? format(s.fees.toFixed(2), currency) : '—'}
                           </td>
                           <td className="py-2 px-4 text-right tabular-nums">
                             {currentVal !== null
-                              ? <span className="font-medium text-blue-700">{format(currentVal.toFixed(2), currency)}</span>
-                              : <span className="text-gray-400">—</span>}
+                              ? <span className="font-medium text-blue-700 dark:text-blue-400">{format(currentVal.toFixed(2), currency)}</span>
+                              : <span className="text-gray-400 dark:text-gray-500">—</span>}
                           </td>
                         </tr>
                       )
                     })}
                   </tbody>
-                  <tfoot className="sticky bottom-0 bg-white border-t border-gray-200">
+                  <tfoot className="sticky bottom-0 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700">
                     <tr>
-                      <td className="pt-2 px-4 text-gray-500 font-medium">Total</td>
+                      <td className="pt-2 px-4 text-gray-500 dark:text-gray-400 font-medium">Total</td>
                       <td className="pt-2 px-3" />
-                      <td className="pt-2 px-3 text-right text-gray-900 font-semibold tabular-nums">{format(kpis.invested, currency)}</td>
+                      <td className="pt-2 px-3 text-right text-gray-900 dark:text-white font-semibold tabular-nums">{format(kpis.invested, currency)}</td>
                       <td className="pt-2 px-3" />
-                      <td className="pt-2 px-3 text-right text-red-600 font-semibold tabular-nums">{format(kpis.fees, currency)}</td>
-                      <td className="pt-2 px-4 text-right text-blue-700 font-semibold tabular-nums">{format(currentValuation.toFixed(2), currency)}</td>
+                      <td className="pt-2 px-3 text-right text-red-600 dark:text-red-400 font-semibold tabular-nums">{format(kpis.fees, currency)}</td>
+                      <td className="pt-2 px-4 text-right text-blue-700 dark:text-blue-400 font-semibold tabular-nums">{format(currentValuation.toFixed(2), currency)}</td>
                     </tr>
                   </tfoot>
                 </table>

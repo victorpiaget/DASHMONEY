@@ -10,7 +10,10 @@ import bcrypt
 import jwt
 
 _ALGORITHM = "HS256"
-_ACCESS_TOKEN_EXPIRE_MINUTES = 15
+# 1h : compromis entre securite et confort. Le refresh token (cookie httpOnly,
+# 30j) prend le relais via /auth/refresh pour prolonger la session sans
+# reconnexion.
+_ACCESS_TOKEN_EXPIRE_MINUTES = 60
 _REFRESH_TOKEN_EXPIRE_DAYS = 30
 
 

@@ -29,14 +29,15 @@ export default function CategoriesPage() {
 
   return (
     <div className="p-8">
+      {/* Header */}
       <div className="mb-8">
-        <h1 className="text-2xl font-semibold text-gray-900">Catégories</h1>
-        <p className="text-sm text-gray-400 mt-0.5">Gérez vos catégories et sous-catégories de transactions</p>
+        <h1 className="text-xl font-semibold text-gray-900">Catégories</h1>
+        <p className="text-xs text-gray-400 mt-1">Gérez vos catégories et sous-catégories de transactions</p>
       </div>
 
-      {/* Ajouter une catégorie */}
+      {/* Add Category Section */}
       <div className="mb-6">
-        <div className="flex gap-2 max-w-sm">
+        <div className="flex gap-3 max-w-sm">
           <input
             type="text"
             placeholder="Nouvelle catégorie…"
@@ -48,59 +49,71 @@ export default function CategoriesPage() {
           <button
             onClick={handleAddCategory}
             disabled={!newCategoryName.trim() || addCategory.isPending}
-            className="px-4 py-2.5 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-800 disabled:opacity-40 transition-colors whitespace-nowrap"
+            className="px-4 py-2.5 bg-gray-900 text-white text-sm font-medium rounded-xl hover:bg-gray-800 active:scale-[0.98] disabled:opacity-40 transition-all whitespace-nowrap"
           >
             Ajouter
           </button>
         </div>
       </div>
 
-      {/* Liste des catégories */}
+      {/* Categories List */}
       {isLoading ? (
         <div className="flex justify-center py-16">
           <div className="w-6 h-6 border-2 border-gray-200 border-t-gray-700 rounded-full animate-spin" />
         </div>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-3">
           {categories.map((cat) => (
-            <div key={cat.id} className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-              {/* En-tête catégorie */}
-              <div className="flex items-center justify-between px-5 py-3.5">
+            <div
+              key={cat.id}
+              className="rounded-xl border border-gray-100 bg-white hover:shadow-sm transition-shadow overflow-hidden"
+            >
+              {/* Category Header */}
+              <div className="flex items-center justify-between px-5 py-4">
                 <button
-                  className="flex items-center gap-2 flex-1 text-left"
+                  className="flex items-center gap-3 flex-1 text-left"
                   onClick={() => setExpandedCategory(expandedCategory === cat.id ? null : cat.id)}
                 >
                   <span className="text-sm font-medium text-gray-900">{cat.name}</span>
-                  <span className="text-xs text-gray-400">{cat.subcategories.length} sous-catégorie{cat.subcategories.length !== 1 ? 's' : ''}</span>
-                  <span className="text-gray-300 ml-auto text-xs">{expandedCategory === cat.id ? '▲' : '▼'}</span>
+                  <span className="text-xs text-gray-400">
+                    {cat.subcategories.length} sous-catégorie{cat.subcategories.length !== 1 ? 's' : ''}
+                  </span>
+                  <span
+                    className={`text-gray-300 ml-auto text-xs transition-transform duration-200 ${
+                      expandedCategory === cat.id ? 'rotate-180' : ''
+                    }`}
+                  >
+                    ▼
+                  </span>
                 </button>
                 <button
                   onClick={() => deleteCategory.mutate(cat.id)}
                   disabled={deleteCategory.isPending}
-                  className="ml-4 text-xs text-gray-300 hover:text-red-500 transition-colors disabled:opacity-40"
+                  className="ml-4 text-xs text-gray-400 hover:text-red-500 transition-colors disabled:opacity-40"
                   title="Supprimer la catégorie"
                 >
                   Supprimer
                 </button>
               </div>
 
-              {/* Sous-catégories */}
+              {/* Subcategories Section */}
               {expandedCategory === cat.id && (
-                <div className="border-t border-gray-50 px-5 py-3">
-                  {/* Tags sous-catégories */}
-                  <div className="flex flex-wrap gap-2 mb-3">
+                <div className="border-t border-gray-50 px-5 py-4 space-y-4 transition-all duration-200">
+                  {/* Subcategory Tags */}
+                  <div className="flex flex-wrap gap-2">
                     {cat.subcategories.length === 0 && (
                       <span className="text-xs text-gray-400">Aucune sous-catégorie</span>
                     )}
                     {cat.subcategories.map((sub) => (
                       <span
                         key={sub.id}
-                        className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-gray-100 rounded-full text-xs text-gray-700"
+                        className="inline-flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-lg text-xs text-gray-700 hover:bg-gray-100 transition-colors"
                       >
                         {sub.name}
                         <button
                           onClick={() => deleteSubcategory.mutate({ categoryId: cat.id, subcategoryId: sub.id })}
-                          className="text-gray-400 hover:text-red-500 leading-none transition-colors"
+                          className="text-gray-400 hover:text-red-500 leading-none transition-colors font-medium"
+                          title="Supprimer"
                         >
                           ×
                         </button>
@@ -108,8 +121,8 @@ export default function CategoriesPage() {
                     ))}
                   </div>
 
-                  {/* Ajouter une sous-catégorie */}
-                  <div className="flex gap-2 max-w-xs">
+                  {/* Add Subcategory */}
+                  <div className="flex gap-3 max-w-xs pt-2">
                     <input
                       type="text"
                       placeholder="Nouvelle sous-catégorie…"
@@ -121,7 +134,7 @@ export default function CategoriesPage() {
                     <button
                       onClick={() => handleAddSubcategory(cat.id)}
                       disabled={!(newSubNames[cat.id] ?? '').trim() || addSubcategory.isPending}
-                      className="px-3 py-2 bg-gray-900 text-white text-xs font-medium rounded-lg hover:bg-gray-800 disabled:opacity-40 transition-colors whitespace-nowrap"
+                      className="px-3 py-2.5 bg-gray-900 text-white text-xs font-medium rounded-xl hover:bg-gray-800 active:scale-[0.98] disabled:opacity-40 transition-all whitespace-nowrap"
                     >
                       +
                     </button>
@@ -136,4 +149,4 @@ export default function CategoriesPage() {
   )
 }
 
-const inputClass = 'w-full px-3.5 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent transition bg-white'
+const inputClass = 'w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent transition-all bg-white'

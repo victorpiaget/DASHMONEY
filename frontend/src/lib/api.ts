@@ -1,6 +1,9 @@
 import axios from 'axios'
 
-const BASE_URL = '/api'
+// En dev (vite serve), `/api` est proxyé par vite.config.ts vers le backend.
+// En prod (bundle Tauri), pas de proxy : on cible directement le sidecar
+// uvicorn lancé par Tauri sur localhost:8000.
+const BASE_URL = import.meta.env.PROD ? 'http://localhost:8000' : '/api'
 
 export const api = axios.create({
   baseURL: BASE_URL,

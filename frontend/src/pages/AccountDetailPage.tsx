@@ -134,8 +134,8 @@ export default function AccountDetailPage() {
 
         <div className="flex items-start justify-between">
           <div>
-            <h1 className="text-2xl font-semibold text-gray-900">{account?.name ?? '…'}</h1>
-            <p className="text-sm text-gray-400 mt-0.5">
+            <h1 className="text-xl font-semibold text-gray-900">{account?.name ?? '…'}</h1>
+            <p className="text-xs text-gray-400 mt-0.5">
               {account ? (TYPE_LABELS[account.account_type] ?? account.account_type) : ''}
               {account && ` · ${account.currency}`}
             </p>
@@ -152,11 +152,11 @@ export default function AccountDetailPage() {
           <div className="text-right">
             <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Solde actuel</p>
             {balance !== null ? (
-              <p className={`text-3xl font-semibold tabular-nums ${balanceNegative ? 'text-red-600' : 'text-gray-900'}`}>
+              <p className={`text-2xl font-semibold tabular-nums tracking-tight ${balanceNegative ? 'text-red-600' : 'text-gray-900'}`}>
                 {format(balance, balanceData!.currency)}
               </p>
             ) : (
-              <div className="h-9 w-32 bg-gray-100 rounded-lg animate-pulse" />
+              <div className="h-9 w-32 bg-gray-100 rounded-xl animate-pulse" />
             )}
           </div>
         </div>
@@ -175,13 +175,13 @@ export default function AccountDetailPage() {
           <div className="flex items-center gap-2">
             <button
               onClick={() => setTransferModal(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 text-gray-700 text-xs font-medium rounded-lg hover:bg-gray-50 transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 text-gray-700 text-xs font-medium rounded-xl hover:bg-gray-50 transition-colors"
             >
               ⇄ Virement
             </button>
             <button
               onClick={() => setModal({ type: 'create' })}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg hover:bg-gray-800 transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-xl hover:bg-gray-800 active:scale-[0.98] transition-all"
             >
               <span className="text-sm leading-none">+</span>
               Nouvelle transaction
@@ -190,14 +190,14 @@ export default function AccountDetailPage() {
         </div>
 
         {/* Barre de filtres */}
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-4 py-3 mb-3 flex flex-wrap items-center gap-3">
+        <div className="bg-white rounded-xl border border-gray-100 px-4 py-3 mb-3 flex flex-wrap items-center gap-3">
           {/* Recherche */}
           <input
             type="text"
             placeholder="Rechercher…"
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            className="px-3 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent transition bg-white w-44"
+            className="px-3 py-1.5 rounded-xl border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent transition bg-white w-44"
           />
 
           {/* Type (toggles) */}
@@ -208,7 +208,7 @@ export default function AccountDetailPage() {
                 <button
                   key={k}
                   onClick={() => toggleKind(k)}
-                  className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
+                  className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-all hover:shadow-sm ${
                     active
                       ? k === 'EXPENSE'
                         ? 'bg-red-50 border-red-200 text-red-700'
@@ -228,7 +228,7 @@ export default function AccountDetailPage() {
           <select
             value={selectedCategory}
             onChange={(e) => { setSelectedCategory(e.target.value); setSelectedSubcategory('') }}
-            className="px-3 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent transition bg-white"
+            className="px-3 py-1.5 rounded-xl border border-gray-200 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent transition bg-white"
           >
             <option value="">Toutes catégories</option>
             {categories.map((c) => (
@@ -241,7 +241,7 @@ export default function AccountDetailPage() {
             <select
               value={selectedSubcategory}
               onChange={(e) => setSelectedSubcategory(e.target.value)}
-              className="px-3 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent transition bg-white"
+              className="px-3 py-1.5 rounded-xl border border-gray-200 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent transition bg-white"
             >
               <option value="">Toutes sous-catégories</option>
               {availableSubcategories.map((s) => (
@@ -285,13 +285,13 @@ export default function AccountDetailPage() {
             <div className="w-6 h-6 border-2 border-gray-200 border-t-gray-700 rounded-full animate-spin" />
           </div>
         ) : transactions.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-dashed border-gray-200 p-12 text-center">
-            <p className="text-sm text-gray-400">
+          <div className="bg-white rounded-xl border border-dashed border-gray-200 p-12 text-center">
+            <p className="text-xs text-gray-400">
               {hasActiveFilters ? 'Aucun résultat pour ces filtres.' : 'Aucune transaction pour ce compte.'}
             </p>
           </div>
         ) : (
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
             <table className="w-full">
               <thead>
                 <tr className="border-b border-gray-50">
@@ -397,7 +397,7 @@ function TransactionRow({
         {tx.label ?? '—'}
       </td>
       <td className="px-6 py-3.5">
-        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${KIND_COLORS[tx.kind] ?? 'bg-gray-100 text-gray-600'}`}>
+        <span className={`inline-flex items-center px-2 py-0.5 rounded-lg text-xs font-medium ${KIND_COLORS[tx.kind] ?? 'bg-gray-100 text-gray-600'}`}>
           {KIND_LABELS[tx.kind] ?? tx.kind}
         </span>
       </td>
@@ -506,8 +506,8 @@ function TransactionModal({ mode, currency, categories, onClose, onSubmit, isLoa
     <div className="fixed inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center z-50" onClick={onClose}>
       <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
-          <button onClick={onClose} className="text-gray-300 hover:text-gray-500 text-xl leading-none">×</button>
+          <h2 className="text-xl font-semibold text-gray-900">{title}</h2>
+          <button onClick={onClose} className="text-gray-300 hover:text-gray-500 text-xl leading-none transition-colors">×</button>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -520,7 +520,7 @@ function TransactionModal({ mode, currency, categories, onClose, onSubmit, isLoa
                   key={k}
                   type="button"
                   onClick={() => setKind(k)}
-                  className={`py-2 rounded-lg text-xs font-medium border transition-colors ${
+                  className={`py-2 rounded-lg text-xs font-medium border transition-all hover:shadow-sm ${
                     kind === k
                       ? k === 'EXPENSE'
                         ? 'bg-red-50 border-red-200 text-red-700'
@@ -617,21 +617,21 @@ function TransactionModal({ mode, currency, categories, onClose, onSubmit, isLoa
           </div>
 
           {error && (
-            <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>
+            <p className="text-xs text-red-600 bg-red-50 rounded-xl px-3 py-2">{error}</p>
           )}
 
           <div className="flex gap-3 pt-2">
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 py-2.5 px-4 border border-gray-200 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors"
+              className="flex-1 py-2.5 px-4 border border-gray-200 text-gray-700 text-sm font-medium rounded-xl hover:bg-gray-50 transition-colors"
             >
               Annuler
             </button>
             <button
               type="submit"
               disabled={isLoading}
-              className="flex-1 py-2.5 px-4 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-800 disabled:opacity-50 transition-colors"
+              className="flex-1 py-2.5 px-4 bg-gray-900 text-white text-sm font-medium rounded-xl hover:bg-gray-800 active:scale-[0.98] disabled:opacity-50 transition-all"
             >
               {isLoading ? submittingLabel : submitLabel}
             </button>
@@ -642,7 +642,7 @@ function TransactionModal({ mode, currency, categories, onClose, onSubmit, isLoa
   )
 }
 
-const inputClass = 'w-full px-3.5 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent transition bg-white'
+const inputClass = 'w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent transition bg-white'
 
 interface TransferModalProps {
   fromAccountId: string
@@ -683,8 +683,8 @@ function TransferModal({ fromCurrency, accounts, onClose, onSubmit, isLoading, e
     <div className="fixed inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center z-50" onClick={onClose}>
       <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-lg font-semibold text-gray-900">Nouveau virement</h2>
-          <button onClick={onClose} className="text-gray-300 hover:text-gray-500 text-xl leading-none">×</button>
+          <h2 className="text-xl font-semibold text-gray-900">Nouveau virement</h2>
+          <button onClick={onClose} className="text-gray-300 hover:text-gray-500 text-xl leading-none transition-colors">×</button>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -755,21 +755,21 @@ function TransferModal({ fromCurrency, accounts, onClose, onSubmit, isLoading, e
           </div>
 
           {error && (
-            <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>
+            <p className="text-xs text-red-600 bg-red-50 rounded-xl px-3 py-2">{error}</p>
           )}
 
           <div className="flex gap-3 pt-2">
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 py-2.5 px-4 border border-gray-200 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors"
+              className="flex-1 py-2.5 px-4 border border-gray-200 text-gray-700 text-sm font-medium rounded-xl hover:bg-gray-50 transition-colors"
             >
               Annuler
             </button>
             <button
               type="submit"
               disabled={isLoading}
-              className="flex-1 py-2.5 px-4 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-800 disabled:opacity-50 transition-colors"
+              className="flex-1 py-2.5 px-4 bg-gray-900 text-white text-sm font-medium rounded-xl hover:bg-gray-800 active:scale-[0.98] disabled:opacity-50 transition-all"
             >
               {isLoading ? 'Enregistrement…' : 'Créer le virement'}
             </button>

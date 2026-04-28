@@ -47,6 +47,7 @@ def _import_models() -> None:
     from app.repositories import sql_price_repository  # noqa: F401
     from app.repositories import sql_identity_models  # noqa: F401
     from app.repositories import sql_category_repository  # noqa: F401
+    from app.repositories import sql_budget_envelope_repository  # noqa: F401
 
 
 def _seed_default_identity() -> None:
@@ -209,7 +210,8 @@ def db_url() -> str:
     url = os.getenv("DASHMONEY_TEST_DATABASE_URL", "").strip()
     if not url:
         raise RuntimeError(
-            "Set DASHMONEY_TEST_DATABASE_URL to a dedicated Postgres test database."
+            "Set DASHMONEY_TEST_DATABASE_URL : "
+            "Postgres ('postgresql+psycopg://...') ou SQLite ('sqlite:///./test.db')."
         )
 
     os.environ["DASHMONEY_DATABASE_URL"] = url
@@ -233,14 +235,29 @@ def db_schema(db_engine) -> None:
 
 @pytest.fixture(autouse=True)
 def db_reset(db_engine) -> None:
-    table_names = [f'"{t.name}"' for t in Base.metadata.sorted_tables]
-    if table_names:
+    dialect = db_engine.dialect.name
+    sorted_tables = list(Base.metadata.sorted_tables)
+    if not sorted_tables:
+        _seed_default_identity()
+        return
+
+    if dialect == "postgresql":
+        table_names = [f'"{t.name}"' for t in sorted_tables]
         with db_engine.begin() as conn:
             conn.execute(
-                text(
-                    f"TRUNCATE {', '.join(table_names)} RESTART IDENTITY CASCADE"
-                )
+                text(f"TRUNCATE {', '.join(table_names)} RESTART IDENTITY CASCADE")
             )
+    elif dialect == "sqlite":
+        # SQLite n'a pas TRUNCATE CASCADE : on désactive les FK puis DELETE
+        # dans l'ordre inverse de création (sécurité supplémentaire).
+        with db_engine.begin() as conn:
+            conn.exec_driver_sql("PRAGMA foreign_keys = OFF")
+            for table in reversed(sorted_tables):
+                conn.execute(text(f'DELETE FROM "{table.name}"'))
+            conn.exec_driver_sql("PRAGMA foreign_keys = ON")
+    else:
+        raise RuntimeError(f"Dialect non supporté pour les tests : {dialect}")
+
     _seed_default_identity()
 
 

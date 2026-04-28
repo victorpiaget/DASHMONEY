@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom'
 import { usePortfoliosCompare } from '../hooks/usePortfolios'
 import { useCurrency } from '../context/CurrencyContext'
 import PeriodPicker, { type PeriodSelection, resolveDates } from '../components/PeriodPicker'
-import type { PortfolioCompareItem } from '../lib/portfoliosApi'
 
 // ── Couleurs par portefeuille ───────────────────────────────────────────────
 
@@ -142,7 +141,7 @@ function CompareChart({ series, mode }: { series: Series[]; mode: 'value' | 'pnl
 
       {/* Tooltip partagé */}
       {hoveredDate && hovData.length > 0 && (
-        <div className="absolute top-2 left-1/2 -translate-x-1/2 bg-gray-900 text-white rounded-xl shadow-xl px-4 py-3 text-xs pointer-events-none z-10 min-w-[180px]">
+        <div className="absolute top-2 left-1/2 -translate-x-1/2 bg-gray-900 text-white rounded-xl shadow-lg px-4 py-3 text-xs pointer-events-none z-10 min-w-[180px]">
           <p className="text-gray-400 text-center mb-2 font-medium">{fmtDate(hoveredDate)}</p>
           <div className="space-y-1.5">
             {hovData.map(({ series: sr, pt }) => pt && (
@@ -244,9 +243,9 @@ export default function PortfoliosComparePage() {
           { label: 'P&L total', value: (totals.pnl >= 0 ? '+' : '') + format(totals.pnl.toFixed(2), 'EUR'), color: totals.pnl >= 0 ? 'text-emerald-600' : 'text-red-600' },
           { label: 'Performance', value: (totals.pnlPct >= 0 ? '+' : '') + totals.pnlPct.toFixed(2) + '%', color: totals.pnlPct >= 0 ? 'text-emerald-600' : 'text-red-600' },
         ].map(({ label, value, color }) => (
-          <div key={label} className="bg-white rounded-xl border border-gray-100 shadow-sm px-4 py-3">
+          <div key={label} className="rounded-xl border border-gray-100 px-5 py-4 hover:shadow-sm transition-shadow">
             <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider">{label}</p>
-            <p className={`text-lg font-semibold tabular-nums mt-1 ${color}`}>
+            <p className={`text-[22px] font-semibold tabular-nums tracking-tight mt-2 ${color}`}>
               {isLoading ? '—' : value}
             </p>
           </div>
@@ -257,7 +256,7 @@ export default function PortfoliosComparePage() {
       <div className="flex-1 min-h-0 grid grid-cols-5 gap-4">
 
         {/* Graphique multi-lignes */}
-        <div className="col-span-3 bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex flex-col min-h-0">
+        <div className="col-span-3 rounded-xl border border-gray-100 p-4 flex flex-col min-h-0">
           <div className="flex-none flex items-center justify-between mb-3">
             <p className="text-xs font-medium text-gray-500">
               {chartView === 'value' ? 'Évolution de la valeur' : chartView === 'pnl' ? 'Évolution du P&L (€)' : 'Évolution du P&L (%)'}
@@ -288,7 +287,7 @@ export default function PortfoliosComparePage() {
         </div>
 
         {/* Tableau comparatif */}
-        <div className="col-span-2 bg-white rounded-2xl border border-gray-100 shadow-sm flex flex-col overflow-hidden min-h-0">
+        <div className="col-span-2 rounded-xl border border-gray-100 flex flex-col overflow-hidden min-h-0">
           <div className="flex-none px-4 py-3 border-b border-gray-50">
             <p className="text-xs font-medium text-gray-500">Récapitulatif</p>
           </div>
@@ -304,15 +303,15 @@ export default function PortfoliosComparePage() {
                 <p className="text-xs">Aucun portefeuille avec des snapshots</p>
               </div>
             ) : (
-              <table className="w-full text-xs">
-                <thead className="sticky top-0 bg-white border-b border-gray-50">
+              <table className="w-full text-xs divide-y divide-gray-50">
+                <thead className="sticky top-0 bg-gray-50 border-b border-gray-50">
                   <tr>
-                    <th className="text-left text-gray-400 font-medium py-2.5 px-4">Portefeuille</th>
-                    <th className="text-right text-gray-400 font-medium py-2.5 px-3">Valeur</th>
-                    <th className="text-right text-gray-400 font-medium py-2.5 px-4">P&L</th>
+                    <th className="text-left text-[10px] uppercase tracking-wider text-gray-400 font-medium py-2.5 px-4">Portefeuille</th>
+                    <th className="text-right text-[10px] uppercase tracking-wider text-gray-400 font-medium py-2.5 px-3">Valeur</th>
+                    <th className="text-right text-[10px] uppercase tracking-wider text-gray-400 font-medium py-2.5 px-4">P&L</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-gray-50">
                   {items.map((item, i) => {
                     const val = convert(item.current_value, item.currency)
                     const inv = convert(item.net_invested, item.currency)
@@ -320,7 +319,7 @@ export default function PortfoliosComparePage() {
                     const pnlPct = inv > 0 ? (pnl / inv) * 100 : 0
                     const color = PALETTE[i % PALETTE.length]
                     return (
-                      <tr key={item.portfolio_id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
+                      <tr key={item.portfolio_id} className="hover:bg-gray-50 transition-colors">
                         <td className="py-3 px-4">
                           <div className="flex items-center gap-2">
                             <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
@@ -350,9 +349,9 @@ export default function PortfoliosComparePage() {
                     )
                   })}
                 </tbody>
-                <tfoot className="sticky bottom-0 bg-white border-t border-gray-100">
+                <tfoot className="sticky bottom-0 bg-gray-50 border-t border-gray-100">
                   <tr>
-                    <td className="py-3 px-4 font-semibold text-gray-700">Total</td>
+                    <td className="py-3 px-4 font-semibold text-gray-900">Total</td>
                     <td className="py-3 px-3 text-right tabular-nums font-semibold text-gray-900">
                       {format(totals.totalValue.toFixed(2), 'EUR')}
                     </td>

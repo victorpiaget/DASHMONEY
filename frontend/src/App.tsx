@@ -24,6 +24,7 @@ import TransactionsPage from './pages/TransactionsPage'
 import PortfoliosComparePage from './pages/PortfoliosComparePage'
 import WorkspaceOverviewPage from './pages/WorkspaceOverviewPage'
 import ImportPage from './pages/ImportPage'
+import BudgetPage from './pages/BudgetPage'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -120,6 +121,7 @@ export default function App() {
                   <Route path="accounts/:id/analyse" element={<AccountAnalysisPage />} />
                   <Route path="transfers" element={<TransfersPage />} />
                   <Route path="categories" element={<CategoriesPage />} />
+                  <Route path="budget" element={<BudgetPage />} />
                   <Route path="portfolios" element={<PortfoliosPage />} />
                   <Route path="portfolios/:id" element={<PortfolioDetailPage />} />
                   <Route path="portfolios/:id/analyse" element={<PortfolioAnalysisPage />} />

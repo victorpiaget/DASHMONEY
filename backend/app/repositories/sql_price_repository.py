@@ -3,11 +3,12 @@ from __future__ import annotations
 import datetime as dt
 from decimal import Decimal
 
-from sqlalchemy import Date, DateTime, Integer, Numeric, String, select, ForeignKey
+from sqlalchemy import Date, Integer, Numeric, String, select, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import init_db, new_session
 from app.db_base import Base
+from app.db_types import UtcDateTime
 from app.domain.money import Currency
 from app.domain.price_point import PricePoint
 from app.repositories.price_repository import PriceRepository
@@ -31,7 +32,7 @@ class PricePointRow(Base):
     price: Mapped[Decimal] = mapped_column(Numeric(24, 10), nullable=False)
     currency: Mapped[str] = mapped_column(String(8), nullable=False)
     source: Mapped[str] = mapped_column(String(64), nullable=False)
-    captured_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), index=True, nullable=False)
+    captured_at: Mapped[dt.datetime] = mapped_column(UtcDateTime(), index=True, nullable=False)
 
 
 class SqlPriceRepository(PriceRepository):

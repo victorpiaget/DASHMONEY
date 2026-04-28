@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.db import init_db
+from app.db import get_database_url, init_db
 from app.api.scheduler import start_scheduler, stop_scheduler
 
 log = logging.getLogger(__name__)
@@ -34,13 +34,16 @@ from app.api.routes.me import router as me_router
 from app.api.routes.exchange_rates import router as exchange_rates_router
 from app.api.routes.transactions_global import router as transactions_global_router
 from app.api.routes.import_bank import router as import_bank_router
+from app.api.routes.budget_envelopes import router as budget_envelopes_router
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    db_url = os.getenv("DASHMONEY_DATABASE_URL", "").strip()
-    if not db_url:
-        raise RuntimeError("DASHMONEY_DATABASE_URL is required (SQL-only mode).")
+    # Délègue la résolution de l'URL à app.db.get_database_url, qui gère les
+    # deux modes : server (URL obligatoire via env) et desktop (défaut SQLite
+    # ~/.dashmoney/data.db si absente).
+    db_url = get_database_url()
+    log.info("DASHMONEY_DATABASE_URL = %s", db_url)
     init_db()
     start_scheduler()
     log.info("APScheduler started")
@@ -51,7 +54,12 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="DASHMONEY API", version="0.1.0", lifespan=lifespan)
 
-_cors_origins = [o.strip() for o in os.getenv("DASHMONEY_CORS_ORIGINS", "http://localhost:5173").split(",") if o.strip()]
+_default_cors = "http://localhost:5173"
+# En mode desktop, la WebView Tauri a une origin du type http(s)://tauri.localhost.
+# On autorise les deux variantes pour couvrir les versions Windows / WebView2.
+if os.getenv("DASHMONEY_MODE", "server").strip().lower() == "desktop":
+    _default_cors += ",http://tauri.localhost,https://tauri.localhost"
+_cors_origins = [o.strip() for o in os.getenv("DASHMONEY_CORS_ORIGINS", _default_cors).split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins,
@@ -85,3 +93,4 @@ app.include_router(me_router)
 app.include_router(exchange_rates_router)
 app.include_router(transactions_global_router)
 app.include_router(import_bank_router)
+app.include_router(budget_envelopes_router)

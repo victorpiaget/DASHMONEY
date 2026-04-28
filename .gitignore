@@ -21,3 +21,22 @@ Thumbs.db
 test.py
 
 data/
+
+# Fichiers generes par dev.ps1 / stop.ps1
+.dev-pids
+backend.log
+frontend.log
+
+# Artefacts PyInstaller / build desktop
+backend/build/
+backend/dist/
+
+# Artefacts build Rust/Tauri
+frontend/src-tauri/target/
+
+# SQLite de test local
+backend/*.db
+backend/*.db-journal
+
+# Claude Code settings locaux
+.claude/settings.local.json

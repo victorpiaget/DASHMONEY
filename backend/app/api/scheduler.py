@@ -106,10 +106,22 @@ def _catchup_job() -> None:
     except Exception as e:
         log.error("[catchup] Initialisation taux de change échouée: %s", e)
 
-    # Trouve le dernier jour snapshottté toutes tables confondues
+    # Trouve le dernier jour snapshottté toutes tables confondues.
+    # Postgres renvoie un dt.date natif ; SQLite renvoie une str (ex. "2026-04-25") :
+    # on normalise dans les deux cas.
     with new_session() as s:
         row = s.execute(text("SELECT MAX(date) FROM portfolio_snapshots")).fetchone()
-    last_snapshot: dt.date | None = row[0] if row and row[0] else None
+    raw = row[0] if row and row[0] else None
+    last_snapshot: dt.date | None
+    if raw is None:
+        last_snapshot = None
+    elif isinstance(raw, dt.date):
+        last_snapshot = raw
+    else:
+        try:
+            last_snapshot = dt.date.fromisoformat(str(raw)[:10])
+        except ValueError:
+            last_snapshot = None
 
     if last_snapshot is None:
         log.info("[catchup] Aucun snapshot en base — pas de rattrapage au démarrage")

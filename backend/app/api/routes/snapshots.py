@@ -14,10 +14,12 @@ from app.api.deps import (
     get_price_repo,
     get_portfolio_snapshot_repo,
     get_profile_repo,
+    get_instrument_repo,
     get_request_context,
 )
 from app.domain.user import User
 from app.services.auto_snapshot_service import auto_snapshot_all_portfolios
+from app.services.snapshot_recompute_service import recompute_snapshots_from
 
 
 router = APIRouter(prefix="/snapshots", tags=["snapshots"])
@@ -339,3 +341,41 @@ def backfill_snapshots(
         skipped=total_skipped,
         errors=all_errors,
     )
+
+
+class RecomputeSnapshotsResult(BaseModel):
+    portfolio_id: str
+    from_date: dt.date
+    to_date: dt.date
+    deleted: int = Field(ge=0)
+    created: int = Field(ge=0)
+    skipped: int = Field(ge=0)
+    errors: list[str] = Field(default_factory=list)
+
+
+@router.post("/portfolio/{portfolio_id}/recompute", response_model=RecomputeSnapshotsResult)
+def recompute_portfolio_snapshots(
+    portfolio_id: UUID,
+    from_date: dt.date = Query(..., alias="from", description="Date de départ du recompute (incluse)"),
+    ctx=Depends(get_request_context),
+):
+    """
+    Recalcule synchroniquement tous les snapshots d'un portefeuille depuis `from_date`
+    jusqu'à aujourd'hui. À utiliser pour réparer des incohérences ou forcer un refresh
+    après un import massif.
+    """
+    if not get_profile_repo().has_profile_access(user_id=ctx.user_id, profile_id=ctx.profile_id):
+        raise HTTPException(status_code=403, detail="No access to this profile")
+
+    result = recompute_snapshots_from(
+        portfolio_id=portfolio_id,
+        from_date=from_date,
+        portfolio_repo=get_portfolio_repo(),
+        trade_repo=get_trade_repo(),
+        price_repo=get_price_repo(),
+        snapshot_repo=get_portfolio_snapshot_repo(),
+        instrument_repo=get_instrument_repo(),
+        profile_id=ctx.profile_id,
+    )
+
+    return RecomputeSnapshotsResult(**result)

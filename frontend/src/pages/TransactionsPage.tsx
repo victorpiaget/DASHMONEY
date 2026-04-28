@@ -124,9 +124,9 @@ export default function TransactionsPage() {
           { label: 'Dépenses', value: `−${format(kpis.expenses.toFixed(2), 'EUR')}`, color: 'text-red-600', raw: false },
           { label: 'Cash flow net', value: (kpis.net >= 0 ? '' : '−') + format(Math.abs(kpis.net).toFixed(2), 'EUR'), color: kpis.net >= 0 ? 'text-gray-900' : 'text-red-600', raw: false },
         ].map(({ label, value, color }) => (
-          <div key={label} className="bg-white rounded-xl border border-gray-100 shadow-sm px-4 py-3">
+          <div key={label} className="bg-white rounded-xl border border-gray-100 px-5 py-4 hover:shadow-sm transition-shadow">
             <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider">{label}</p>
-            <p className={`text-lg font-semibold tabular-nums mt-1 ${color}`}>{isLoading ? '—' : value}</p>
+            <p className={`text-[22px] font-semibold tabular-nums tracking-tight mt-2 ${color}`}>{isLoading ? '—' : value}</p>
           </div>
         ))}
       </div>
@@ -140,7 +140,7 @@ export default function TransactionsPage() {
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Rechercher…"
-            className="pl-8 pr-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 w-48"
+            className="pl-8 pr-3 py-1.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-900 w-48"
           />
           <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs">⌕</span>
         </div>
@@ -151,7 +151,7 @@ export default function TransactionsPage() {
             <button
               key={k}
               onClick={() => toggleKind(k)}
-              className={`px-2.5 py-1 text-xs font-medium rounded-full border transition-colors ${
+              className={`px-2.5 py-1 text-xs font-medium rounded-lg border transition-colors ${
                 selectedKinds.has(k)
                   ? KIND_BG[k] + ' border-transparent'
                   : 'text-gray-500 border-gray-200 hover:border-gray-300'
@@ -168,7 +168,7 @@ export default function TransactionsPage() {
             <button
               key={a.id}
               onClick={() => toggleAccount(a.id)}
-              className={`px-2.5 py-1 text-xs font-medium rounded-full border transition-colors ${
+              className={`px-2.5 py-1 text-xs font-medium rounded-lg border transition-colors ${
                 selectedAccountIds.has(a.id)
                   ? 'bg-gray-900 text-white border-transparent'
                   : 'text-gray-500 border-gray-200 hover:border-gray-300'
@@ -191,9 +191,9 @@ export default function TransactionsPage() {
       </div>
 
       {/* Table */}
-      <div className="flex-1 min-h-0 bg-white rounded-2xl border border-gray-100 shadow-sm flex flex-col overflow-hidden">
+      <div className="flex-1 min-h-0 rounded-xl border border-gray-100 bg-white flex flex-col overflow-hidden">
         <table className="w-full text-xs">
-          <thead className="sticky top-0 bg-white z-10 border-b border-gray-100">
+          <thead className="sticky top-0 bg-white z-10 border-b border-gray-50">
             <tr>
               <th
                 className="text-left text-gray-400 font-medium py-3 px-4 cursor-pointer hover:text-gray-700 select-none"
@@ -264,7 +264,7 @@ function TxRow({ tx }: { tx: GlobalTransaction }) {
   const fmtDate = new Date(tx.date + 'T00:00:00').toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: '2-digit' })
 
   return (
-    <tr className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
+    <tr className="border-b border-gray-50 hover:bg-gray-50 transition-colors text-xs">
       <td className="py-2.5 px-4 text-gray-500 whitespace-nowrap tabular-nums">{fmtDate}</td>
       <td className="py-2.5 px-3">
         <Link

@@ -1,9 +1,12 @@
 import { useState, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useNetWorthGrouped, useCashFlow, useNetWorthFullTimeseries, useNetWorthGroupedTimeseries } from '../hooks/useNetWorth'
 import { usePnlCurve } from '../hooks/usePortfolios'
+import { useAccounts } from '../hooks/useAccounts'
 import { useCurrency } from '../context/CurrencyContext'
 import { useTheme } from '../context/ThemeContext'
 import PeriodPicker, { resolveDates, type PeriodSelection } from '../components/PeriodPicker'
+import OnboardingModal from '../components/OnboardingModal'
 import type { PnlPoint } from '../lib/portfoliosApi'
 import type { NetWorthFullTimeseriesPoint, NetWorthGroupedTimeseriesGroup } from '../lib/netWorthApi'
 
@@ -17,13 +20,13 @@ function KpiCard({
   label, value, sub, positive, loading,
 }: { label: string; value: string; sub?: string; positive?: boolean; loading?: boolean }) {
   return (
-    <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-5 py-4 flex flex-col justify-between">
-      <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider">{label}</p>
+    <div className="bg-white rounded-xl border border-gray-100 px-5 py-4 flex flex-col justify-between hover:shadow-sm transition-shadow">
+      <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider leading-none">{label}</p>
       {loading ? (
-        <div className="h-7 w-28 bg-gray-100 rounded-md animate-pulse mt-2" />
+        <div className="h-7 w-28 bg-gray-100 rounded-lg animate-pulse mt-2.5" />
       ) : (
-        <p className={`text-xl font-semibold tabular-nums mt-1.5 ${
-          positive === undefined ? 'text-gray-900' : positive ? 'text-emerald-600' : 'text-red-600'
+        <p className={`text-[22px] font-semibold tabular-nums mt-2 tracking-tight ${
+          positive === undefined ? 'text-gray-900' : positive ? 'text-emerald-600' : 'text-red-500'
         }`}>
           {value}
         </p>
@@ -481,7 +484,9 @@ function PatrimoineChart({ fullPoints, groups }: {
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
+  const navigate = useNavigate()
   const { format } = useCurrency()
+  const { data: accounts = [], isLoading: accountsLoading } = useAccounts()
   const { data: nw, isLoading: nwLoading } = useNetWorthGrouped()
   const { data: pnlData = [], isLoading: pnlLoading } = usePnlCurve()
   const { data: cf, isLoading: cfLoading } = useCashFlow()
@@ -490,6 +495,11 @@ export default function DashboardPage() {
   const { from: nwFrom, to: nwTo } = resolveDates(nwPeriod, '2015-01-01')
   const { data: nwTs, isLoading: nwTsLoading } = useNetWorthFullTimeseries(nwFrom, nwTo)
   const { data: nwGrouped, isLoading: nwGroupedLoading } = useNetWorthGroupedTimeseries(nwFrom, nwTo)
+
+  // Onboarding modal
+  const [showOnboarding, setShowOnboarding] = useState(
+    () => localStorage.getItem('dashmoney_onboarding') === 'true'
+  )
 
   const currency = nw?.currency ?? 'EUR'
   const lastPnl = pnlData.length > 0 ? pnlData[pnlData.length - 1] : null
@@ -515,8 +525,14 @@ export default function DashboardPage() {
   }
   const monthLabel = cf ? fmtMonth(cf.current.month) : ''
 
+  // Empty state : aucun compte créé
+  const isEmpty = !accountsLoading && accounts.length === 0
+
   return (
     <div className="h-full flex flex-col p-6 gap-4 overflow-hidden">
+
+      {/* Onboarding modal */}
+      {showOnboarding && <OnboardingModal onClose={() => setShowOnboarding(false)} />}
 
       {/* Header */}
       <div className="flex-none flex items-baseline justify-between">
@@ -558,8 +574,56 @@ export default function DashboardPage() {
         />
       </div>
 
+      {/* Empty state — affiché quand aucun compte n'existe */}
+      {isEmpty && !showOnboarding && (
+        <div className="flex-1 min-h-0 flex items-center justify-center">
+          <div className="text-center max-w-md">
+            <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gray-50 dark:bg-slate-700/50 flex items-center justify-center">
+              <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="2" y="5" width="20" height="14" rx="2" />
+                <line x1="2" y1="10" x2="22" y2="10" />
+              </svg>
+            </div>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100 mb-2">
+              Commencez à suivre votre patrimoine
+            </h2>
+            <p className="text-sm text-gray-500 dark:text-slate-400 leading-relaxed mb-8">
+              Créez votre premier compte et importez vos transactions pour voir votre dashboard prendre vie.
+            </p>
+
+            <div className="space-y-3 text-left max-w-xs mx-auto mb-8">
+              <GettingStartedItem
+                done={false}
+                label="Créer un compte"
+                description="Courant, épargne ou investissement"
+                onClick={() => navigate('/accounts')}
+              />
+              <GettingStartedItem
+                done={false}
+                label="Importer des transactions"
+                description="CSV Boursorama, BNP, SG, CA…"
+                onClick={() => navigate('/import')}
+              />
+              <GettingStartedItem
+                done={false}
+                label="Explorer le dashboard"
+                description="Graphiques, KPIs, répartition"
+                disabled
+              />
+            </div>
+
+            <button
+              onClick={() => navigate('/accounts')}
+              className="py-3 px-6 bg-gray-900 dark:bg-slate-200 text-white dark:text-slate-900 text-sm font-medium rounded-xl hover:bg-gray-800 dark:hover:bg-slate-300 transition-colors"
+            >
+              Créer mon premier compte
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Main grid — fills remaining height */}
-      <div className="flex-1 min-h-0 grid grid-cols-5 gap-4">
+      {!isEmpty && <div className="flex-1 min-h-0 grid grid-cols-5 gap-4">
 
         {/* Répartition — 2/5 */}
         <div className="col-span-2 bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex flex-col min-h-0">
@@ -668,7 +732,50 @@ export default function DashboardPage() {
           </div>
         </div>
 
-      </div>
+      </div>}
     </div>
+  )
+}
+
+// ── Getting Started Item ──────────────────────────────────────────────────────
+
+function GettingStartedItem({
+  done, label, description, onClick, disabled,
+}: { done: boolean; label: string; description: string; onClick?: () => void; disabled?: boolean }) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className={`w-full flex items-center gap-4 p-3 rounded-xl border transition-all text-left ${
+        disabled
+          ? 'border-gray-100 dark:border-slate-700 opacity-50 cursor-default'
+          : done
+            ? 'border-emerald-200 dark:border-emerald-800 bg-emerald-50/50 dark:bg-emerald-900/10'
+            : 'border-gray-200 dark:border-slate-600 hover:border-gray-400 dark:hover:border-slate-400 hover:shadow-sm cursor-pointer'
+      }`}
+    >
+      <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+        done
+          ? 'bg-emerald-100 dark:bg-emerald-900/30'
+          : 'bg-gray-100 dark:bg-slate-700'
+      }`}>
+        {done ? (
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M20 6L9 17l-5-5" />
+          </svg>
+        ) : (
+          <div className="w-2 h-2 rounded-full bg-gray-300 dark:bg-slate-500" />
+        )}
+      </div>
+      <div className="min-w-0">
+        <p className={`text-sm font-medium ${done ? 'text-emerald-700 dark:text-emerald-400' : 'text-gray-900 dark:text-slate-100'}`}>
+          {label}
+        </p>
+        <p className="text-xs text-gray-400 dark:text-slate-500">{description}</p>
+      </div>
+      {!disabled && !done && (
+        <span className="text-gray-300 dark:text-slate-600 ml-auto flex-shrink-0">→</span>
+      )}
+    </button>
   )
 }

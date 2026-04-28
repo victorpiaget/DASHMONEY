@@ -453,7 +453,7 @@ export default function AccountAnalysisPage() {
           { label: 'Dépenses (période)', value: budget ? format(expense, currency) : null, color: 'text-red-600' },
           { label: 'Cash flow net', value: budget ? format(netFlow, currency) : null, color: parseFloat(netFlow) >= 0 ? 'text-gray-900' : 'text-red-600' },
         ].map(({ label, value, color }) => (
-          <div key={label} className="bg-white rounded-xl border border-gray-100 shadow-sm px-4 py-3">
+          <div key={label} className="rounded-xl border border-gray-100 px-5 py-4 hover:shadow-sm transition-shadow">
             <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider">{label}</p>
             {value !== null
               ? <p className={`text-lg font-semibold tabular-nums mt-1 ${color}`}>{value}</p>
@@ -470,7 +470,7 @@ export default function AccountAnalysisPage() {
         <div className="col-span-3 flex flex-col gap-4 min-h-0">
 
           {/* Évolution du solde */}
-          <div className="flex-1 min-h-0 bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex flex-col">
+          <div className="flex-1 min-h-0 rounded-xl border border-gray-100 p-4 flex flex-col">
             <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-2 flex-none">
               Évolution du solde
             </p>
@@ -488,7 +488,7 @@ export default function AccountAnalysisPage() {
           </div>
 
           {/* Revenus & dépenses par mois */}
-          <div className="flex-none bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+          <div className="flex-none rounded-xl border border-gray-100 p-4">
             <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-2">
               Revenus & dépenses par mois
             </p>
@@ -506,7 +506,7 @@ export default function AccountAnalysisPage() {
         </div>
 
         {/* Right — cashflow */}
-        <div className="col-span-2 bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex flex-col min-h-0">
+        <div className="col-span-2 rounded-xl border border-gray-100 p-4 flex flex-col min-h-0">
           {budgetLoading ? (
             <div className="space-y-2">
               {[1, 2, 3, 4, 5].map((i) => <div key={i} className="h-8 bg-gray-50 rounded-lg animate-pulse" />)}

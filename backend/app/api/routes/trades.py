@@ -2,10 +2,14 @@ from __future__ import annotations
 
 import datetime as dt
 from decimal import Decimal
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from uuid import UUID
 
-from app.api.deps import get_portfolio_repo, get_instrument_repo, get_trade_repo, get_account_repo, get_tx_repo, get_request_context, get_write_context
+from app.api.deps import (
+    get_portfolio_repo, get_instrument_repo, get_trade_repo, get_account_repo,
+    get_tx_repo, get_request_context, get_write_context,
+    get_portfolio_snapshot_repo, get_price_repo,
+)
 from app.api.schemas.trades import TradeCreate, TradeOut, PositionOut, TradePatch
 from app.domain.trade import Trade, TradeSide
 from app.domain.transaction import Transaction, TransactionKind
@@ -13,6 +17,28 @@ from app.domain.signed_money import SignedMoney
 from app.engine.portfolio_positions import compute_positions
 from app.engine.trade_query import TradeQuery, apply_trade_query
 from app.identity.request_context import RequestContext
+from app.services.snapshot_recompute_service import recompute_snapshots_from
+
+
+def _schedule_recompute(
+    background: BackgroundTasks,
+    *,
+    portfolio_id: UUID,
+    from_date: dt.date,
+    profile_id: str,
+) -> None:
+    """Planifie un recompute async des snapshots après une mutation de trade."""
+    background.add_task(
+        recompute_snapshots_from,
+        portfolio_id=portfolio_id,
+        from_date=from_date,
+        portfolio_repo=get_portfolio_repo(),
+        trade_repo=get_trade_repo(),
+        price_repo=get_price_repo(),
+        snapshot_repo=get_portfolio_snapshot_repo(),
+        instrument_repo=get_instrument_repo(),
+        profile_id=profile_id,
+    )
 
 
 router = APIRouter(prefix="/portfolios/{portfolio_id}/trades", tags=["trades"])
@@ -63,6 +89,7 @@ def _create_cash_mirror_tx(
 def create_trade(
     portfolio_id: UUID,
     payload: TradeCreate,
+    background: BackgroundTasks,
     ctx: RequestContext = Depends(get_write_context),
 ) -> TradeOut:
     p_repo = get_portfolio_repo()
@@ -124,6 +151,14 @@ def create_trade(
         raise HTTPException(status_code=422, detail=str(e))
 
     t_repo.add(trade, profile_id=ctx.profile_id)
+
+    _schedule_recompute(
+        background,
+        portfolio_id=p.id,
+        from_date=trade.date,
+        profile_id=ctx.profile_id,
+    )
+
     return _trade_to_out(trade)
 
 
@@ -165,6 +200,7 @@ def patch_trade(
     portfolio_id: UUID,
     trade_id: UUID,
     payload: TradePatch,
+    background: BackgroundTasks,
     ctx: RequestContext = Depends(get_write_context),
 ) -> TradeOut:
     p_repo = get_portfolio_repo()
@@ -235,6 +271,16 @@ def patch_trade(
     patch["currency"] = p.currency
 
     updated = t_repo.update(trade_id=trade_id, patch=patch, profile_id=ctx.profile_id)
+
+    # Recompute depuis la plus ancienne des deux dates (ancienne + nouvelle)
+    recompute_from = min(base.date, updated.date)
+    _schedule_recompute(
+        background,
+        portfolio_id=p.id,
+        from_date=recompute_from,
+        profile_id=ctx.profile_id,
+    )
+
     return _trade_to_out(updated)
 
 
@@ -242,6 +288,7 @@ def patch_trade(
 def delete_trade(
     portfolio_id: UUID,
     trade_id: UUID,
+    background: BackgroundTasks,
     ctx: RequestContext = Depends(get_write_context),
 ) -> None:
     p_repo = get_portfolio_repo()
@@ -269,6 +316,13 @@ def delete_trade(
             get_tx_repo().delete(account_id=p.cash_account_id, tx_id=trade.linked_cash_tx_id, profile_id=ctx.profile_id)
         except Exception:
             pass
+
+    _schedule_recompute(
+        background,
+        portfolio_id=p.id,
+        from_date=trade.date,
+        profile_id=ctx.profile_id,
+    )
 
 
 pos_router = APIRouter(prefix="/portfolios/{portfolio_id}", tags=["positions"])

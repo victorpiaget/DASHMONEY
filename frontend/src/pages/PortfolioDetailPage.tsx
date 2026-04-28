@@ -25,13 +25,13 @@ const SIDE_COLORS: Record<string, string> = {
 function TradeSideBadge({ trade }: { trade: Trade }) {
   if (trade.trade_type === 'TRANSFER') {
     return (
-      <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-blue-50 text-blue-600">
+      <span className="px-2.5 py-1 rounded-md text-[10px] font-semibold bg-blue-50 text-blue-600">
         {trade.side === 'BUY' ? '→ Reçu' : '→ Envoyé'}
       </span>
     )
   }
   return (
-    <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${SIDE_COLORS[trade.side]}`}>
+    <span className={`px-2.5 py-1 rounded-md text-[10px] font-semibold ${SIDE_COLORS[trade.side]}`}>
       {trade.side === 'BUY' ? 'Achat' : 'Vente'}
     </span>
   )
@@ -102,6 +102,7 @@ export default function PortfolioDetailPage() {
   const [importError, setImportError] = useState('')
   const [isDragOver, setIsDragOver] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
 
   const handleImportDrop = (e: DragEvent<HTMLDivElement>) => {
     e.preventDefault(); setIsDragOver(false)
@@ -223,25 +224,25 @@ export default function PortfolioDetailPage() {
   return (
     <div className="p-8">
       {/* Header */}
-      <div className="mb-6">
-        <Link to="/portfolios" className="text-xs text-gray-400 hover:text-gray-700 transition-colors mb-4 inline-block">
+      <div className="mb-8">
+        <Link to="/portfolios" className="text-xs text-gray-400 hover:text-gray-600 transition-colors mb-4 inline-block">
           ← Portefeuilles
         </Link>
         <div className="flex items-start justify-between">
           <div>
-            <div className="flex items-center gap-2 mb-1">
-              <h1 className="text-2xl font-semibold text-gray-900">{portfolio?.name ?? '…'}</h1>
+            <div className="flex items-center gap-3 mb-2">
+              <h1 className="text-xl font-semibold text-gray-900">{portfolio?.name ?? '…'}</h1>
               {portfolio && (
-                <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-md ${TYPE_COLORS[portfolio.portfolio_type] ?? TYPE_COLORS.OTHER}`}>
+                <span className={`text-[10px] font-semibold px-2.5 py-1 rounded-md ${TYPE_COLORS[portfolio.portfolio_type] ?? TYPE_COLORS.OTHER}`}>
                   {TYPE_LABELS[portfolio.portfolio_type] ?? portfolio.portfolio_type}
                 </span>
               )}
             </div>
-            <p className="text-sm text-gray-400">{portfolio?.currency} · {positions.length} position{positions.length !== 1 ? 's' : ''}</p>
+            <p className="text-xs text-gray-500">{portfolio?.currency} · {positions.length} position{positions.length !== 1 ? 's' : ''}</p>
           </div>
           <Link
             to={`/portfolios/${id}/analyse`}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 text-gray-600 text-xs font-medium rounded-lg hover:bg-gray-200 transition-colors"
+            className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white text-xs font-medium rounded-xl hover:bg-gray-800 active:scale-[0.98] transition-all"
           >
             Analyse →
           </Link>
@@ -250,16 +251,16 @@ export default function PortfolioDetailPage() {
 
       {/* Positions actuelles */}
       {positions.length > 0 && (
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm mb-6">
-          <div className="px-5 py-4 border-b border-gray-50">
+        <div className="rounded-xl border border-gray-100 bg-white mb-8">
+          <div className="px-6 py-4 border-b border-gray-100">
             <h2 className="text-sm font-medium text-gray-900">Positions actuelles</h2>
           </div>
-          <div className="px-5 py-3 flex flex-wrap gap-2">
+          <div className="px-6 py-4 flex flex-wrap gap-2">
             {positions.map((pos) => (
               <div key={pos.instrument_symbol} className="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-1.5">
                 <span className="text-xs font-semibold text-gray-800">{instLabel(instruments, pos.instrument_symbol)}</span>
                 <span className="text-xs text-gray-400 font-mono text-[10px]">{pos.instrument_symbol}</span>
-                <span className="text-xs text-gray-500">{formatNum(pos.quantity, 6)}</span>
+                <span className="text-xs text-gray-500 tabular-nums tracking-tight">{formatNum(pos.quantity, 6)}</span>
               </div>
             ))}
           </div>
@@ -268,7 +269,7 @@ export default function PortfolioDetailPage() {
 
       {/* Trades */}
       <div>
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center justify-between mb-5">
           <h2 className="text-sm font-medium text-gray-900">
             Trades
             {trades.length > 0 && <span className="ml-2 text-xs font-normal text-gray-400">{trades.length}</span>}
@@ -276,13 +277,13 @@ export default function PortfolioDetailPage() {
           <div className="flex items-center gap-2">
             <button
               onClick={() => setShowImport(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 text-gray-600 text-xs font-medium rounded-lg hover:bg-gray-50 transition-colors"
+              className="flex items-center gap-1.5 px-4 py-2 bg-white border border-gray-200 text-gray-700 text-xs font-medium rounded-xl hover:bg-gray-50 active:scale-[0.98] transition-all"
             >
               ↑ Importer CSV
             </button>
             <button
               onClick={openCreate}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg hover:bg-gray-800 transition-colors"
+              className="flex items-center gap-1.5 px-4 py-2 bg-gray-900 text-white text-xs font-medium rounded-xl hover:bg-gray-800 active:scale-[0.98] transition-all"
             >
               <span className="text-sm leading-none">+</span>
               Nouveau trade
@@ -291,17 +292,17 @@ export default function PortfolioDetailPage() {
         </div>
 
         {/* Filtres */}
-        <div className="flex flex-wrap gap-2 mb-4">
+        <div className="flex flex-wrap gap-2 mb-5">
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Rechercher…"
-            className="border border-gray-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-gray-900 w-44"
+            className="border border-gray-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-gray-900 w-44"
           />
           <select
             value={sideFilter}
             onChange={(e) => setSideFilter(e.target.value as TradeSide | '')}
-            className="border border-gray-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-gray-900"
+            className="border border-gray-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-gray-900"
           >
             <option value="">Tous les sens</option>
             <option value="BUY">Achat</option>
@@ -311,7 +312,7 @@ export default function PortfolioDetailPage() {
             <select
               value={symbolFilter}
               onChange={(e) => setSymbolFilter(e.target.value)}
-              className="border border-gray-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-gray-900"
+              className="border border-gray-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-gray-900"
             >
               <option value="">Tous les instruments</option>
               {symbols.map((s) => <option key={s} value={s}>{s}</option>)}
@@ -320,7 +321,7 @@ export default function PortfolioDetailPage() {
         </div>
 
         {/* Table */}
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="rounded-xl border border-gray-100 bg-white overflow-hidden">
           {tradesLoading ? (
             <div className="flex justify-center py-12">
               <div className="w-5 h-5 border-2 border-gray-200 border-t-gray-700 rounded-full animate-spin" />
@@ -333,7 +334,7 @@ export default function PortfolioDetailPage() {
           ) : (
             <table className="w-full text-xs">
               <thead>
-                <tr className="border-b border-gray-50">
+                <tr className="border-b border-gray-100">
                   {([
                     ['date', 'Date'],
                     ['side', 'Sens'],
@@ -345,14 +346,14 @@ export default function PortfolioDetailPage() {
                     <th
                       key={col}
                       onClick={() => handleSort(col)}
-                      className="px-4 py-3 text-left font-medium text-gray-400 cursor-pointer hover:text-gray-700 transition-colors select-none"
+                      className="px-6 py-4 text-left text-[10px] uppercase tracking-wider font-medium text-gray-400 cursor-pointer hover:text-gray-600 transition-colors select-none"
                     >
                       {label}{sortIcon(col)}
                     </th>
                   ))}
-                  <th className="px-4 py-3 text-right font-medium text-gray-400">Total</th>
-                  <th className="px-4 py-3 text-left font-medium text-gray-400">Libellé</th>
-                  <th className="px-4 py-3" />
+                  <th className="px-6 py-4 text-right text-[10px] uppercase tracking-wider font-medium text-gray-400">Total</th>
+                  <th className="px-6 py-4 text-left text-[10px] uppercase tracking-wider font-medium text-gray-400">Libellé</th>
+                  <th className="px-6 py-4" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -360,24 +361,24 @@ export default function PortfolioDetailPage() {
                   const total = tradeTotal(t)
                   return (
                     <tr key={t.id} className="hover:bg-gray-50 group transition-colors">
-                      <td className="px-4 py-3 text-gray-600 tabular-nums">
+                      <td className="px-6 py-4 text-gray-600 tabular-nums tracking-tight">
                         {new Date(t.date + 'T00:00:00').toLocaleDateString('fr-FR')}
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-6 py-4">
                         <TradeSideBadge trade={t} />
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-6 py-4">
                         <div className="font-semibold text-gray-900 leading-tight">{instLabel(instruments, t.instrument_symbol)}</div>
                         <div className="text-[10px] text-gray-400 font-mono">{t.instrument_symbol}</div>
                       </td>
-                      <td className="px-4 py-3 text-gray-700 tabular-nums">{formatNum(t.quantity, 8)}</td>
-                      <td className="px-4 py-3 text-gray-700 tabular-nums">{format(t.price, t.currency)}</td>
-                      <td className="px-4 py-3 text-gray-500 tabular-nums">{format(t.fees, t.currency)}</td>
-                      <td className={`px-4 py-3 text-right tabular-nums font-medium ${total < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                      <td className="px-6 py-4 text-gray-700 tabular-nums tracking-tight">{formatNum(t.quantity, 8)}</td>
+                      <td className="px-6 py-4 text-gray-700 tabular-nums tracking-tight">{format(t.price, t.currency)}</td>
+                      <td className="px-6 py-4 text-gray-500 tabular-nums tracking-tight">{format(t.fees, t.currency)}</td>
+                      <td className={`px-6 py-4 text-right tabular-nums tracking-tight font-medium ${total < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
                         {format(total.toString(), t.currency)}
                       </td>
-                      <td className="px-4 py-3 text-gray-400 max-w-[160px] truncate">{t.label}</td>
-                      <td className="px-4 py-3">
+                      <td className="px-6 py-4 text-gray-400 max-w-[160px] truncate">{t.label}</td>
+                      <td className="px-6 py-4">
                         <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity justify-end">
                           <button onClick={() => openEdit(t)} className="text-gray-400 hover:text-gray-700 transition-colors text-xs">Modifier</button>
                           <button onClick={() => setConfirmDeleteId(t.id)} className="text-gray-300 hover:text-red-500 transition-colors text-xs">Suppr.</button>
@@ -395,9 +396,9 @@ export default function PortfolioDetailPage() {
       {/* Modal trade */}
       {modal && (
         <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between sticky top-0 bg-white">
-              <h2 className="text-base font-semibold text-gray-900">
+              <h2 className="text-sm font-semibold text-gray-900">
                 {modal.type === 'create' ? 'Nouveau trade' : 'Modifier le trade'}
               </h2>
               <button onClick={() => setModal(null)} className="text-gray-400 hover:text-gray-600 text-lg leading-none">×</button>
@@ -438,7 +439,7 @@ export default function PortfolioDetailPage() {
 
                 {showNewInstrument ? (
                   <div className="bg-gray-50 rounded-xl p-4 space-y-3">
-                    <p className="text-xs font-medium text-gray-600">Créer un instrument</p>
+                    <p className="text-xs font-medium text-gray-700">Créer un instrument</p>
                     <div className="grid grid-cols-3 gap-2">
                       <div>
                         <label className="text-[10px] text-gray-500 mb-1 block">Symbole</label>
@@ -446,18 +447,18 @@ export default function PortfolioDetailPage() {
                           value={newInstSymbol}
                           onChange={(e) => setNewInstSymbol(e.target.value.toUpperCase())}
                           placeholder="BTC, AAPL…"
-                          className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-gray-900"
+                          className="w-full border border-gray-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-gray-900"
                         />
                       </div>
                       <div>
                         <label className="text-[10px] text-gray-500 mb-1 block">Type</label>
-                        <select value={newInstKind} onChange={(e) => setNewInstKind(e.target.value)} className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none">
+                        <select value={newInstKind} onChange={(e) => setNewInstKind(e.target.value)} className="w-full border border-gray-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-gray-900">
                           {KIND_LABELS.map((k) => <option key={k} value={k}>{k}</option>)}
                         </select>
                       </div>
                       <div>
                         <label className="text-[10px] text-gray-500 mb-1 block">Devise</label>
-                        <select value={newInstCurrency} onChange={(e) => setNewInstCurrency(e.target.value)} className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none">
+                        <select value={newInstCurrency} onChange={(e) => setNewInstCurrency(e.target.value)} className="w-full border border-gray-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-gray-900">
                           {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
                         </select>
                       </div>
@@ -466,7 +467,7 @@ export default function PortfolioDetailPage() {
                       type="button"
                       onClick={handleCreateInstrument}
                       disabled={createInstrument.isPending}
-                      className="w-full py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg hover:bg-gray-800 disabled:opacity-60 transition-colors"
+                      className="w-full py-2 bg-gray-900 text-white text-xs font-medium rounded-xl hover:bg-gray-800 disabled:opacity-60 active:scale-[0.98] transition-all"
                     >
                       {createInstrument.isPending ? 'Création…' : 'Créer et sélectionner'}
                     </button>
@@ -482,7 +483,7 @@ export default function PortfolioDetailPage() {
                         if (inst?.currency) setPriceCurrency(inst.currency)
                       }}
                       disabled={modal.type === 'edit'}
-                      className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 disabled:bg-gray-50"
+                      className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-gray-900 disabled:bg-gray-50"
                     >
                       <option value="">— Sélectionner —</option>
                       {instruments.map((i) => (
@@ -502,7 +503,7 @@ export default function PortfolioDetailPage() {
                   type="date"
                   value={tradeDate}
                   onChange={(e) => setTradeDate(e.target.value)}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-gray-900"
                 />
               </div>
 
@@ -516,7 +517,7 @@ export default function PortfolioDetailPage() {
                   value={tradeQty}
                   onChange={(e) => setTradeQty(e.target.value)}
                   placeholder="0"
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-gray-900"
                 />
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -558,9 +559,9 @@ export default function PortfolioDetailPage() {
 
               {/* Total calculé */}
               {tradeQty && tradePrice && (
-                <div className="bg-gray-50 rounded-lg px-4 py-2.5 flex items-center justify-between">
-                  <span className="text-xs text-gray-500">Total</span>
-                  <span className={`text-sm font-semibold tabular-nums ${tradeSide === 'BUY' ? 'text-red-600' : 'text-emerald-600'}`}>
+                <div className="bg-gray-50 rounded-xl px-4 py-3 flex items-center justify-between">
+                  <span className="text-xs text-gray-600">Total</span>
+                  <span className={`text-sm font-semibold tabular-nums tracking-tight ${tradeSide === 'BUY' ? 'text-red-600' : 'text-emerald-600'}`}>
                     {(() => {
                       const sym = tradeSymbol.toUpperCase().trim()
                       const inst = instruments.find((i) => i.symbol === sym)
@@ -582,20 +583,20 @@ export default function PortfolioDetailPage() {
                   value={tradeLabel}
                   onChange={(e) => setTradeLabel(e.target.value)}
                   placeholder="Note libre…"
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-gray-900"
                 />
               </div>
 
               {tradeError && <p className="text-xs text-red-600">{tradeError}</p>}
 
-              <div className="flex justify-end gap-2 pt-1">
-                <button type="button" onClick={() => setModal(null)} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 transition-colors">
+              <div className="flex justify-end gap-2 pt-2">
+                <button type="button" onClick={() => setModal(null)} className="px-4 py-2 text-xs text-gray-600 hover:text-gray-900 transition-colors">
                   Annuler
                 </button>
                 <button
                   type="submit"
                   disabled={createTrade.isPending || patchTrade.isPending}
-                  className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-800 disabled:opacity-60 transition-colors"
+                  className="px-4 py-2 bg-gray-900 text-white text-xs font-medium rounded-xl hover:bg-gray-800 disabled:opacity-60 active:scale-[0.98] transition-all"
                 >
                   {createTrade.isPending || patchTrade.isPending ? 'Enregistrement…' : modal.type === 'create' ? 'Enregistrer' : 'Mettre à jour'}
                 </button>
@@ -608,11 +609,11 @@ export default function PortfolioDetailPage() {
       {/* Modal import CSV */}
       {showImport && (
         <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
             <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
               <div>
-                <h2 className="text-base font-semibold text-gray-900">Importer des trades</h2>
-                <p className="text-xs text-gray-400 mt-0.5">Sélectionnez la source de votre export CSV</p>
+                <h2 className="text-sm font-semibold text-gray-900">Importer des trades</h2>
+                <p className="text-xs text-gray-500 mt-1">Sélectionnez la source de votre export CSV</p>
               </div>
               <button onClick={closeImport} className="text-gray-400 hover:text-gray-600 text-lg leading-none">×</button>
             </div>
@@ -623,24 +624,24 @@ export default function PortfolioDetailPage() {
                 <div className="space-y-3">
                   <div className="grid grid-cols-2 gap-3">
                     <div className="bg-emerald-50 rounded-xl px-4 py-3 text-center">
-                      <p className="text-2xl font-bold text-emerald-700">{importResult.imported}</p>
-                      <p className="text-xs text-emerald-600 mt-0.5">trade{importResult.imported !== 1 ? 's' : ''} importé{importResult.imported !== 1 ? 's' : ''}</p>
+                      <p className="text-2xl font-bold text-emerald-700 tabular-nums tracking-tight">{importResult.imported}</p>
+                      <p className="text-xs text-emerald-600 mt-1">trade{importResult.imported !== 1 ? 's' : ''} importé{importResult.imported !== 1 ? 's' : ''}</p>
                     </div>
                     <div className="bg-gray-50 rounded-xl px-4 py-3 text-center">
-                      <p className="text-2xl font-bold text-gray-600">{importResult.skipped_duplicates + importResult.skipped_csv_duplicates}</p>
-                      <p className="text-xs text-gray-500 mt-0.5">doublon{(importResult.skipped_duplicates + importResult.skipped_csv_duplicates) !== 1 ? 's' : ''} ignoré{(importResult.skipped_duplicates + importResult.skipped_csv_duplicates) !== 1 ? 's' : ''}</p>
+                      <p className="text-2xl font-bold text-gray-600 tabular-nums tracking-tight">{importResult.skipped_duplicates + importResult.skipped_csv_duplicates}</p>
+                      <p className="text-xs text-gray-500 mt-1">doublon{(importResult.skipped_duplicates + importResult.skipped_csv_duplicates) !== 1 ? 's' : ''} ignoré{(importResult.skipped_duplicates + importResult.skipped_csv_duplicates) !== 1 ? 's' : ''}</p>
                     </div>
                   </div>
 
                   {importResult.created_instruments.length > 0 && (
                     <div className="bg-blue-50 rounded-xl px-4 py-3">
-                      <p className="text-xs font-medium text-blue-700 mb-1.5">Instruments créés automatiquement</p>
+                      <p className="text-xs font-medium text-blue-700 mb-2">Instruments créés automatiquement</p>
                       <div className="flex flex-wrap gap-1.5">
                         {importResult.created_instruments.map((s) => (
-                          <span key={s} className="text-[11px] font-mono bg-blue-100 text-blue-800 px-2 py-0.5 rounded">{s}</span>
+                          <span key={s} className="text-[10px] font-mono bg-blue-100 text-blue-800 px-2 py-0.5 rounded-md">{s}</span>
                         ))}
                       </div>
-                      <p className="text-[10px] text-blue-500 mt-1.5">Type détecté automatiquement — vérifiez dans la page Actifs</p>
+                      <p className="text-[10px] text-blue-500 mt-2">Type détecté automatiquement — vérifiez dans la page Actifs</p>
                     </div>
                   )}
 
@@ -652,7 +653,7 @@ export default function PortfolioDetailPage() {
 
                   {importResult.errors_count > 0 && (
                     <div className="bg-red-50 rounded-xl px-4 py-3">
-                      <p className="text-xs font-medium text-red-700 mb-1.5">{importResult.errors_count} erreur{importResult.errors_count !== 1 ? 's' : ''}</p>
+                      <p className="text-xs font-medium text-red-700 mb-2">{importResult.errors_count} erreur{importResult.errors_count !== 1 ? 's' : ''}</p>
                       <ul className="space-y-0.5">
                         {importResult.errors_preview.map((e, i) => (
                           <li key={i} className="text-[10px] text-red-600 font-mono">{e}</li>
@@ -661,7 +662,7 @@ export default function PortfolioDetailPage() {
                     </div>
                   )}
 
-                  <button onClick={closeImport} className="w-full py-2.5 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-800 transition-colors">
+                  <button onClick={closeImport} className="w-full py-2 bg-gray-900 text-white text-xs font-medium rounded-xl hover:bg-gray-800 active:scale-[0.98] transition-all">
                     Fermer
                   </button>
                 </div>
@@ -677,7 +678,7 @@ export default function PortfolioDetailPage() {
                       <button
                         key={key}
                         onClick={() => { setImportSource(key); setImportFile(null); setImportError('') }}
-                        className={`flex-1 px-3 py-2.5 rounded-xl border text-left transition-colors ${
+                        className={`flex-1 px-3 py-2.5 rounded-xl border text-left transition-all ${
                           importSource === key
                             ? 'border-gray-900 bg-gray-900 text-white'
                             : 'border-gray-200 text-gray-700 hover:border-gray-300'
@@ -711,12 +712,12 @@ export default function PortfolioDetailPage() {
                     {importFile ? (
                       <>
                         <p className="text-sm font-medium text-emerald-700">{importFile.name}</p>
-                        <p className="text-xs text-emerald-500 mt-1">{(importFile.size / 1024).toFixed(1)} Ko — cliquez pour changer</p>
+                        <p className="text-xs text-emerald-600 mt-1">{(importFile.size / 1024).toFixed(1)} Ko — cliquez pour changer</p>
                       </>
                     ) : (
                       <>
-                        <p className="text-sm text-gray-500">Glissez le CSV ici ou cliquez pour parcourir</p>
-                        <p className="text-xs text-gray-400 mt-1">
+                        <p className="text-sm text-gray-600">Glissez le CSV ici ou cliquez pour parcourir</p>
+                        <p className="text-xs text-gray-500 mt-1">
                           {importSource === 'binance'
                             ? 'Export « Trade History » depuis Binance → Orders'
                             : 'Fichier « Avis d\'opérés » exporté depuis Boursorama'}
@@ -728,13 +729,13 @@ export default function PortfolioDetailPage() {
                   {importError && <p className="text-xs text-red-600">{importError}</p>}
 
                   <div className="flex justify-end gap-2">
-                    <button type="button" onClick={closeImport} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 transition-colors">
+                    <button type="button" onClick={closeImport} className="px-4 py-2 text-xs text-gray-600 hover:text-gray-900 transition-colors">
                       Annuler
                     </button>
                     <button
                       onClick={handleImportSubmit}
                       disabled={!importFile || importBoursorama.isPending}
-                      className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-800 disabled:opacity-50 transition-colors"
+                      className="px-4 py-2 bg-gray-900 text-white text-xs font-medium rounded-xl hover:bg-gray-800 disabled:opacity-50 active:scale-[0.98] transition-all"
                     >
                       {importBoursorama.isPending ? 'Import en cours…' : 'Importer'}
                     </button>
@@ -749,15 +750,15 @@ export default function PortfolioDetailPage() {
       {/* Confirm delete trade */}
       {confirmDeleteId && (
         <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
-            <p className="text-sm font-medium text-gray-900 mb-2">Supprimer ce trade ?</p>
-            <p className="text-xs text-gray-500 mb-5">La transaction de trésorerie associée sera également supprimée.</p>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
+            <p className="text-sm font-semibold text-gray-900 mb-2">Supprimer ce trade ?</p>
+            <p className="text-xs text-gray-600 mb-6">La transaction de trésorerie associée sera également supprimée.</p>
             <div className="flex justify-end gap-2">
-              <button onClick={() => setConfirmDeleteId(null)} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 transition-colors">Annuler</button>
+              <button onClick={() => setConfirmDeleteId(null)} className="px-4 py-2 text-xs text-gray-600 hover:text-gray-900 transition-colors">Annuler</button>
               <button
                 onClick={async () => { await deleteTrade.mutateAsync(confirmDeleteId); setConfirmDeleteId(null) }}
                 disabled={deleteTrade.isPending}
-                className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 disabled:opacity-60 transition-colors"
+                className="px-4 py-2 bg-red-600 text-white text-xs font-medium rounded-xl hover:bg-red-700 disabled:opacity-60 active:scale-[0.98] transition-all"
               >
                 {deleteTrade.isPending ? 'Suppression…' : 'Supprimer'}
               </button>

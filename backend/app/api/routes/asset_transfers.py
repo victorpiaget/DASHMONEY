@@ -4,13 +4,38 @@ import datetime as dt
 from decimal import Decimal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel
 
-from app.api.deps import get_portfolio_repo, get_instrument_repo, get_trade_repo, get_request_context, get_write_context
+from app.api.deps import (
+    get_portfolio_repo, get_instrument_repo, get_trade_repo,
+    get_request_context, get_write_context,
+    get_portfolio_snapshot_repo, get_price_repo,
+)
 from app.api.schemas.trades import TradeOut
 from app.domain.trade import Trade, TradeSide, TradeType
 from app.identity.request_context import RequestContext
+from app.services.snapshot_recompute_service import recompute_snapshots_from
+
+
+def _schedule_recompute(
+    background: BackgroundTasks,
+    *,
+    portfolio_id,
+    from_date: dt.date,
+    profile_id: str,
+) -> None:
+    background.add_task(
+        recompute_snapshots_from,
+        portfolio_id=portfolio_id,
+        from_date=from_date,
+        portfolio_repo=get_portfolio_repo(),
+        trade_repo=get_trade_repo(),
+        price_repo=get_price_repo(),
+        snapshot_repo=get_portfolio_snapshot_repo(),
+        instrument_repo=get_instrument_repo(),
+        profile_id=profile_id,
+    )
 
 router = APIRouter(prefix="/asset-transfers", tags=["asset-transfers"])
 
@@ -56,6 +81,7 @@ def _trade_to_out(t: Trade) -> TradeOut:
 @router.post("", status_code=201)
 def create_asset_transfer(
     payload: AssetTransferPayload,
+    background: BackgroundTasks,
     ctx: RequestContext = Depends(get_write_context),
 ) -> dict:
     p_repo = get_portfolio_repo()
@@ -123,6 +149,10 @@ def create_asset_transfer(
         raise HTTPException(status_code=422, detail=str(e))
 
     t_repo.add(buy_trade, profile_id=ctx.profile_id)
+
+    # Un transfert impacte les deux portefeuilles — on recompute chacun depuis la date du transfert
+    _schedule_recompute(background, portfolio_id=from_p.id, from_date=payload.date, profile_id=ctx.profile_id)
+    _schedule_recompute(background, portfolio_id=to_p.id, from_date=payload.date, profile_id=ctx.profile_id)
 
     return {
         "sell": _trade_to_out(sell_trade),
@@ -201,6 +231,7 @@ def list_asset_transfers(
 @router.delete("/{sell_trade_id}", status_code=204)
 def delete_asset_transfer(
     sell_trade_id: UUID,
+    background: BackgroundTasks,
     ctx: RequestContext = Depends(get_write_context),
 ) -> None:
     t_repo = get_trade_repo()
@@ -225,6 +256,7 @@ def delete_asset_transfer(
     except KeyError:
         from_portfolio_name = None
 
+    buy_portfolio_id = None
     for t in all_trades:
         if (
             t.side == TradeSide.BUY
@@ -235,7 +267,13 @@ def delete_asset_transfer(
             and t.date == sell.date
             and t.quantity == sell.quantity
         ):
+            buy_portfolio_id = t.portfolio_id
             t_repo.delete(trade_id=t.id, profile_id=ctx.profile_id)
             break
 
     t_repo.delete(trade_id=sell_trade_id, profile_id=ctx.profile_id)
+
+    # Recompute des deux portefeuilles concernés
+    _schedule_recompute(background, portfolio_id=sell.portfolio_id, from_date=sell.date, profile_id=ctx.profile_id)
+    if buy_portfolio_id is not None:
+        _schedule_recompute(background, portfolio_id=buy_portfolio_id, from_date=sell.date, profile_id=ctx.profile_id)

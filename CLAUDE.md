@@ -282,6 +282,19 @@ Un user ne peut accéder qu'aux profils pour lesquels il a une entrée dans `pro
 
 ---
 
+## Workflow : prompts pré-rédigés
+
+Les tâches complexes sont décrites dans des **prompts pré-rédigés** dans le dossier `prompts/`.
+
+Quand un fichier `prompts/*.md` est référencé :
+1. **Lire le prompt en entier** avant de coder quoi que ce soit
+2. **Suivre l'ordre d'implémentation** indiqué dans le prompt
+3. **Lancer les tests** après chaque étape backend (`cd backend && poetry run pytest -q`)
+4. **Ne pas improviser** de fonctionnalités non décrites dans le prompt
+5. Si quelque chose est ambigu, demander plutôt que deviner
+
+---
+
 ## Ce que Claude NE doit PAS faire
 
 - Générer de gros fichiers sans avoir d'abord proposé le design

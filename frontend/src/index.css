@@ -10,26 +10,38 @@
 
   body {
     margin: 0;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
     @apply bg-gray-50 text-gray-900;
+  }
+
+  /* Meilleur rendu des nombres tabulaires */
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
   }
 }
 
 /* ── Transitions de page ─────────────────────────────────────────────────── */
 
 @keyframes page-enter {
-  from { opacity: 0; transform: translateY(8px); }
+  from { opacity: 0; transform: translateY(6px); }
   to   { opacity: 1; transform: translateY(0);   }
 }
 
 .page-transition {
-  animation: page-enter 0.22s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: page-enter 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
+/* ── Scrollbar personnalisée (light) ──────────────────────────────────────── */
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
+
 /* ── Dark mode — overrides globaux ───────────────────────────────────────── */
-/* Placés hors de @layer → priorité cascade supérieure aux utilities Tailwind */
 
 /* Body */
 .dark body { background-color: #0f172a; color: #f1f5f9; }
@@ -62,16 +74,24 @@
 /* Hover text */
 .dark .hover\:text-gray-900:hover { color: #f1f5f9; }
 .dark .hover\:text-gray-700:hover { color: #e2e8f0; }
+.dark .hover\:text-gray-600:hover { color: #cbd5e1; }
 
 /* Hover borders */
 .dark .hover\:border-gray-400:hover { border-color: #64748b; }
+.dark .hover\:border-gray-300:hover { border-color: #64748b; }
 
 /* Focus rings */
 .dark .focus\:ring-gray-900:focus { --tw-ring-color: rgb(148 163 184); }
 
-/* Shadow en dark */
+/* Shadows en dark */
+.dark .shadow-sm {
+  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.3);
+}
 .dark .hover\:shadow-sm:hover {
   box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.4), 0 1px 2px -1px rgb(0 0 0 / 0.4);
+}
+.dark .hover\:shadow-md:hover {
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.4), 0 2px 4px -2px rgb(0 0 0 / 0.4);
 }
 
 /* Formulaires */
@@ -86,26 +106,49 @@
 .dark input::placeholder,
 .dark textarea::placeholder { color: #475569; }
 
-/* Scrollbar en dark */
+/* Scrollbar dark */
 .dark ::-webkit-scrollbar { width: 6px; height: 6px; }
 .dark ::-webkit-scrollbar-track { background: #0f172a; }
 .dark ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
 .dark ::-webkit-scrollbar-thumb:hover { background: #475569; }
 
-/* Badges et chips colorés (bg-*-50, bg-*-100) */
-.dark .bg-emerald-50  { background-color: rgb(6 78 59 / 0.35); }
-.dark .bg-red-50      { background-color: rgb(127 29 29 / 0.35); }
-.dark .bg-blue-50     { background-color: rgb(30 58 138 / 0.35); }
-.dark .bg-amber-50    { background-color: rgb(120 53 15 / 0.35); }
+/* Badges et chips colorés */
+.dark .bg-emerald-50  { background-color: rgb(6 78 59 / 0.3); }
+.dark .bg-red-50      { background-color: rgb(127 29 29 / 0.3); }
+.dark .bg-blue-50     { background-color: rgb(30 58 138 / 0.3); }
+.dark .bg-amber-50    { background-color: rgb(120 53 15 / 0.3); }
+.dark .bg-violet-50   { background-color: rgb(76 29 149 / 0.3); }
+.dark .bg-orange-50   { background-color: rgb(124 45 18 / 0.3); }
+.dark .bg-yellow-50   { background-color: rgb(113 63 18 / 0.3); }
 .dark .bg-emerald-100 { background-color: rgb(6 78 59 / 0.4); }
 .dark .bg-red-100     { background-color: rgb(127 29 29 / 0.4); }
 .dark .bg-blue-100    { background-color: rgb(30 58 138 / 0.4); }
+.dark .bg-amber-100   { background-color: rgb(120 53 15 / 0.4); }
 
 /* Textes colorés dans badges */
 .dark .text-emerald-700 { color: #34d399; }
+.dark .text-emerald-600 { color: #34d399; }
+.dark .text-red-700     { color: #f87171; }
 .dark .text-red-600     { color: #f87171; }
 .dark .text-blue-700    { color: #60a5fa; }
+.dark .text-blue-600    { color: #60a5fa; }
+.dark .text-violet-700  { color: #a78bfa; }
+.dark .text-orange-700  { color: #fb923c; }
+.dark .text-amber-700   { color: #fbbf24; }
+.dark .text-amber-600   { color: #fbbf24; }
 
-/* Tab switcher dans dashboard */
-.dark .bg-gray-100 { background-color: #1e293b; }
+/* Borders colorées */
+.dark .border-emerald-100 { border-color: rgb(6 78 59 / 0.4); }
+.dark .border-emerald-200 { border-color: rgb(6 78 59 / 0.5); }
+.dark .border-red-100     { border-color: rgb(127 29 29 / 0.4); }
+.dark .border-red-200     { border-color: rgb(127 29 29 / 0.5); }
+.dark .border-amber-100   { border-color: rgb(120 53 15 / 0.4); }
+
+/* Tab switcher */
 .dark .bg-gray-100 .bg-white { background-color: #334155; }
+
+/* Divide */
+.dark .divide-gray-50 > :not([hidden]) ~ :not([hidden]) { border-color: #334155; }
+
+/* Border dashed */
+.dark .border-dashed { border-color: #475569; }

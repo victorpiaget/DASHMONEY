@@ -39,23 +39,33 @@ if ($LASTEXITCODE -ne 0) {
 Pop-Location
 Write-Host "  Migrations OK" -ForegroundColor Green
 
-# 3. Backend dans un nouveau terminal
+# Logs et PID
+$BACKEND_LOG = "$ROOT\backend.log"
+$FRONTEND_LOG = "$ROOT\frontend.log"
+$PID_FILE = "$ROOT\.dev-pids"
+
+# 3. Backend en arriere-plan (fenetre cachee)
 Write-Host "> Demarrage backend (port 8000)..." -ForegroundColor Yellow
-Start-Process powershell -ArgumentList @(
-    "-NoExit",
+$backendProc = Start-Process powershell -WindowStyle Hidden -PassThru -ArgumentList @(
     "-Command",
-    "cd '$BACKEND'; `$env:DASHMONEY_DATABASE_URL='$DB_URL'; `$env:DASHMONEY_TEST_DATABASE_URL='$TEST_DB_URL'; `$env:DASHMONEY_SECRET_KEY='$SECRET_KEY'; poetry run uvicorn app.api.main:app --reload --port 8000"
+    "cd '$BACKEND'; `$env:DASHMONEY_DATABASE_URL='$DB_URL'; `$env:DASHMONEY_TEST_DATABASE_URL='$TEST_DB_URL'; `$env:DASHMONEY_SECRET_KEY='$SECRET_KEY'; poetry run uvicorn app.api.main:app --reload --port 8000 *> '$BACKEND_LOG'"
 )
 
-# 4. Frontend dans un nouveau terminal
+# 4. Frontend en arriere-plan (fenetre cachee)
 Write-Host "> Demarrage frontend (port 5173)..." -ForegroundColor Yellow
-Start-Process powershell -ArgumentList @(
-    "-NoExit",
+$frontendProc = Start-Process powershell -WindowStyle Hidden -PassThru -ArgumentList @(
     "-Command",
-    "cd '$FRONTEND'; npm run dev"
+    "cd '$FRONTEND'; npm run dev *> '$FRONTEND_LOG'"
 )
+
+# Sauvegarde des PID pour stop.ps1
+"$($backendProc.Id)`n$($frontendProc.Id)" | Out-File -FilePath $PID_FILE -Encoding utf8
 
 Write-Host ""
 Write-Host "Tout est lance !" -ForegroundColor Green
 Write-Host "  Backend  -> http://localhost:8000/docs" -ForegroundColor White
 Write-Host "  Frontend -> http://localhost:5173" -ForegroundColor White
+Write-Host ""
+Write-Host "Logs : Get-Content $BACKEND_LOG -Wait" -ForegroundColor DarkGray
+Write-Host "       Get-Content $FRONTEND_LOG -Wait" -ForegroundColor DarkGray
+Write-Host "Stop : .\stop.ps1" -ForegroundColor DarkGray

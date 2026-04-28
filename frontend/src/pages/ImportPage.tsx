@@ -88,7 +88,7 @@ export default function ImportPage() {
           {SUPPORTED_FORMATS.map((f) => (
             <span
               key={f}
-              className="px-2 py-0.5 rounded-full text-xs bg-gray-50 text-gray-600 border border-gray-100"
+              className="px-2 py-0.5 rounded-lg text-xs bg-gray-50 text-gray-600 border border-gray-100"
             >
               {f}
             </span>
@@ -103,12 +103,12 @@ export default function ImportPage() {
             Compte de destination
           </label>
           {accountsLoading ? (
-            <div className="h-9 bg-gray-100 rounded-lg animate-pulse" />
+            <div className="h-10 bg-gray-100 rounded-xl animate-pulse" />
           ) : (
             <select
               value={accountId}
               onChange={(e) => { setAccountId(e.target.value); reset() }}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-gray-900"
+              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-gray-900"
             >
               <option value="">Sélectionner un compte…</option>
               {accounts.map((a) => (
@@ -169,7 +169,7 @@ export default function ImportPage() {
         <button
           onClick={handleImport}
           disabled={!accountId || !selectedFile || mutation.isPending}
-          className="w-full py-2.5 rounded-lg text-sm font-medium bg-gray-900 text-white hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          className="w-full py-2.5 rounded-xl text-sm font-medium bg-gray-900 text-white hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors active:scale-[0.98]"
         >
           {mutation.isPending ? 'Import en cours…' : 'Importer'}
         </button>
@@ -193,7 +193,7 @@ export default function ImportPage() {
           </div>
 
           <div className="flex items-center gap-2 text-xs text-gray-500">
-            <span className="px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 font-medium">
+            <span className="px-2 py-0.5 rounded-lg bg-gray-100 text-gray-600 font-medium">
               {result.format_label}
             </span>
             {selectedAccount && (
@@ -202,15 +202,15 @@ export default function ImportPage() {
           </div>
 
           <div className="grid grid-cols-3 gap-3">
-            <div className="rounded-lg bg-emerald-50 border border-emerald-100 p-3 text-center">
+            <div className="rounded-xl bg-emerald-50 border border-emerald-100 p-3 text-center">
               <p className="text-2xl font-bold text-emerald-700">{result.imported}</p>
               <p className="text-xs text-emerald-600 mt-0.5">Importées</p>
             </div>
-            <div className="rounded-lg bg-gray-50 border border-gray-100 p-3 text-center">
+            <div className="rounded-xl bg-gray-50 border border-gray-100 p-3 text-center">
               <p className="text-2xl font-bold text-gray-500">{result.skipped_zero}</p>
               <p className="text-xs text-gray-400 mt-0.5">Ignorées (zéro)</p>
             </div>
-            <div className={`rounded-lg border p-3 text-center ${result.errors_count > 0 ? 'bg-red-50 border-red-100' : 'bg-gray-50 border-gray-100'}`}>
+            <div className={`rounded-xl border p-3 text-center ${result.errors_count > 0 ? 'bg-red-50 border-red-100' : 'bg-gray-50 border-gray-100'}`}>
               <p className={`text-2xl font-bold ${result.errors_count > 0 ? 'text-red-600' : 'text-gray-400'}`}>
                 {result.errors_count}
               </p>
@@ -221,7 +221,7 @@ export default function ImportPage() {
           </div>
 
           {result.errors_preview.length > 0 && (
-            <div className="rounded-lg bg-red-50 border border-red-100 p-3">
+            <div className="rounded-xl bg-red-50 border border-red-100 p-3">
               <p className="text-xs font-semibold text-red-600 mb-2">Détail des erreurs</p>
               <ul className="space-y-1">
                 {result.errors_preview.map((e, i) => (

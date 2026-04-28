@@ -15,7 +15,7 @@ const CURRENCIES = ['EUR', 'USD', 'BTC', 'ETH', 'USDT', 'GBP', 'CHF']
 const KIND_ORDER: InstrumentKind[] = ['ETF', 'STOCK', 'CRYPTO', 'OTHER']
 
 const inputClass =
-  'w-full px-3.5 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent transition bg-white'
+  'w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent transition bg-white'
 
 // ── Ligne éditable ─────────────────────────────────────────────────────────────
 
@@ -51,13 +51,13 @@ function InstrumentRow({
 
   if (editing) {
     return (
-      <div className="inline-flex items-center gap-2 pl-3 pr-2 py-2 bg-white border border-gray-300 rounded-lg shadow-sm">
+      <div className="inline-flex items-center gap-3 pl-3 pr-2 py-2.5 bg-white border border-gray-200 rounded-lg shadow-sm">
         <input
           value={editName}
           onChange={(e) => setEditName(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') handleSave(); if (e.key === 'Escape') handleCancel() }}
           placeholder="Nom d'affichage…"
-          className="text-xs border border-gray-200 rounded px-2 py-1 w-48 focus:outline-none focus:ring-1 focus:ring-gray-900"
+          className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 w-48 focus:outline-none focus:ring-2 focus:ring-gray-900"
           autoFocus
         />
         <input
@@ -66,60 +66,62 @@ function InstrumentRow({
           onKeyDown={(e) => { if (e.key === 'Enter') handleSave(); if (e.key === 'Escape') handleCancel() }}
           placeholder="Ticker Yahoo (ex: PAEEM.PA)"
           title="Ticker Yahoo Finance — ex: PAEEM.PA pour les ETF Euronext, BTC-EUR pour crypto"
-          className="text-xs border border-gray-200 rounded px-2 py-1 w-36 focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono"
+          className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 w-40 focus:outline-none focus:ring-2 focus:ring-gray-900 font-mono"
         />
         <select
           value={editKind}
           onChange={(e) => setEditKind(e.target.value as InstrumentKind)}
-          className="text-xs border border-gray-200 rounded px-2 py-1 focus:outline-none"
+          className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-gray-900"
         >
           {KINDS.map((k) => <option key={k.key} value={k.key}>{k.label}</option>)}
         </select>
         <select
           value={editCurrency}
           onChange={(e) => setEditCurrency(e.target.value)}
-          className="text-xs border border-gray-200 rounded px-2 py-1 focus:outline-none font-mono"
+          className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-gray-900 font-mono"
         >
           {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
         </select>
         <button
           onClick={handleSave}
           disabled={updateInstrument.isPending}
-          className="text-xs text-emerald-600 hover:text-emerald-800 font-medium transition-colors"
+          className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 transition-colors"
         >
           {updateInstrument.isPending ? '…' : '✓'}
         </button>
-        <button onClick={handleCancel} className="text-xs text-gray-400 hover:text-gray-600 transition-colors">✕</button>
+        <button onClick={handleCancel} className="text-xs text-gray-400 hover:text-gray-600 transition-colors">
+          ✕
+        </button>
       </div>
     )
   }
 
   return (
-    <div className="group inline-flex items-center gap-2 pl-3 pr-2 py-1.5 bg-gray-50 border border-gray-100 rounded-lg hover:border-gray-200 transition-colors">
-      <div>
-        <div className="text-xs font-semibold text-gray-800 leading-tight">
+    <div className="group inline-flex items-center gap-3 pl-4 pr-3 py-2 bg-white border border-gray-100 rounded-lg hover:border-gray-200 hover:shadow-sm transition-all">
+      <div className="flex-1">
+        <div className="text-sm font-semibold text-gray-900 leading-tight">
           {inst.name || <span className="text-gray-400 italic">sans nom</span>}
         </div>
-        <div className="flex items-center gap-1.5 mt-0.5">
-          <span className="text-[10px] text-gray-400 font-mono leading-tight">{inst.symbol}</span>
+        <div className="flex items-center gap-2 mt-0.5">
+          <span className="text-[11px] text-gray-500 font-mono leading-tight">{inst.symbol}</span>
           {inst.ticker && (
-            <span className="text-[10px] font-mono text-blue-500 bg-blue-50 px-1 rounded leading-tight" title="Ticker Yahoo Finance">
+            <span className="text-[10px] font-mono text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100 leading-tight" title="Ticker Yahoo Finance">
               {inst.ticker}
             </span>
           )}
         </div>
       </div>
-      <span className="text-[10px] text-gray-400 border-l border-gray-200 pl-2">{inst.currency}</span>
+      <span className="text-[11px] text-gray-500 font-mono border-l border-gray-200 pl-2">{inst.currency}</span>
       <button
         onClick={() => setEditing(true)}
-        className="text-gray-300 hover:text-gray-600 transition-colors text-xs opacity-0 group-hover:opacity-100"
+        className="text-gray-400 hover:text-gray-600 transition-colors text-sm opacity-0 group-hover:opacity-100"
         title="Modifier"
       >
         ✎
       </button>
       <button
         onClick={() => onDelete(inst.symbol)}
-        className="text-gray-300 hover:text-red-500 transition-colors leading-none text-base ml-0.5"
+        className="text-gray-400 hover:text-red-500 transition-colors leading-none text-lg opacity-0 group-hover:opacity-100"
         title={`Supprimer ${inst.symbol}`}
       >
         ×
@@ -175,18 +177,18 @@ export default function InstrumentsPage() {
   }
 
   return (
-    <div className="p-8">
+    <div className="min-h-screen bg-gray-50 p-8">
       <div className="mb-8">
-        <h1 className="text-2xl font-semibold text-gray-900">Actifs</h1>
-        <p className="text-sm text-gray-400 mt-0.5">Gérez votre catalogue d'instruments financiers</p>
+        <h1 className="text-xl font-semibold text-gray-900">Actifs</h1>
+        <p className="text-sm text-gray-500 mt-1">Gérez votre catalogue d'instruments financiers</p>
       </div>
 
       {/* Formulaire d'ajout */}
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 mb-6">
-        <p className="text-sm font-medium text-gray-800 mb-4">Ajouter un actif</p>
-        <div className="flex flex-wrap gap-3 items-end">
+      <div className="bg-white rounded-xl border border-gray-100 p-6 mb-8">
+        <p className="text-sm font-semibold text-gray-900 mb-5">Ajouter un actif</p>
+        <div className="flex flex-wrap gap-4 items-end">
           <div className="min-w-32">
-            <label className="block text-xs font-medium text-gray-500 mb-1.5">Symbole / ISIN</label>
+            <label className="block text-xs font-semibold text-gray-700 mb-2">Symbole / ISIN</label>
             <input
               value={symbol}
               onChange={(e) => { setSymbol(e.target.value); setFormError('') }}
@@ -197,7 +199,7 @@ export default function InstrumentsPage() {
             />
           </div>
           <div className="flex-1 min-w-48">
-            <label className="block text-xs font-medium text-gray-500 mb-1.5">Nom d'affichage</label>
+            <label className="block text-xs font-semibold text-gray-700 mb-2">Nom d'affichage</label>
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -205,10 +207,10 @@ export default function InstrumentsPage() {
               className={inputClass}
             />
           </div>
-          <div className="min-w-36">
-            <label className="block text-xs font-medium text-gray-500 mb-1.5">
+          <div className="min-w-40">
+            <label className="block text-xs font-semibold text-gray-700 mb-2">
               Ticker Yahoo Finance
-              <span className="text-gray-400 font-normal ml-1">(optionnel)</span>
+              <span className="text-gray-500 font-normal ml-1">(optionnel)</span>
             </label>
             <input
               value={ticker}
@@ -219,13 +221,13 @@ export default function InstrumentsPage() {
             />
           </div>
           <div className="min-w-36">
-            <label className="block text-xs font-medium text-gray-500 mb-1.5">Type</label>
+            <label className="block text-xs font-semibold text-gray-700 mb-2">Type</label>
             <select value={kind} onChange={(e) => setKind(e.target.value as InstrumentKind)} className={inputClass}>
               {KINDS.map((k) => <option key={k.key} value={k.key}>{k.label} — {k.desc}</option>)}
             </select>
           </div>
-          <div className="min-w-24">
-            <label className="block text-xs font-medium text-gray-500 mb-1.5">Devise</label>
+          <div className="min-w-28">
+            <label className="block text-xs font-semibold text-gray-700 mb-2">Devise</label>
             <select value={currency} onChange={(e) => setCurrency(e.target.value)} className={inputClass}>
               {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
             </select>
@@ -233,44 +235,46 @@ export default function InstrumentsPage() {
           <button
             onClick={handleAdd}
             disabled={!symbol.trim() || createInstrument.isPending}
-            className="px-5 py-2.5 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-800 disabled:opacity-40 transition-colors whitespace-nowrap"
+            className="px-6 py-2.5 bg-gray-900 text-white text-sm font-semibold rounded-xl hover:bg-gray-800 active:scale-[0.98] disabled:opacity-50 transition-all whitespace-nowrap"
           >
             {createInstrument.isPending ? 'Ajout…' : 'Ajouter'}
           </button>
         </div>
-        {formError && <p className="text-xs text-red-600 mt-2">{formError}</p>}
+        {formError && <p className="text-xs text-red-600 mt-3">{formError}</p>}
       </div>
 
       {/* Liste groupée */}
       {isLoading ? (
         <div className="flex justify-center py-16">
-          <div className="w-6 h-6 border-2 border-gray-200 border-t-gray-700 rounded-full animate-spin" />
+          <div className="w-6 h-6 border-2 border-gray-200 border-t-gray-900 rounded-full animate-spin" />
         </div>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-4">
           {KIND_ORDER.map((k) => {
             const meta = KINDS.find((m) => m.key === k)!
             const list = byKind[k]
             const isOpen = expanded.has(k)
             return (
-              <div key={k} className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+              <div key={k} className="bg-white rounded-xl border border-gray-100 overflow-hidden">
                 <button
-                  className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-gray-50 transition-colors text-left"
+                  className="w-full flex items-center justify-between px-6 py-4 hover:bg-gray-50 transition-colors text-left"
                   onClick={() => toggle(k)}
                 >
                   <div className="flex items-center gap-3">
-                    <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-md ${meta.color}`}>{meta.label}</span>
-                    <span className="text-xs text-gray-400">{list.length} actif{list.length !== 1 ? 's' : ''}</span>
+                    <span className={`text-[10px] font-semibold px-2.5 py-1 rounded-md ${meta.color}`}>{meta.label}</span>
+                    <span className="text-sm text-gray-500 font-medium">{list.length} actif{list.length !== 1 ? 's' : ''}</span>
                   </div>
-                  <span className="text-gray-300 text-xs">{isOpen ? '▲' : '▼'}</span>
+                  <span className="text-gray-400 text-sm transition-transform" style={{ transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>
+                    ▼
+                  </span>
                 </button>
 
                 {isOpen && (
-                  <div className="border-t border-gray-50 px-5 py-4">
+                  <div className="border-t border-gray-100 px-6 py-4 bg-gray-50">
                     {list.length === 0 ? (
-                      <p className="text-xs text-gray-400">Aucun actif. Utilisez le formulaire ci-dessus pour en ajouter.</p>
+                      <p className="text-sm text-gray-500">Aucun actif. Utilisez le formulaire ci-dessus pour en ajouter.</p>
                     ) : (
-                      <div className="flex flex-wrap gap-2">
+                      <div className="flex flex-wrap gap-3">
                         {list.map((inst) => (
                           <InstrumentRow key={inst.symbol} inst={inst} onDelete={setConfirmDelete} />
                         ))}
@@ -286,16 +290,21 @@ export default function InstrumentsPage() {
 
       {/* Confirm delete */}
       {confirmDelete && (
-        <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
-            <p className="text-sm font-medium text-gray-900 mb-2">Supprimer « {confirmDelete} » ?</p>
-            <p className="text-xs text-gray-500 mb-5">Cet actif sera retiré du catalogue. Les trades existants ne seront pas supprimés.</p>
-            <div className="flex justify-end gap-2">
-              <button onClick={() => setConfirmDelete(null)} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 transition-colors">Annuler</button>
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-7">
+            <p className="text-sm font-semibold text-gray-900 mb-2">Supprimer « {confirmDelete} » ?</p>
+            <p className="text-sm text-gray-600 mb-6">Cet actif sera retiré du catalogue. Les trades existants ne seront pas supprimés.</p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setConfirmDelete(null)}
+                className="px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-xl transition-colors"
+              >
+                Annuler
+              </button>
               <button
                 onClick={() => handleDelete(confirmDelete)}
                 disabled={deleteInstrument.isPending}
-                className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 disabled:opacity-60 transition-colors"
+                className="px-4 py-2.5 bg-red-600 text-white text-sm font-semibold rounded-xl hover:bg-red-700 active:scale-[0.98] disabled:opacity-60 transition-all"
               >
                 {deleteInstrument.isPending ? 'Suppression…' : 'Supprimer'}
               </button>

@@ -1,7 +1,6 @@
 import { useCallback, useState } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { useAccounts } from '../hooks/useAccounts'
-import { usePortfolios, usePositions } from '../hooks/usePortfolios'
 import {
   useTransfers,
   useCreateTransfer,
@@ -12,14 +11,12 @@ import {
 } from '../hooks/useTransfers'
 import { transactionsApi, type Transaction } from '../lib/transactionsApi'
 import type { Account } from '../lib/accountsApi'
-import type { Transfer, AssetTransferRecord } from '../lib/transfersApi'
-import { assetTransfersApi } from '../lib/transfersApi'
-import type { Portfolio as PortfolioObj, Position } from '../lib/portfoliosApi'
+import type { Transfer } from '../lib/transfersApi'
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
 const inputClass =
-  'w-full px-3.5 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent transition bg-white'
+  'w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent transition bg-white'
 
 function today() { return new Date().toISOString().slice(0, 10) }
 
@@ -152,7 +149,7 @@ function PairRow({ pair, onLinked, onDismiss }: { pair: DetectedPair; onLinked: 
   }
 
   return (
-    <div className="flex items-center gap-3 py-2.5 px-4 hover:bg-amber-50/60 rounded-lg transition-colors group">
+    <div className="flex items-center gap-3 py-2.5 px-4 hover:bg-amber-50/60 rounded-xl transition-colors group">
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-xs text-gray-400 shrink-0">{fmtDate(pair.expense.tx.date)}</span>
@@ -170,7 +167,7 @@ function PairRow({ pair, onLinked, onDismiss }: { pair: DetectedPair; onLinked: 
         <button
           onClick={handleLink}
           disabled={link.isPending}
-          className="px-3 py-1.5 bg-emerald-600 text-white text-xs font-medium rounded-lg hover:bg-emerald-700 disabled:opacity-40 transition-colors"
+          className="px-3 py-1.5 bg-emerald-600 text-white text-xs font-medium rounded-xl hover:bg-emerald-700 disabled:opacity-40 transition-colors"
         >
           {link.isPending ? '…' : 'Lier'}
         </button>
@@ -215,25 +212,25 @@ function SingleRow({ item, accounts, onPromoted, onDismiss }: { item: DetectedSi
   }
 
   return (
-    <div className="flex items-center gap-3 py-2.5 px-4 hover:bg-amber-50/60 rounded-lg transition-colors group">
+    <div className="flex items-center gap-3 py-2.5 px-4 hover:bg-amber-50/60 rounded-xl transition-colors group">
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           <span className="text-xs text-gray-400 shrink-0">{fmtDate(item.tx.date)}</span>
           <span className="text-sm font-semibold text-gray-900">{fmt(item.tx.amount, item.account.currency)}</span>
           <span className="text-xs font-medium text-gray-700">{item.account.name}</span>
           {item.tx.label && <span className="text-xs text-gray-400 truncate max-w-40">{item.tx.label}</span>}
-          <span className="text-[10px] px-1.5 py-0.5 bg-amber-100 text-amber-600 rounded shrink-0">{item.tx.category}</span>
+          <span className="text-[10px] px-1.5 py-0.5 bg-amber-100 text-amber-600 rounded-full shrink-0">{item.tx.category}</span>
         </div>
       </div>
       <div className="flex items-center gap-2 shrink-0">
         <span className="text-gray-300 text-xs">→</span>
         <select value={destId} onChange={(e) => { setDestId(e.target.value); setError('') }}
-          className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none bg-white">
+          className="text-xs border border-gray-200 rounded-xl px-2 py-1.5 focus:outline-none bg-white">
           <option value="">Compte…</option>
           {eligible.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
         </select>
         <button onClick={handlePromote} disabled={!destId || promote.isPending}
-          className="px-3 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg hover:bg-gray-800 disabled:opacity-40 transition-colors">
+          className="px-3 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-xl hover:bg-gray-800 active:scale-[0.98] disabled:opacity-40 transition-colors">
           {promote.isPending ? '…' : 'Créer'}
         </button>
         <button
@@ -277,13 +274,13 @@ function TransferRow({ transfer, onDelete }: { transfer: Transfer; onDelete: (t:
 
   if (editing) {
     return (
-      <div className="flex items-center gap-2 py-2.5 px-4 bg-gray-50 rounded-lg">
+      <div className="flex items-center gap-2 py-2.5 px-4 bg-gray-50 rounded-xl">
         <input type="date" value={editDate} onChange={(e) => setEditDate(e.target.value)}
-          className="text-xs border border-gray-200 rounded px-2 py-1.5 focus:outline-none" />
+          className="text-xs border border-gray-200 rounded-xl px-2 py-1.5 focus:outline-none" />
         <input type="text" value={editAmount} onChange={(e) => setEditAmount(e.target.value)}
-          className="w-24 text-xs border border-gray-200 rounded px-2 py-1.5 focus:outline-none" placeholder="Montant" />
+          className="w-24 text-xs border border-gray-200 rounded-xl px-2 py-1.5 focus:outline-none" placeholder="Montant" />
         <input type="text" value={editLabel} onChange={(e) => setEditLabel(e.target.value)}
-          className="flex-1 text-xs border border-gray-200 rounded px-2 py-1.5 focus:outline-none" placeholder="Libellé" />
+          className="flex-1 text-xs border border-gray-200 rounded-xl px-2 py-1.5 focus:outline-none" placeholder="Libellé" />
         <button onClick={handleSave} disabled={updateTransfer.isPending} className="text-xs text-emerald-600 font-medium hover:text-emerald-800">
           {updateTransfer.isPending ? '…' : '✓'}
         </button>
@@ -293,7 +290,7 @@ function TransferRow({ transfer, onDelete }: { transfer: Transfer; onDelete: (t:
   }
 
   return (
-    <div className="group flex items-center gap-3 py-2.5 px-4 hover:bg-gray-50 rounded-lg transition-colors">
+    <div className="group flex items-center gap-3 py-2.5 px-4 hover:bg-gray-50 rounded-xl transition-colors">
       <span className="text-xs text-gray-400 w-28 shrink-0">{fmtDate(transfer.date)}</span>
       <div className="flex items-center gap-1.5 flex-1 min-w-0">
         <span className="text-sm font-medium text-gray-800 truncate">{transfer.from_account_name}</span>
@@ -310,207 +307,7 @@ function TransferRow({ transfer, onDelete }: { transfer: Transfer; onDelete: (t:
   )
 }
 
-// ── Row historique transfert d'actifs ──────────────────────────────────────────
 
-function AssetTransferHistoryRow({
-  record,
-  onDelete,
-}: {
-  record: AssetTransferRecord
-  onDelete: (id: string) => void
-}) {
-  const [confirm, setConfirm] = useState(false)
-  const qty = parseFloat(record.quantity)
-  const fees = parseFloat(record.fees)
-
-  return (
-    <div className="group flex items-center gap-3 py-2.5 px-4 hover:bg-gray-50 rounded-lg transition-colors">
-      <span className="text-xs text-gray-400 w-28 shrink-0">{fmtDate(record.date)}</span>
-      <div className="flex items-center gap-1.5 flex-1 min-w-0">
-        <span className="text-sm font-medium text-gray-800 truncate">{record.from_portfolio_name}</span>
-        <span className="text-gray-300 text-xs shrink-0">→</span>
-        <span className="text-sm font-medium text-gray-800 truncate">{record.to_portfolio_name}</span>
-      </div>
-      <span className="text-xs font-medium text-gray-700 shrink-0">{record.instrument_symbol}</span>
-      <span className="text-sm font-semibold text-gray-900 shrink-0 tabular-nums">
-        {qty.toFixed(8).replace(/\.?0+$/, '')}
-      </span>
-      {fees > 0 && (
-        <span className="text-xs text-gray-400 shrink-0">
-          frais {fees.toFixed(8).replace(/\.?0+$/, '')}
-        </span>
-      )}
-      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-        {confirm ? (
-          <>
-            <button
-              onClick={() => { onDelete(record.sell_trade_id); setConfirm(false) }}
-              className="text-xs text-red-600 font-medium hover:text-red-700 px-1.5"
-            >
-              Confirmer
-            </button>
-            <button onClick={() => setConfirm(false)} className="text-xs text-gray-400 hover:text-gray-600 px-1">✕</button>
-          </>
-        ) : (
-          <button
-            onClick={() => setConfirm(true)}
-            className="text-xs text-gray-300 hover:text-red-500 px-1.5 py-1"
-            title="Supprimer"
-          >
-            ×
-          </button>
-        )}
-      </div>
-    </div>
-  )
-}
-
-// ── Section transfert d'actifs ─────────────────────────────────────────────────
-
-function AssetTransferSection({ portfolios }: { portfolios: PortfolioObj[] }) {
-  const queryClient = useQueryClient()
-
-  const { data: history = [], isLoading: historyLoading } = useQuery({
-    queryKey: ['asset-transfers'],
-    queryFn: assetTransfersApi.list,
-  })
-
-  const deleteMutation = useMutation({
-    mutationFn: (sellTradeId: string) => assetTransfersApi.delete(sellTradeId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['asset-transfers'] })
-      queryClient.invalidateQueries({ queryKey: ['trades'] })
-      queryClient.invalidateQueries({ queryKey: ['positions'] })
-    },
-  })
-  const [fromId, setFromId] = useState('')
-  const [toId, setToId] = useState('')
-  const [symbol, setSymbol] = useState('')
-  const [quantity, setQuantity] = useState('')
-  const [fees, setFees] = useState('')
-  const [date, setDate] = useState(today())
-  const [error, setError] = useState('')
-
-  const { data: positions = [] } = usePositions(fromId)
-  const availablePositions = positions.filter((p: Position) => parseFloat(p.quantity) > 0)
-
-  const mutation = useMutation({
-    mutationFn: () => assetTransfersApi.create({
-      from_portfolio_id: fromId,
-      to_portfolio_id: toId,
-      instrument_symbol: symbol,
-      quantity,
-      fees: fees || undefined,
-      date,
-    }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['trades'] })
-      queryClient.invalidateQueries({ queryKey: ['positions'] })
-      queryClient.invalidateQueries({ queryKey: ['asset-transfers'] })
-      setFromId(''); setToId(''); setSymbol(''); setQuantity(''); setFees(''); setDate(today()); setError('')
-    },
-    onError: (e: unknown) => {
-      const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail
-      setError(msg ?? 'Erreur lors du transfert')
-    },
-  })
-
-  const handleSubmit = () => {
-    if (!fromId || !toId || !symbol || !quantity || !date) {
-      setError('Tous les champs sont requis')
-      return
-    }
-    if (fromId === toId) { setError('Les deux portefeuilles doivent être différents'); return }
-    setError('')
-    mutation.mutate()
-  }
-
-  return (
-    <>
-    <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 mb-6">
-      <p className="text-sm font-medium text-gray-800 mb-1">Transfert d'actifs entre portefeuilles</p>
-      <p className="text-xs text-gray-400 mb-4">Déplace des actifs d'un portefeuille vers un autre sans impact sur le résultat (SELL + BUY au même prix).</p>
-      <div className="flex flex-wrap gap-3 items-end">
-        <div className="min-w-40">
-          <label className="block text-xs font-medium text-gray-500 mb-1.5">Source</label>
-          <select value={fromId} onChange={(e) => { setFromId(e.target.value); setSymbol('') }} className={inputClass}>
-            <option value="">Portefeuille source…</option>
-            {portfolios.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
-        </div>
-        <div className="min-w-40">
-          <label className="block text-xs font-medium text-gray-500 mb-1.5">Destination</label>
-          <select value={toId} onChange={(e) => setToId(e.target.value)} className={inputClass} disabled={!fromId}>
-            <option value="">Portefeuille destination…</option>
-            {portfolios.filter((p) => p.id !== fromId).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
-        </div>
-        <div className="min-w-36">
-          <label className="block text-xs font-medium text-gray-500 mb-1.5">Actif</label>
-          <select value={symbol} onChange={(e) => setSymbol(e.target.value)} className={inputClass} disabled={!fromId}>
-            <option value="">Actif…</option>
-            {availablePositions.map((p: Position) => (
-              <option key={p.instrument_symbol} value={p.instrument_symbol}>
-                {p.instrument_symbol} ({parseFloat(p.quantity).toFixed(8).replace(/\.?0+$/, '')})
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="w-32">
-          <label className="block text-xs font-medium text-gray-500 mb-1.5">Quantité</label>
-          <input type="number" min="0.00000001" step="any" value={quantity} onChange={(e) => setQuantity(e.target.value)}
-            placeholder="0.5" className={inputClass} />
-        </div>
-        <div className="w-36">
-          <label className="block text-xs font-medium text-gray-500 mb-1.5">
-            Frais réseau <span className="font-normal text-gray-400">(optionnel)</span>
-          </label>
-          <input type="number" min="0" step="any" value={fees} onChange={(e) => setFees(e.target.value)}
-            placeholder="0.0001" className={inputClass} />
-        </div>
-        <div className="w-36">
-          <label className="block text-xs font-medium text-gray-500 mb-1.5">Date</label>
-          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={inputClass} />
-        </div>
-        <button onClick={handleSubmit} disabled={mutation.isPending}
-          className="px-5 py-2.5 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-800 disabled:opacity-40 transition-colors whitespace-nowrap">
-          {mutation.isPending ? 'Transfert…' : 'Transférer'}
-        </button>
-      </div>
-      {error && <p className="text-xs text-red-600 mt-2">{error}</p>}
-    </div>
-
-    {/* Historique */}
-    <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-      <div className="px-5 py-3 border-b border-gray-50">
-        <h2 className="text-sm font-medium text-gray-900">
-          Transferts d'actifs enregistrés
-          {history.length > 0 && <span className="ml-2 text-xs font-normal text-gray-400">{history.length}</span>}
-        </h2>
-      </div>
-      {historyLoading ? (
-        <div className="flex justify-center py-10">
-          <div className="w-5 h-5 border-2 border-gray-200 border-t-gray-700 rounded-full animate-spin" />
-        </div>
-      ) : history.length === 0 ? (
-        <div className="px-5 py-10 text-center">
-          <p className="text-sm text-gray-400">Aucun transfert d'actifs enregistré</p>
-        </div>
-      ) : (
-        <div className="px-3 py-2 divide-y divide-gray-50">
-          {history.map((r) => (
-            <AssetTransferHistoryRow
-              key={r.sell_trade_id}
-              record={r}
-              onDelete={(id) => deleteMutation.mutate(id)}
-            />
-          ))}
-        </div>
-      )}
-    </div>
-    </>
-  )
-}
 
 // ── Tri des virements ──────────────────────────────────────────────────────────
 
@@ -539,7 +336,6 @@ function sortTransfers(transfers: Transfer[], field: TransferSortField, dir: Sor
 
 export default function TransfersPage() {
   const { data: accounts = [] } = useAccounts()
-  const { data: portfolios = [] } = usePortfolios()
   const { data: transfers = [], isLoading: transfersLoading } = useTransfers()
   const { data: allTxs = [], refetch: refetchCandidates, isLoading: candidatesLoading } = useAllCandidates(accounts)
 
@@ -606,12 +402,12 @@ export default function TransfersPage() {
       {/* Header */}
       <div className="flex items-start justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-900">Virements</h1>
-          <p className="text-sm text-gray-400 mt-0.5">Transferts internes entre vos comptes et portefeuilles</p>
+          <h1 className="text-xl font-semibold text-gray-900">Virements</h1>
+          <p className="text-xs text-gray-400 mt-0.5">Transferts internes entre vos comptes et portefeuilles</p>
         </div>
         <button
           onClick={() => setShowForm((v) => !v)}
-          className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-800 transition-colors"
+          className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-xl hover:bg-gray-800 active:scale-[0.98] transition-colors"
         >
           {showForm ? 'Annuler' : '+ Nouveau virement'}
         </button>
@@ -620,37 +416,37 @@ export default function TransfersPage() {
       <>
           {/* Formulaire */}
           {showForm && (
-            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 mb-6">
-              <p className="text-sm font-medium text-gray-800 mb-4">Nouveau virement</p>
+            <div className="bg-white rounded-xl border border-gray-100 p-5 mb-6">
+              <p className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-4">Nouveau virement</p>
               <div className="flex flex-wrap gap-3 items-end">
                 <div className="min-w-40">
-                  <label className="block text-xs font-medium text-gray-500 mb-1.5">De</label>
+                  <label className="block text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-1.5">De</label>
                   <select value={fromId} onChange={(e) => { setFromId(e.target.value); setToId('') }} className={inputClass}>
                     <option value="">Compte source…</option>
                     {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
                   </select>
                 </div>
                 <div className="min-w-40">
-                  <label className="block text-xs font-medium text-gray-500 mb-1.5">Vers</label>
+                  <label className="block text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-1.5">Vers</label>
                   <select value={toId} onChange={(e) => setToId(e.target.value)} className={inputClass} disabled={!fromId}>
                     <option value="">Compte destination…</option>
                     {eligibleTo.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
                   </select>
                 </div>
                 <div className="w-32">
-                  <label className="block text-xs font-medium text-gray-500 mb-1.5">Montant</label>
+                  <label className="block text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-1.5">Montant</label>
                   <input type="number" min="0.01" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="500.00" className={inputClass} />
                 </div>
                 <div className="w-36">
-                  <label className="block text-xs font-medium text-gray-500 mb-1.5">Date</label>
+                  <label className="block text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-1.5">Date</label>
                   <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={inputClass} />
                 </div>
                 <div className="flex-1 min-w-40">
-                  <label className="block text-xs font-medium text-gray-500 mb-1.5">Libellé (optionnel)</label>
+                  <label className="block text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-1.5">Libellé (optionnel)</label>
                   <input type="text" value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Alimentation PEA janvier" className={inputClass} />
                 </div>
                 <button onClick={handleCreate} disabled={createTransfer.isPending}
-                  className="px-5 py-2.5 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-800 disabled:opacity-40 transition-colors whitespace-nowrap">
+                  className="px-5 py-2.5 bg-gray-900 text-white text-sm font-medium rounded-xl hover:bg-gray-800 active:scale-[0.98] disabled:opacity-40 transition-colors whitespace-nowrap">
                   {createTransfer.isPending ? 'Création…' : 'Créer'}
                 </button>
               </div>
@@ -670,12 +466,12 @@ export default function TransfersPage() {
                     <span className="text-sm text-amber-700">Analyse en cours…</span>
                   ) : (
                     <>
-                      <span className="text-sm font-medium text-amber-900">
+                      <span className="text-xs font-medium text-amber-900 uppercase tracking-wider">
                         {pairs.length > 0 && `${pairs.length} paire${pairs.length > 1 ? 's' : ''} à lier`}
                         {pairs.length > 0 && singles.length > 0 && ' · '}
                         {singles.length > 0 && `${singles.length} virement${singles.length > 1 ? 's' : ''} incomplet${singles.length > 1 ? 's' : ''}`}
                       </span>
-                      <span className="text-xs text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full">non liés</span>
+                      <span className="text-[10px] text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full font-medium">non liés</span>
                     </>
                   )}
                 </div>
@@ -687,7 +483,7 @@ export default function TransfersPage() {
                   {pairs.length > 0 && (
                     <>
                       <div className="px-5 py-2.5 bg-emerald-50/50 border-b border-amber-100">
-                        <p className="text-xs font-medium text-emerald-700">
+                        <p className="text-[10px] font-medium text-emerald-700 uppercase tracking-wider">
                           Paires détectées — les deux côtés existent déjà, il suffit de les lier
                         </p>
                       </div>
@@ -706,7 +502,7 @@ export default function TransfersPage() {
                   {singles.length > 0 && (
                     <>
                       <div className={`px-5 py-2.5 border-b border-amber-100 ${pairs.length > 0 ? 'bg-amber-50/80' : ''}`}>
-                        <p className="text-xs font-medium text-amber-700">
+                        <p className="text-[10px] font-medium text-amber-700 uppercase tracking-wider">
                           Virements incomplets — sélectionnez le compte de destination pour créer la contrepartie manquante
                         </p>
                       </div>
@@ -729,10 +525,10 @@ export default function TransfersPage() {
           )}
 
           {/* Liste virements existants */}
-          <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
             <div className="px-5 py-3 border-b border-gray-50">
               <div className="flex items-center justify-between">
-                <h2 className="text-sm font-medium text-gray-900">
+                <h2 className="text-xs font-medium text-gray-400 uppercase tracking-wider">
                   Virements enregistrés
                   {transfers.length > 0 && <span className="ml-2 text-xs font-normal text-gray-400">{transfers.length}</span>}
                 </h2>
@@ -781,17 +577,17 @@ export default function TransfersPage() {
       {/* Confirm delete */}
       {confirmDelete && (
         <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+          <div className="bg-white rounded-2xl w-full max-w-sm p-6">
             <p className="text-sm font-medium text-gray-900 mb-2">Supprimer ce virement ?</p>
             <p className="text-xs text-gray-500 mb-1">{confirmDelete.from_account_name} → {confirmDelete.to_account_name}</p>
             <p className="text-xs text-gray-500 mb-4">{fmt(confirmDelete.amount, confirmDelete.currency)} · {fmtDate(confirmDelete.date)}</p>
-            <p className="text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2 mb-5">
+            <p className="text-xs text-amber-600 bg-amber-50 rounded-xl px-3 py-2 mb-5">
               Les deux transactions liées seront dissociées et remises en état indépendant.
             </p>
             <div className="flex justify-end gap-2">
               <button onClick={() => setConfirmDelete(null)} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 transition-colors">Annuler</button>
               <button onClick={() => handleDelete(confirmDelete)} disabled={deleteTransfer.isPending}
-                className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 disabled:opacity-60 transition-colors">
+                className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-xl hover:bg-red-700 active:scale-[0.98] disabled:opacity-60 transition-colors">
                 {deleteTransfer.isPending ? 'Suppression…' : 'Supprimer'}
               </button>
             </div>

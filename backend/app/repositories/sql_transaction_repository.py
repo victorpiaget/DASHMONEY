@@ -6,7 +6,6 @@ from uuid import UUID
 
 from sqlalchemy import (
     Date,
-    DateTime,
     Integer,
     Numeric,
     String,
@@ -23,6 +22,7 @@ from app.identity.profile_scope import resolve_profile_id
 
 from app.db import init_db, new_session
 from app.db_base import Base
+from app.db_types import UtcDateTime
 from app.domain.money import Currency
 from app.domain.signed_money import SignedMoney
 from app.domain.transaction import Transaction, TransactionKind
@@ -51,7 +51,7 @@ class TransactionRow(Base):
     category: Mapped[str] = mapped_column(String(128), nullable=False)
     subcategory: Mapped[str | None] = mapped_column(String(128), nullable=True)
     label: Mapped[str | None] = mapped_column(String(256), nullable=True)
-    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), index=True, nullable=False)
+    created_at: Mapped[dt.datetime] = mapped_column(UtcDateTime(), index=True, nullable=False)
     transfer_id: Mapped[str | None] = mapped_column(String(36), index=True, nullable=True)
     profile_id: Mapped[str] = mapped_column(
         String(36),

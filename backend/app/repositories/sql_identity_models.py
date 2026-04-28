@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import datetime as dt
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, String, UniqueConstraint, func
+from sqlalchemy import Boolean, ForeignKey, String, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db_base import Base
+from app.db_types import UtcDateTime
 
 
 class UserRow(Base):
@@ -16,7 +17,7 @@ class UserRow(Base):
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     is_disabled: Mapped[bool] = mapped_column(nullable=False, default=False, server_default="false")
     created_at: Mapped[dt.datetime] = mapped_column(
-        DateTime(timezone=True),
+        UtcDateTime(),
         nullable=False,
         server_default=func.now(),
     )
@@ -28,7 +29,7 @@ class WorkspaceRow(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     name: Mapped[str] = mapped_column(String(128), nullable=False)
     created_at: Mapped[dt.datetime] = mapped_column(
-        DateTime(timezone=True),
+        UtcDateTime(),
         nullable=False,
         server_default=func.now(),
     )
@@ -66,7 +67,7 @@ class ProfileRow(Base):
     )
     display_name: Mapped[str] = mapped_column(String(128), nullable=False)
     created_at: Mapped[dt.datetime] = mapped_column(
-        DateTime(timezone=True),
+        UtcDateTime(),
         nullable=False,
         server_default=func.now(),
     )
@@ -99,12 +100,12 @@ class RefreshTokenRow(Base):
         index=True,
     )
     token_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
-    expires_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    expires_at: Mapped[dt.datetime] = mapped_column(UtcDateTime(), nullable=False)
     revoked: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default="false"
     )
     created_at: Mapped[dt.datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, server_default=func.now()
+        UtcDateTime(), nullable=False, server_default=func.now()
     )
 
 
