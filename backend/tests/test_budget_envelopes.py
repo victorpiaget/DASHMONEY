@@ -11,7 +11,13 @@ from app.domain.budget_envelope import BudgetEnvelope
 from app.domain.money import Currency, Money
 from app.domain.signed_money import SignedMoney
 from app.domain.transaction import Transaction, TransactionKind
-from app.engine.budget import BudgetComparison, budget_synthesis, budget_vs_actual
+from app.engine.budget import (
+    BudgetComparison,
+    budget_synthesis,
+    budget_vs_actual,
+    expense_totals_by_category,
+    income_totals_by_category,
+)
 from app.identity.defaults import DEFAULT_PROFILE_ID, DEFAULT_PROFILE2_ID
 
 
@@ -122,6 +128,62 @@ class TestBudgetVsActual:
         # transfer ignoré, env avec actual=0
         assert len(result) == 1
         assert result[0].actual.amount == Decimal("0.00")
+
+    def test_transfer_excluded_from_expense_totals(self):
+        """Un Transfer ne doit pas apparaître dans expense_totals_by_category()."""
+        expense = _make_tx(
+            category="Vie quotidienne",
+            kind=TransactionKind.EXPENSE,
+            amount_str="-150.00",
+        )
+        transfer_neg = Transaction.create(
+            account_id="acc-1",
+            date=dt.date(2026, 3, 15),
+            sequence=1,
+            amount=SignedMoney.from_str("-500.00", EUR),
+            kind=TransactionKind.TRANSFER,
+            category="Transfert interne",
+        )
+        transfer_pos = Transaction.create(
+            account_id="acc-2",
+            date=dt.date(2026, 3, 15),
+            sequence=1,
+            amount=SignedMoney.from_str("500.00", EUR),
+            kind=TransactionKind.TRANSFER,
+            category="Transfert interne",
+        )
+
+        totals = expense_totals_by_category(
+            [expense, transfer_neg, transfer_pos], currency=EUR,
+        )
+        cats = {t.category for t in totals}
+        assert "Transfert interne" not in cats
+        assert "Vie quotidienne" in cats
+
+    def test_transfer_excluded_from_synthesis(self):
+        """Un Transfer ne doit ni gonfler income ni gonfler expense dans le total."""
+        income = _make_tx(category="Revenus", kind=TransactionKind.INCOME, amount_str="2800.00")
+        transfer_neg = Transaction.create(
+            account_id="acc-1",
+            date=dt.date(2026, 3, 15),
+            sequence=1,
+            amount=SignedMoney.from_str("-500.00", EUR),
+            kind=TransactionKind.TRANSFER,
+            category="Transfert interne",
+        )
+        transfer_pos = Transaction.create(
+            account_id="acc-2",
+            date=dt.date(2026, 3, 15),
+            sequence=1,
+            amount=SignedMoney.from_str("500.00", EUR),
+            kind=TransactionKind.TRANSFER,
+            category="Transfert interne",
+        )
+
+        comparisons = budget_vs_actual([], [income, transfer_neg, transfer_pos], currency=EUR)
+        s = budget_synthesis(comparisons, currency=EUR)
+        assert s.total_income_actual.amount == Decimal("2800.00")
+        assert s.total_expense_actual.amount == Decimal("0.00")
 
     def test_expense_overspent(self):
         env = _make_env(category="Vie quotidienne", kind=TransactionKind.EXPENSE, amount_str="500.00")
@@ -262,6 +324,43 @@ class TestBudgetEnvelopesAPI:
         comp = next(c for c in data["comparisons"] if c["category"] == "Vie quotidienne")
         assert comp["planned"] == "600.00"
         assert comp["actual"] == "-500.00"
+
+    def test_comparison_income_consistent_when_only_subcategories(self, client):
+        """Synthesis.total_income_actual == somme des comparisons INCOME, même
+        quand les revenus n'ont qu'une sous-catégorie (jamais de ligne au niveau
+        catégorie root). Garde-fou pour le bug "Section Revenus vide"."""
+        import uuid as _uuid
+
+        acc_resp = client.post("/accounts", json={
+            "id": str(_uuid.uuid4()),
+            "name": "Compte revenus",
+            "account_type": "CHECKING",
+            "opening_balance": "0.00",
+            "currency": "EUR",
+            "opened_on": "2026-01-01",
+        })
+        acc_id = acc_resp.json()["id"]
+
+        client.post(f"/accounts/{acc_id}/transactions", json={
+            "date": "2026-03-05", "amount": "1500.00", "kind": "INCOME",
+            "category": "Revenus", "subcategory": "Salaire", "label": "salaire",
+        })
+        client.post(f"/accounts/{acc_id}/transactions", json={
+            "date": "2026-03-20", "amount": "575.65", "kind": "INCOME",
+            "category": "Revenus", "subcategory": "Bourses", "label": "bourse",
+        })
+
+        resp = client.get("/budget/comparison", params={"month": "2026-03"})
+        assert resp.status_code == 200
+        data = resp.json()
+
+        income_rows = [c for c in data["comparisons"] if c["kind"] == "INCOME"]
+        # Toutes les transactions ayant une subcategory, on n'attend que des
+        # lignes de niveau sous-catégorie
+        assert all(c["subcategory"] is not None for c in income_rows)
+        sum_income = sum(Decimal(c["actual"]) for c in income_rows)
+        assert sum_income == Decimal("2075.65")
+        assert data["synthesis"]["total_income_actual"] == "2075.65"
 
     def test_comparison_invalid_month(self, client):
         resp = client.get("/budget/comparison", params={"month": "not-a-month"})

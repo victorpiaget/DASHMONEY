@@ -41,8 +41,40 @@ export default function BudgetCategoryTable({ title, rows, kind, onSave, onDelet
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const { format } = useCurrency()
 
-  const catRows = rows.filter(r => r.subcategory === null)
+  const explicitCatRows = rows.filter(r => r.subcategory === null)
   const subRows = rows.filter(r => r.subcategory !== null)
+
+  // Reconstruire un row "catégorie parent" agrégé pour les catégories qui n'ont
+  // que des sous-catégories (sinon le tableau apparaît vide alors que les KPI
+  // ont bien des données — bug historique sur les Revenus).
+  const explicitCatNames = new Set(explicitCatRows.map(r => r.category))
+  const orphanCatNames = Array.from(
+    new Set(subRows.filter(s => !explicitCatNames.has(s.category)).map(s => s.category)),
+  )
+
+  const synthesizedCatRows: CompRow[] = orphanCatNames.map(cat => {
+    const subs = subRows.filter(s => s.category === cat)
+    const planned = subs.reduce((acc, s) => acc + parseAmount(s.planned), 0)
+    const actual = subs.reduce((acc, s) => acc + parseAmount(s.actual), 0)
+    const delta = kind === 'EXPENSE'
+      ? Math.abs(actual) - planned
+      : actual - planned
+    const percent = planned > 0
+      ? (Math.abs(actual) / planned) * 100
+      : (actual !== 0 ? 100 : 0)
+    return {
+      category: cat,
+      subcategory: null,
+      kind,
+      planned: planned.toFixed(2),
+      actual: actual.toFixed(2),
+      delta: delta.toFixed(2),
+      percent: percent.toFixed(2),
+    }
+  })
+
+  const catRows = [...explicitCatRows, ...synthesizedCatRows]
+    .sort((a, b) => Math.abs(parseAmount(b.actual)) - Math.abs(parseAmount(a.actual)))
 
   function toggle(cat: string) {
     setExpanded(prev => {
