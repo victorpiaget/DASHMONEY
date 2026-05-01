@@ -7,6 +7,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import init_db, new_session
 from app.db_base import Base
+from app.domain.category import CategoryNature
 from app.identity.profile_scope import resolve_profile_id
 from app.repositories.sql_identity_models import ProfileRow  # noqa: F401
 
@@ -37,6 +38,7 @@ class CategoryRow(Base):
         nullable=False,
     )
     name: Mapped[str] = mapped_column(String(128), nullable=False)
+    nature: Mapped[str | None] = mapped_column(String(16), nullable=True)
 
 
 class SubcategoryRow(Base):
@@ -90,10 +92,21 @@ class SqlCategoryRepository:
                 result.append({
                     "id": cat.id,
                     "name": cat.name,
+                    "nature": cat.nature,
                     "subcategories": [{"id": sub.id, "name": sub.name} for sub in subs],
                 })
 
             return result
+
+    def list_natures(self, *, profile_id: str | None = None) -> dict[str, str | None]:
+        """Mapping {category_name: nature} pour un profil. NULL conservé."""
+        pid = resolve_profile_id(profile_id)
+        with new_session() as s:
+            cats = s.execute(
+                select(CategoryRow.name, CategoryRow.nature)
+                .where(CategoryRow.profile_id == pid)
+            ).all()
+            return {row.name: row.nature for row in cats}
 
     # ------------------------------------------------------------------ #
     # Categories                                                           #
@@ -117,7 +130,66 @@ class SqlCategoryRepository:
             s.add(row)
             s.commit()
             s.refresh(row)
-            return {"id": row.id, "name": row.name, "subcategories": []}
+            return {"id": row.id, "name": row.name, "nature": row.nature, "subcategories": []}
+
+    def update_category(
+        self,
+        category_id: str,
+        *,
+        name: str | None = None,
+        nature: CategoryNature | None = None,
+        clear_nature: bool = False,
+        profile_id: str | None = None,
+    ) -> dict:
+        """Met à jour le nom et/ou la nature d'une catégorie.
+
+        - `name=None` ne touche pas au nom (omis).
+        - `nature=None` + `clear_nature=False` ne touche pas à la nature.
+        - `clear_nature=True` force la nature à NULL (catégorie "Non classée").
+        """
+        pid = resolve_profile_id(profile_id)
+        with new_session() as s:
+            row = s.get(CategoryRow, category_id)
+            if row is None or row.profile_id != pid:
+                raise KeyError(f"Category '{category_id}' not found")
+
+            if name is not None:
+                trimmed = name.strip()
+                if not trimmed:
+                    raise ValueError("name cannot be empty")
+                if trimmed != row.name:
+                    duplicate = s.execute(
+                        select(CategoryRow)
+                        .where(
+                            CategoryRow.profile_id == pid,
+                            CategoryRow.name == trimmed,
+                            CategoryRow.id != row.id,
+                        )
+                    ).scalar_one_or_none()
+                    if duplicate is not None:
+                        raise ValueError(f"Category '{trimmed}' already exists")
+                row.name = trimmed
+
+            if clear_nature:
+                row.nature = None
+            elif nature is not None:
+                row.nature = nature.value
+
+            s.commit()
+            s.refresh(row)
+
+            subs = s.execute(
+                select(SubcategoryRow)
+                .where(SubcategoryRow.category_id == row.id)
+                .order_by(SubcategoryRow.name.asc())
+            ).scalars().all()
+
+            return {
+                "id": row.id,
+                "name": row.name,
+                "nature": row.nature,
+                "subcategories": [{"id": sub.id, "name": sub.name} for sub in subs],
+            }
 
     def delete_category(self, category_id: str, *, profile_id: str | None = None) -> bool:
         pid = resolve_profile_id(profile_id)

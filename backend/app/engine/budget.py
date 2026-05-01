@@ -7,6 +7,7 @@ from decimal import Decimal
 from collections import defaultdict
 
 from app.domain.budget_envelope import BudgetEnvelope
+from app.domain.category import CategoryNature
 from app.domain.money import Currency, Money
 from app.domain.signed_money import SignedMoney
 from app.domain.transaction import Transaction, TransactionKind
@@ -262,6 +263,70 @@ def budget_vs_actual(
         -abs(x.actual.amount),
     ))
     return results
+
+
+# ---------------------------------------------------------------------------
+# Buckets par nature de catégorie (NEED / WANT / SAVING / uncategorized)
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class BucketTotals:
+    needs: SignedMoney
+    wants: SignedMoney
+    savings: SignedMoney
+    uncategorized: SignedMoney
+
+
+def expense_buckets_by_nature(
+    txs: list[Transaction],
+    nature_map: dict[str, str | None],
+    *,
+    currency: Currency,
+) -> BucketTotals:
+    """Agrège les dépenses par bucket selon la nature de leur catégorie.
+
+    `nature_map` : {category_name: "NEED"|"WANT"|"SAVING"|None}
+    Une transaction dont la catégorie n'est pas dans `nature_map`, ou dont la
+    nature est NULL, tombe dans `uncategorized`.
+    Les TRANSFER et INCOME sont ignorés.
+    """
+    acc: dict[str, Decimal] = {
+        "NEED": Decimal("0"),
+        "WANT": Decimal("0"),
+        "SAVING": Decimal("0"),
+        "UNCAT": Decimal("0"),
+    }
+
+    for t in txs:
+        if t.kind != TransactionKind.EXPENSE:
+            continue
+        nature = nature_map.get(t.category)
+        if nature == "NEED":
+            acc["NEED"] += t.amount.amount
+        elif nature == "WANT":
+            acc["WANT"] += t.amount.amount
+        elif nature == "SAVING":
+            acc["SAVING"] += t.amount.amount
+        else:
+            acc["UNCAT"] += t.amount.amount
+
+    return BucketTotals(
+        needs=SignedMoney.from_str(f"{acc['NEED']:.2f}", currency),
+        wants=SignedMoney.from_str(f"{acc['WANT']:.2f}", currency),
+        savings=SignedMoney.from_str(f"{acc['SAVING']:.2f}", currency),
+        uncategorized=SignedMoney.from_str(f"{acc['UNCAT']:.2f}", currency),
+    )
+
+
+def expense_total_excluding_savings(buckets: BucketTotals, *, currency: Currency) -> SignedMoney:
+    """Total dépenses au sens strict : NEED + WANT + UNCAT.
+    Exclut SAVING qui est de l'épargne, pas une dépense."""
+    total = (
+        buckets.needs.amount
+        + buckets.wants.amount
+        + buckets.uncategorized.amount
+    )
+    return SignedMoney.from_str(f"{total:.2f}", currency)
 
 
 def budget_synthesis(

@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { categoriesApi, type Category } from '../lib/categoriesApi'
+import { categoriesApi, type Category, type CategoryUpdate } from '../lib/categoriesApi'
 
 const QUERY_KEY = ['categories']
 
@@ -23,6 +23,18 @@ export function useDeleteCategory() {
   return useMutation({
     mutationFn: (categoryId: string) => categoriesApi.deleteCategory(categoryId),
     onSuccess: () => qc.invalidateQueries({ queryKey: QUERY_KEY }),
+  })
+}
+
+export function useUpdateCategory() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ categoryId, payload }: { categoryId: string; payload: CategoryUpdate }) =>
+      categoriesApi.updateCategory(categoryId, payload),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: QUERY_KEY })
+      qc.invalidateQueries({ queryKey: ['budget'] })
+    },
   })
 }
 

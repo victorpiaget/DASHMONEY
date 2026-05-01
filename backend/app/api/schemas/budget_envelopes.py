@@ -39,11 +39,20 @@ class BudgetSynthesisResponse(BaseModel):
     net_actual: str
 
 
+class BudgetBucketsResponse(BaseModel):
+    needs: str
+    wants: str
+    savings: str
+    uncategorized: str
+    total_expenses: str  # NEEDS + WANTS + UNCAT (exclut SAVING)
+
+
 class BudgetComparisonFullResponse(BaseModel):
     month: str
     currency: str
     synthesis: BudgetSynthesisResponse
     comparisons: list[BudgetComparisonResponse]
+    buckets: BudgetBucketsResponse
     profile_id: str
 
 

@@ -15,6 +15,8 @@ from app.engine.budget import (
     BudgetComparison,
     budget_synthesis,
     budget_vs_actual,
+    expense_buckets_by_nature,
+    expense_total_excluding_savings,
     expense_totals_by_category,
     income_totals_by_category,
 )
@@ -197,6 +199,78 @@ class TestBudgetVsActual:
         assert c.percent == Decimal("130.00")
 
 
+class TestExpenseBucketsByNature:
+
+    def test_groups_by_nature(self):
+        nature_map = {
+            "Loyer": "NEED",
+            "Restaurants": "WANT",
+            "PEA": "SAVING",
+        }
+        txs = [
+            _make_tx(category="Loyer", kind=TransactionKind.EXPENSE, amount_str="-900.00"),
+            _make_tx(category="Restaurants", kind=TransactionKind.EXPENSE, amount_str="-150.00"),
+            _make_tx(category="PEA", kind=TransactionKind.EXPENSE, amount_str="-500.00"),
+        ]
+        result = expense_buckets_by_nature(txs, nature_map, currency=EUR)
+        assert result.needs.amount == Decimal("-900.00")
+        assert result.wants.amount == Decimal("-150.00")
+        assert result.savings.amount == Decimal("-500.00")
+        assert result.uncategorized.amount == Decimal("0.00")
+
+    def test_unknown_category_falls_into_uncategorized(self):
+        nature_map = {"Loyer": "NEED"}
+        txs = [
+            _make_tx(category="Loyer", kind=TransactionKind.EXPENSE, amount_str="-900.00"),
+            _make_tx(category="MysteryCat", kind=TransactionKind.EXPENSE, amount_str="-50.00"),
+        ]
+        result = expense_buckets_by_nature(txs, nature_map, currency=EUR)
+        assert result.needs.amount == Decimal("-900.00")
+        assert result.uncategorized.amount == Decimal("-50.00")
+
+    def test_null_nature_falls_into_uncategorized(self):
+        nature_map = {"Catégorie": None}
+        txs = [
+            _make_tx(category="Catégorie", kind=TransactionKind.EXPENSE, amount_str="-30.00"),
+        ]
+        result = expense_buckets_by_nature(txs, nature_map, currency=EUR)
+        assert result.uncategorized.amount == Decimal("-30.00")
+        assert result.needs.amount == Decimal("0.00")
+
+    def test_income_and_transfer_excluded(self):
+        nature_map = {"Salaire": "NEED", "Transfert": "NEED"}
+        income = _make_tx(category="Salaire", kind=TransactionKind.INCOME, amount_str="2500.00")
+        transfer = Transaction.create(
+            account_id="acc-1",
+            date=dt.date(2026, 3, 15),
+            sequence=1,
+            amount=SignedMoney.from_str("-500.00", EUR),
+            kind=TransactionKind.TRANSFER,
+            category="Transfert",
+        )
+        result = expense_buckets_by_nature([income, transfer], nature_map, currency=EUR)
+        assert result.needs.amount == Decimal("0.00")
+        assert result.uncategorized.amount == Decimal("0.00")
+
+    def test_total_expenses_excludes_savings(self):
+        nature_map = {
+            "Loyer": "NEED",
+            "Restaurants": "WANT",
+            "PEA": "SAVING",
+            "Inconnue": None,
+        }
+        txs = [
+            _make_tx(category="Loyer", kind=TransactionKind.EXPENSE, amount_str="-900.00"),
+            _make_tx(category="Restaurants", kind=TransactionKind.EXPENSE, amount_str="-150.00"),
+            _make_tx(category="PEA", kind=TransactionKind.EXPENSE, amount_str="-500.00"),
+            _make_tx(category="Inconnue", kind=TransactionKind.EXPENSE, amount_str="-30.00"),
+        ]
+        buckets = expense_buckets_by_nature(txs, nature_map, currency=EUR)
+        total = expense_total_excluding_savings(buckets, currency=EUR)
+        # NEED + WANT + UNCAT, sans SAVING
+        assert total.amount == Decimal("-1080.00")
+
+
 class TestBudgetSynthesis:
 
     def test_nominal(self):
@@ -361,6 +435,58 @@ class TestBudgetEnvelopesAPI:
         sum_income = sum(Decimal(c["actual"]) for c in income_rows)
         assert sum_income == Decimal("2075.65")
         assert data["synthesis"]["total_income_actual"] == "2075.65"
+
+    def test_comparison_buckets_by_nature(self, client):
+        """GET /budget/comparison expose les buckets needs/wants/savings/uncategorized
+        selon la nature des catégories. Le total dépenses exclut SAVING."""
+        import uuid as _uuid
+
+        acc_resp = client.post("/accounts", json={
+            "id": str(_uuid.uuid4()),
+            "name": "Compte buckets",
+            "account_type": "CHECKING",
+            "opening_balance": "0.00",
+            "currency": "EUR",
+            "opened_on": "2026-01-01",
+        })
+        acc_id = acc_resp.json()["id"]
+
+        # Créer 3 catégories typées + 1 sans nature
+        cats = {}
+        for name, nature in [
+            ("Loyer", "NEED"),
+            ("Resto", "WANT"),
+            ("PEA", "SAVING"),
+            ("Mystère", None),
+        ]:
+            r = client.post("/categories", json={"name": name, "nature": nature})
+            cats[name] = r.json()
+
+        # Transactions associées (les catégories des transactions sont des strings,
+        # le matching se fait sur le NOM de la catégorie)
+        for cat_name, amount in [
+            ("Loyer", "-900.00"),
+            ("Resto", "-120.00"),
+            ("PEA", "-500.00"),
+            ("Mystère", "-40.00"),
+        ]:
+            client.post(f"/accounts/{acc_id}/transactions", json={
+                "date": "2026-03-15",
+                "amount": amount,
+                "kind": "EXPENSE",
+                "category": cat_name,
+                "label": "tx",
+            })
+
+        resp = client.get("/budget/comparison", params={"month": "2026-03"})
+        assert resp.status_code == 200, resp.text
+        buckets = resp.json()["buckets"]
+        assert buckets["needs"] == "-900.00"
+        assert buckets["wants"] == "-120.00"
+        assert buckets["savings"] == "-500.00"
+        assert buckets["uncategorized"] == "-40.00"
+        # Total exclut savings : -900 + -120 + -40 = -1060
+        assert buckets["total_expenses"] == "-1060.00"
 
     def test_comparison_invalid_month(self, client):
         resp = client.get("/budget/comparison", params={"month": "not-a-month"})

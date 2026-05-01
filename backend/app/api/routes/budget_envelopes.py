@@ -8,11 +8,13 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from app.api.deps import (
     get_account_repo,
     get_budget_envelope_repo,
+    get_category_repo,
     get_request_context,
     get_tx_repo,
     get_write_context,
 )
 from app.api.schemas.budget_envelopes import (
+    BudgetBucketsResponse,
     BudgetCategoriesResponse,
     BudgetCategoryItem,
     BudgetComparisonFullResponse,
@@ -26,7 +28,12 @@ from app.api.schemas.budget_envelopes import (
 from app.domain.budget_envelope import BudgetEnvelope
 from app.domain.money import Currency, Money
 from app.domain.transaction import TransactionKind
-from app.engine.budget import budget_synthesis, budget_vs_actual
+from app.engine.budget import (
+    budget_synthesis,
+    budget_vs_actual,
+    expense_buckets_by_nature,
+    expense_total_excluding_savings,
+)
 from app.identity.request_context import RequestContext
 from app.db import new_session
 from app.repositories.sql_transaction_repository import TransactionRow
@@ -130,6 +137,10 @@ def budget_comparison(
     comparisons = budget_vs_actual(envelopes, month_txs, currency=currency)
     synthesis = budget_synthesis(comparisons, currency=currency)
 
+    nature_map = get_category_repo().list_natures(profile_id=ctx.profile_id)
+    buckets = expense_buckets_by_nature(month_txs, nature_map, currency=currency)
+    total_expenses = expense_total_excluding_savings(buckets, currency=currency)
+
     return BudgetComparisonFullResponse(
         month=month,
         currency=currency.value,
@@ -153,6 +164,13 @@ def budget_comparison(
             )
             for c in comparisons
         ],
+        buckets=BudgetBucketsResponse(
+            needs=f"{buckets.needs.amount:.2f}",
+            wants=f"{buckets.wants.amount:.2f}",
+            savings=f"{buckets.savings.amount:.2f}",
+            uncategorized=f"{buckets.uncategorized.amount:.2f}",
+            total_expenses=f"{total_expenses.amount:.2f}",
+        ),
         profile_id=ctx.profile_id,
     )
 
