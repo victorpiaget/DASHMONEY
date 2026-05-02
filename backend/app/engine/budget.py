@@ -329,6 +329,100 @@ def expense_total_excluding_savings(buckets: BucketTotals, *, currency: Currency
     return SignedMoney.from_str(f"{total:.2f}", currency)
 
 
+def compute_savings(
+    buckets: BucketTotals,
+    income_actual: SignedMoney,
+    *,
+    currency: Currency,
+) -> tuple[Money, Decimal]:
+    """Retourne (savings_actual_positif, savings_rate) à partir des buckets.
+
+    - savings_actual : valeur absolue du bucket SAVING (positive)
+    - savings_rate : savings_actual / income_actual, arrondi à 4 décimales,
+      0 si income_actual <= 0.
+    """
+    savings_pos = abs(buckets.savings.amount)
+    savings_money = Money.from_str(f"{savings_pos:.2f}", currency)
+    if income_actual.amount <= 0:
+        return savings_money, Decimal("0.0000")
+    rate = (savings_pos / income_actual.amount).quantize(Decimal("0.0001"))
+    return savings_money, rate
+
+
+# ---------------------------------------------------------------------------
+# Médiane mensuelle par catégorie (pour auto-budget)
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class CategoryMedian:
+    category: str
+    subcategory: str | None
+    kind: TransactionKind
+    median_amount: Money
+    occurrences: int  # nombre de mois où la (cat, sub, kind) a au moins 1 tx
+
+
+def _median(values: list[Decimal]) -> Decimal:
+    if not values:
+        return Decimal("0.00")
+    s = sorted(values)
+    n = len(s)
+    mid = n // 2
+    if n % 2 == 1:
+        return s[mid]
+    return ((s[mid - 1] + s[mid]) / 2).quantize(Decimal("0.01"))
+
+
+def median_monthly_totals_by_category(
+    txs: list[Transaction],
+    *,
+    months: list[tuple[int, int]],
+    currency: Currency,
+    min_occurrences: int = 2,
+) -> list[CategoryMedian]:
+    """Pour chaque (catégorie, sous-catégorie, kind), calcule la médiane des
+    totaux mensuels absolus sur la fenêtre `months` (liste de tuples (year, month)).
+
+    Ne renvoie que les couples ayant au moins `min_occurrences` mois avec au
+    moins une transaction. Les TRANSFER sont ignorés.
+    """
+    months_set = set(months)
+    monthly: dict[tuple[str, str | None, TransactionKind], dict[tuple[int, int], Decimal]] = defaultdict(
+        lambda: defaultdict(Decimal)
+    )
+
+    for t in txs:
+        if t.kind == TransactionKind.TRANSFER:
+            continue
+        key_month = (t.date.year, t.date.month)
+        if key_month not in months_set:
+            continue
+        key = (t.category, t.subcategory, t.kind)
+        monthly[key][key_month] += t.amount.amount
+
+    results: list[CategoryMedian] = []
+    for (cat, sub, kind), month_totals in monthly.items():
+        occurrences = len(month_totals)
+        if occurrences < min_occurrences:
+            continue
+        abs_values = [abs(v) for v in month_totals.values()]
+        med = _median(abs_values)
+        results.append(CategoryMedian(
+            category=cat,
+            subcategory=sub,
+            kind=kind,
+            median_amount=Money.from_str(f"{med:.2f}", currency),
+            occurrences=occurrences,
+        ))
+
+    results.sort(key=lambda c: (
+        0 if c.kind == TransactionKind.INCOME else 1,
+        -c.median_amount.amount,
+        c.category.casefold(),
+    ))
+    return results
+
+
 def budget_synthesis(
     comparisons: list[BudgetComparison],
     *,

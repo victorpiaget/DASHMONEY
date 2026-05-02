@@ -52,3 +52,12 @@ export function useBudgetCategories() {
     staleTime: 60_000,
   })
 }
+
+export function useBudgetAutoFill(months = 3, enabled = true) {
+  return useQuery({
+    queryKey: ['budget-auto-budget', months],
+    queryFn: () => budgetApi.autoBudget(months),
+    enabled,
+    staleTime: 60_000,
+  })
+}

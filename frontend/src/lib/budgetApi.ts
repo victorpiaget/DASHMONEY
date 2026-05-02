@@ -1,5 +1,7 @@
 import { api } from './api'
 
+export type CategoryNature = 'NEED' | 'WANT' | 'SAVING'
+
 export interface BudgetEnvelope {
   id: string
   category: string
@@ -27,6 +29,16 @@ export interface BudgetSynthesis {
   total_expense_actual: string
   net_planned: string
   net_actual: string
+  savings_actual: string
+  savings_rate: string  // "0.0000".."1.0000"
+}
+
+export interface BudgetBuckets {
+  needs: string
+  wants: string
+  savings: string
+  uncategorized: string
+  total_expenses: string
 }
 
 export interface BudgetComparisonFull {
@@ -34,6 +46,7 @@ export interface BudgetComparisonFull {
   currency: string
   synthesis: BudgetSynthesis
   comparisons: BudgetComparison[]
+  buckets: BudgetBuckets
   profile_id: string
 }
 
@@ -44,6 +57,8 @@ export interface BudgetHistoryMonth {
   net_actual: string
   income_planned: string
   expense_planned: string
+  savings_actual: string
+  savings_rate: string
 }
 
 export interface BudgetHistoryResponse {
@@ -55,11 +70,30 @@ export interface BudgetHistoryResponse {
 export interface BudgetCategoryItem {
   category: string
   subcategories: string[]
+  nature: CategoryNature | null
 }
 
 export interface BudgetCategoriesResponse {
   income: BudgetCategoryItem[]
   expense: BudgetCategoryItem[]
+}
+
+export interface BudgetAutoBudgetSuggestion {
+  category: string
+  subcategory: string | null
+  kind: string
+  nature: CategoryNature | null
+  median_amount: string
+  occurrences: number
+}
+
+export interface BudgetAutoBudgetResponse {
+  based_on_months: number
+  from_month: string
+  to_month: string
+  suggestions: BudgetAutoBudgetSuggestion[]
+  currency: string
+  profile_id: string
 }
 
 export const budgetApi = {
@@ -85,4 +119,7 @@ export const budgetApi = {
 
   categories: (): Promise<BudgetCategoriesResponse> =>
     api.get<BudgetCategoriesResponse>('/budget/categories').then(r => r.data),
+
+  autoBudget: (months = 3): Promise<BudgetAutoBudgetResponse> =>
+    api.get<BudgetAutoBudgetResponse>('/budget/auto-budget', { params: { months } }).then(r => r.data),
 }

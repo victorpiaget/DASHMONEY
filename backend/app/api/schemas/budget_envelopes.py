@@ -1,6 +1,11 @@
 from __future__ import annotations
 
+from typing import Literal, Optional
+
 from pydantic import BaseModel
+
+
+CategoryNatureLiteral = Literal["NEED", "WANT", "SAVING"]
 
 
 class BudgetEnvelopeRequest(BaseModel):
@@ -37,6 +42,8 @@ class BudgetSynthesisResponse(BaseModel):
     total_expense_actual: str
     net_planned: str
     net_actual: str
+    savings_actual: str  # valeur absolue, toujours positive
+    savings_rate: str    # "0.0000".."1.0000" (frontend × 100 pour affichage %)
 
 
 class BudgetBucketsResponse(BaseModel):
@@ -63,6 +70,8 @@ class BudgetHistoryMonthResponse(BaseModel):
     net_actual: str
     income_planned: str
     expense_planned: str
+    savings_actual: str
+    savings_rate: str
 
 
 class BudgetHistoryResponse(BaseModel):
@@ -74,8 +83,27 @@ class BudgetHistoryResponse(BaseModel):
 class BudgetCategoryItem(BaseModel):
     category: str
     subcategories: list[str]
+    nature: Optional[CategoryNatureLiteral] = None
 
 
 class BudgetCategoriesResponse(BaseModel):
     income: list[BudgetCategoryItem]
     expense: list[BudgetCategoryItem]
+
+
+class BudgetAutoBudgetSuggestion(BaseModel):
+    category: str
+    subcategory: Optional[str]
+    kind: str
+    nature: Optional[CategoryNatureLiteral]
+    median_amount: str
+    occurrences: int
+
+
+class BudgetAutoBudgetResponse(BaseModel):
+    based_on_months: int
+    from_month: str  # "YYYY-MM"
+    to_month: str    # "YYYY-MM"
+    suggestions: list[BudgetAutoBudgetSuggestion]
+    currency: str
+    profile_id: str

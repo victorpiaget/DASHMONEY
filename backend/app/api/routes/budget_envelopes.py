@@ -14,6 +14,8 @@ from app.api.deps import (
     get_write_context,
 )
 from app.api.schemas.budget_envelopes import (
+    BudgetAutoBudgetResponse,
+    BudgetAutoBudgetSuggestion,
     BudgetBucketsResponse,
     BudgetCategoriesResponse,
     BudgetCategoryItem,
@@ -31,8 +33,10 @@ from app.domain.transaction import TransactionKind
 from app.engine.budget import (
     budget_synthesis,
     budget_vs_actual,
+    compute_savings,
     expense_buckets_by_nature,
     expense_total_excluding_savings,
+    median_monthly_totals_by_category,
 )
 from app.identity.request_context import RequestContext
 from app.db import new_session
@@ -140,6 +144,9 @@ def budget_comparison(
     nature_map = get_category_repo().list_natures(profile_id=ctx.profile_id)
     buckets = expense_buckets_by_nature(month_txs, nature_map, currency=currency)
     total_expenses = expense_total_excluding_savings(buckets, currency=currency)
+    savings_actual, savings_rate = compute_savings(
+        buckets, synthesis.total_income_actual, currency=currency,
+    )
 
     return BudgetComparisonFullResponse(
         month=month,
@@ -151,6 +158,8 @@ def budget_comparison(
             total_expense_actual=f"{synthesis.total_expense_actual.amount:.2f}",
             net_planned=f"{synthesis.net_planned.amount:.2f}",
             net_actual=f"{synthesis.net_actual.amount:.2f}",
+            savings_actual=f"{savings_actual.amount:.2f}",
+            savings_rate=f"{savings_rate:.4f}",
         ),
         comparisons=[
             BudgetComparisonResponse(
@@ -189,6 +198,8 @@ def budget_history(
     tx_repo = get_tx_repo()
     all_txs = tx_repo.list(profile_id=ctx.profile_id)
 
+    nature_map = get_category_repo().list_natures(profile_id=ctx.profile_id)
+
     result_months: list[BudgetHistoryMonthResponse] = []
 
     for i in range(months - 1, -1, -1):
@@ -208,6 +219,11 @@ def budget_history(
         comparisons = budget_vs_actual(envelopes, month_txs, currency=currency)
         synthesis = budget_synthesis(comparisons, currency=currency)
 
+        buckets = expense_buckets_by_nature(month_txs, nature_map, currency=currency)
+        savings_actual, savings_rate = compute_savings(
+            buckets, synthesis.total_income_actual, currency=currency,
+        )
+
         result_months.append(BudgetHistoryMonthResponse(
             month=f"{year}-{month:02d}",
             income_actual=f"{synthesis.total_income_actual.amount:.2f}",
@@ -215,6 +231,8 @@ def budget_history(
             net_actual=f"{synthesis.net_actual.amount:.2f}",
             income_planned=f"{synthesis.total_income_planned.amount:.2f}",
             expense_planned=f"{synthesis.total_expense_planned.amount:.2f}",
+            savings_actual=f"{savings_actual.amount:.2f}",
+            savings_rate=f"{savings_rate:.4f}",
         ))
 
     return BudgetHistoryResponse(
@@ -255,13 +273,81 @@ def budget_categories(
             else:
                 expense_acc.setdefault(cat, set())
 
+    nature_map = get_category_repo().list_natures(profile_id=ctx.profile_id)
+
     income = [
-        BudgetCategoryItem(category=cat, subcategories=sorted(subs))
+        BudgetCategoryItem(category=cat, subcategories=sorted(subs), nature=nature_map.get(cat))
         for cat, subs in sorted(income_acc.items())
     ]
     expense = [
-        BudgetCategoryItem(category=cat, subcategories=sorted(subs))
+        BudgetCategoryItem(category=cat, subcategories=sorted(subs), nature=nature_map.get(cat))
         for cat, subs in sorted(expense_acc.items())
     ]
 
     return BudgetCategoriesResponse(income=income, expense=expense)
+
+
+@router.get("/auto-budget", response_model=BudgetAutoBudgetResponse)
+def budget_auto_budget(
+    months: int = Query(default=3, ge=1, le=12),
+    ctx: RequestContext = Depends(get_request_context),
+) -> BudgetAutoBudgetResponse:
+    """Suggestions d'enveloppes calculées sur la médiane des N derniers mois pleins.
+
+    Le mois courant est exclu (incomplet). Renvoie uniquement les couples
+    (catégorie, sous-catégorie, kind) ayant au moins 2 mois avec transactions.
+    """
+    currency = Currency.EUR
+    today = dt.date.today()
+
+    months_window: list[tuple[int, int]] = []
+    for i in range(1, months + 1):
+        year = today.year
+        m = today.month - i
+        while m <= 0:
+            m += 12
+            year -= 1
+        months_window.append((year, m))
+
+    if not months_window:
+        return BudgetAutoBudgetResponse(
+            based_on_months=0,
+            from_month=today.strftime("%Y-%m"),
+            to_month=today.strftime("%Y-%m"),
+            suggestions=[],
+            currency=currency.value,
+            profile_id=ctx.profile_id,
+        )
+
+    from_y, from_m = min(months_window)
+    to_y, to_m = max(months_window)
+
+    tx_repo = get_tx_repo()
+    all_txs = tx_repo.list(profile_id=ctx.profile_id)
+
+    medians = median_monthly_totals_by_category(
+        all_txs, months=months_window, currency=currency, min_occurrences=2,
+    )
+
+    nature_map = get_category_repo().list_natures(profile_id=ctx.profile_id)
+
+    suggestions = [
+        BudgetAutoBudgetSuggestion(
+            category=m.category,
+            subcategory=m.subcategory,
+            kind=m.kind.value,
+            nature=nature_map.get(m.category),
+            median_amount=f"{m.median_amount.amount:.2f}",
+            occurrences=m.occurrences,
+        )
+        for m in medians
+    ]
+
+    return BudgetAutoBudgetResponse(
+        based_on_months=len(months_window),
+        from_month=f"{from_y}-{from_m:02d}",
+        to_month=f"{to_y}-{to_m:02d}",
+        suggestions=suggestions,
+        currency=currency.value,
+        profile_id=ctx.profile_id,
+    )
