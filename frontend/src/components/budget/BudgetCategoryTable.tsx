@@ -1,6 +1,14 @@
 import { useState } from 'react'
 import { useCurrency } from '../../context/CurrencyContext'
+import type { CategoryNature } from '../../lib/budgetApi'
 import EditableAmount from './EditableAmount'
+
+const NATURE_BADGE: Record<CategoryNature | 'NULL', { label: string; className: string }> = {
+  NEED: { label: 'Besoin', className: 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' },
+  WANT: { label: 'Envie', className: 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' },
+  SAVING: { label: 'Épargne', className: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' },
+  NULL: { label: 'Non classé', className: 'bg-yellow-50 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300' },
+}
 
 function parseAmount(s: string): number {
   return parseFloat(s) || 0
@@ -35,9 +43,10 @@ interface Props {
   onSave: (category: string, subcategory: string | null, amount: string) => void
   onDelete: (category: string, subcategory: string | null) => void
   footer?: React.ReactNode
+  natureMap?: Record<string, CategoryNature | null>
 }
 
-export default function BudgetCategoryTable({ title, rows, kind, onSave, onDelete, footer }: Props) {
+export default function BudgetCategoryTable({ title, rows, kind, onSave, onDelete, footer, natureMap }: Props) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const { format } = useCurrency()
 
@@ -124,6 +133,16 @@ export default function BudgetCategoryTable({ title, rows, kind, onSave, onDelet
                       )}
                       {!hasSubs && <span className="w-4" />}
                       <span className="font-medium text-gray-800 dark:text-gray-200">{row.category}</span>
+                      {kind === 'EXPENSE' && natureMap !== undefined && (() => {
+                        const n = natureMap[row.category] ?? null
+                        const key: CategoryNature | 'NULL' = n ?? 'NULL'
+                        const badge = NATURE_BADGE[key]
+                        return (
+                          <span className={`text-[10px] font-medium rounded px-1.5 py-0.5 ${badge.className}`}>
+                            {badge.label}
+                          </span>
+                        )
+                      })()}
                       {hasPlanned && pct > 100 && (
                         <span className="text-xs font-semibold bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400 rounded px-1.5 py-0.5">Dépassé</span>
                       )}
