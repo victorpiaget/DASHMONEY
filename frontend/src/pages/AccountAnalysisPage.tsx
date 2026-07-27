@@ -4,7 +4,8 @@ import { useAccounts, useAccountBalance } from '../hooks/useAccounts'
 import { useAccountTimeSeries, useAccountBudgetSummary } from '../hooks/useAccountAnalysis'
 import { useCurrency } from '../context/CurrencyContext'
 import { useTheme } from '../context/ThemeContext'
-import PeriodPicker, { type PeriodSelection, resolveDates } from '../components/PeriodPicker'
+import PeriodPicker from '../components/PeriodPicker'
+import { type PeriodSelection, resolveDates } from '../lib/period'
 import type { TimeSeriesPoint } from '../lib/analysisApi'
 
 // ── Bucket helpers ─────────────────────────────────────────────────────────────

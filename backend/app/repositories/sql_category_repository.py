@@ -23,6 +23,18 @@ _DEFAULTS: list[tuple[str, list[str]]] = [
     ("Autre", ["Non trié", "Ajustement", "Frais bancaire", "Transfert interne", "Assurance CA"]),
 ]
 
+_DEFAULT_NATURES: dict[str, CategoryNature] = {
+    "Logement & charges fixes": CategoryNature.NEED,
+    "Vie quotidienne": CategoryNature.NEED,
+    "Transport & mobilité": CategoryNature.NEED,
+    "Études & travail": CategoryNature.NEED,
+    "Vie sociale & loisirs": CategoryNature.WANT,
+    "Cadeaux & solidarité": CategoryNature.WANT,
+    "Épargne & investissements": CategoryNature.SAVING,
+    # Catégorie historique issue des imports de Victor.
+    "INVEST": CategoryNature.SAVING,
+}
+
 
 class CategoryRow(Base):
     __tablename__ = "categories"
@@ -106,7 +118,11 @@ class SqlCategoryRepository:
                 select(CategoryRow.name, CategoryRow.nature)
                 .where(CategoryRow.profile_id == pid)
             ).all()
-            return {row.name: row.nature for row in cats}
+            result: dict[str, str | None] = {
+                name: nature.value for name, nature in _DEFAULT_NATURES.items()
+            }
+            result.update({row.name: row.nature for row in cats})
+            return result
 
     # ------------------------------------------------------------------ #
     # Categories                                                           #
@@ -251,7 +267,13 @@ class SqlCategoryRepository:
     def _seed_defaults(s, profile_id: str) -> list[CategoryRow]:
         cats = []
         for cat_name, sub_names in _DEFAULTS:
-            cat = CategoryRow(id=str(uuid.uuid4()), profile_id=profile_id, name=cat_name)
+            default_nature = _DEFAULT_NATURES.get(cat_name)
+            cat = CategoryRow(
+                id=str(uuid.uuid4()),
+                profile_id=profile_id,
+                name=cat_name,
+                nature=default_nature.value if default_nature is not None else None,
+            )
             s.add(cat)
             s.flush()
             for sub_name in sub_names:

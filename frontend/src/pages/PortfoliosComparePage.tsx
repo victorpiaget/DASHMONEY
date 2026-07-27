@@ -2,7 +2,8 @@ import { useState, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { usePortfoliosCompare } from '../hooks/usePortfolios'
 import { useCurrency } from '../context/CurrencyContext'
-import PeriodPicker, { type PeriodSelection, resolveDates } from '../components/PeriodPicker'
+import PeriodPicker from '../components/PeriodPicker'
+import { type PeriodSelection, resolveDates } from '../lib/period'
 
 // ── Couleurs par portefeuille ───────────────────────────────────────────────
 

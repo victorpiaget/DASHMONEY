@@ -4,7 +4,8 @@ import { useQuery } from '@tanstack/react-query'
 import { useAccounts } from '../hooks/useAccounts'
 import { useCurrency } from '../context/CurrencyContext'
 import { transactionsApi, type GlobalTransaction, type TransactionKind } from '../lib/transactionsApi'
-import PeriodPicker, { type PeriodSelection, resolveDates } from '../components/PeriodPicker'
+import PeriodPicker from '../components/PeriodPicker'
+import { type PeriodSelection, resolveDates } from '../lib/period'
 
 // ── Constantes ─────────────────────────────────────────────────────────────────
 

@@ -67,6 +67,44 @@ export interface BudgetHistoryResponse {
   profile_id: string
 }
 
+export interface BudgetFlowIncomeSource {
+  category: string
+  subcategory: string | null
+  amount: string
+}
+
+export interface BudgetFlowSubcategory {
+  subcategory: string | null
+  amount: string
+}
+
+export interface BudgetFlowExpenseCategory {
+  category: string
+  nature: CategoryNature | null
+  amount: string
+  subcategories: BudgetFlowSubcategory[]
+}
+
+export interface BudgetFlowSummary {
+  total_income: string
+  total_expenses: string
+  total_savings: string
+  total_outflows: string
+  balance: string
+  remaining: string
+  deficit: string
+}
+
+export interface BudgetFlowResponse {
+  date_from: string
+  date_to: string
+  currency: string
+  income_sources: BudgetFlowIncomeSource[]
+  expense_categories: BudgetFlowExpenseCategory[]
+  summary: BudgetFlowSummary
+  profile_id: string
+}
+
 export interface BudgetCategoryItem {
   category: string
   subcategories: string[]
@@ -116,6 +154,11 @@ export const budgetApi = {
 
   history: (months = 6): Promise<BudgetHistoryResponse> =>
     api.get<BudgetHistoryResponse>('/budget/history', { params: { months } }).then(r => r.data),
+
+  flow: (dateFrom: string, dateTo: string): Promise<BudgetFlowResponse> =>
+    api.get<BudgetFlowResponse>('/budget/flow', {
+      params: { date_from: dateFrom, date_to: dateTo },
+    }).then(r => r.data),
 
   categories: (): Promise<BudgetCategoriesResponse> =>
     api.get<BudgetCategoriesResponse>('/budget/categories').then(r => r.data),

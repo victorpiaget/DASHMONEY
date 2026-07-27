@@ -25,6 +25,11 @@ def test_list_categories_auto_seeds_defaults(client):
     names = [c["name"] for c in items]
     # Quelques noms de categories attendus dans les defaults
     assert any("Logement" in n for n in names)
+    by_name = {c["name"]: c for c in items}
+    assert by_name["Logement & charges fixes"]["nature"] == "NEED"
+    assert by_name["Vie sociale & loisirs"]["nature"] == "WANT"
+    assert by_name["Épargne & investissements"]["nature"] == "SAVING"
+    assert by_name["Autre"]["nature"] is None
 
 
 def test_create_category(client):

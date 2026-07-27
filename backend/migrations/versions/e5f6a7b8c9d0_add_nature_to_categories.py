@@ -18,17 +18,17 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.add_column(
-        'categories',
-        sa.Column('nature', sa.String(16), nullable=True),
-    )
-    op.create_check_constraint(
-        'ck_categories_nature_values',
-        'categories',
-        "nature IS NULL OR nature IN ('NEED', 'WANT', 'SAVING')",
-    )
+    with op.batch_alter_table('categories') as batch_op:
+        batch_op.add_column(
+            sa.Column('nature', sa.String(16), nullable=True),
+        )
+        batch_op.create_check_constraint(
+            'ck_categories_nature_values',
+            "nature IS NULL OR nature IN ('NEED', 'WANT', 'SAVING')",
+        )
 
 
 def downgrade() -> None:
-    op.drop_constraint('ck_categories_nature_values', 'categories', type_='check')
-    op.drop_column('categories', 'nature')
+    with op.batch_alter_table('categories') as batch_op:
+        batch_op.drop_constraint('ck_categories_nature_values', type_='check')
+        batch_op.drop_column('nature')

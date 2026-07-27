@@ -45,6 +45,14 @@ export function useBudgetHistory(months = 6) {
   })
 }
 
+export function useBudgetFlow(dateFrom: string, dateTo: string, enabled = true) {
+  return useQuery({
+    queryKey: ['budget-flow', dateFrom, dateTo],
+    queryFn: () => budgetApi.flow(dateFrom, dateTo),
+    enabled: enabled && !!dateFrom && !!dateTo,
+  })
+}
+
 export function useBudgetCategories() {
   return useQuery({
     queryKey: ['budget-categories'],

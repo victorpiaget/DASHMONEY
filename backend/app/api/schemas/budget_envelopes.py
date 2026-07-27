@@ -80,6 +80,44 @@ class BudgetHistoryResponse(BaseModel):
     profile_id: str
 
 
+class BudgetFlowIncomeSourceResponse(BaseModel):
+    category: str
+    subcategory: str | None
+    amount: str
+
+
+class BudgetFlowSubcategoryResponse(BaseModel):
+    subcategory: str | None
+    amount: str
+
+
+class BudgetFlowExpenseCategoryResponse(BaseModel):
+    category: str
+    nature: Optional[CategoryNatureLiteral]
+    amount: str
+    subcategories: list[BudgetFlowSubcategoryResponse]
+
+
+class BudgetFlowSummaryResponse(BaseModel):
+    total_income: str
+    total_expenses: str
+    total_savings: str
+    total_outflows: str
+    balance: str
+    remaining: str
+    deficit: str
+
+
+class BudgetFlowResponse(BaseModel):
+    date_from: str
+    date_to: str
+    currency: str
+    income_sources: list[BudgetFlowIncomeSourceResponse]
+    expense_categories: list[BudgetFlowExpenseCategoryResponse]
+    summary: BudgetFlowSummaryResponse
+    profile_id: str
+
+
 class BudgetCategoryItem(BaseModel):
     category: str
     subcategories: list[str]

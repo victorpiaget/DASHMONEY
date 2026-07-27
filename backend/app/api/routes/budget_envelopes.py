@@ -23,6 +23,11 @@ from app.api.schemas.budget_envelopes import (
     BudgetComparisonResponse,
     BudgetEnvelopeRequest,
     BudgetEnvelopeResponse,
+    BudgetFlowExpenseCategoryResponse,
+    BudgetFlowIncomeSourceResponse,
+    BudgetFlowResponse,
+    BudgetFlowSubcategoryResponse,
+    BudgetFlowSummaryResponse,
     BudgetHistoryMonthResponse,
     BudgetHistoryResponse,
     BudgetSynthesisResponse,
@@ -31,6 +36,7 @@ from app.domain.budget_envelope import BudgetEnvelope
 from app.domain.money import Currency, Money
 from app.domain.transaction import TransactionKind
 from app.engine.budget import (
+    budget_flow,
     budget_synthesis,
     budget_vs_actual,
     compute_savings,
@@ -179,6 +185,61 @@ def budget_comparison(
             savings=f"{buckets.savings.amount:.2f}",
             uncategorized=f"{buckets.uncategorized.amount:.2f}",
             total_expenses=f"{total_expenses.amount:.2f}",
+        ),
+        profile_id=ctx.profile_id,
+    )
+
+
+@router.get("/flow", response_model=BudgetFlowResponse)
+def get_budget_flow(
+    date_from: dt.date = Query(...),
+    date_to: dt.date = Query(...),
+    ctx: RequestContext = Depends(get_request_context),
+) -> BudgetFlowResponse:
+    if date_from > date_to:
+        raise HTTPException(status_code=422, detail="date_from must be before or equal to date_to")
+
+    currency = Currency.EUR
+    all_txs = get_tx_repo().list(profile_id=ctx.profile_id)
+    period_txs = [tx for tx in all_txs if date_from <= tx.date <= date_to]
+    nature_map = get_category_repo().list_natures(profile_id=ctx.profile_id)
+    flow = budget_flow(period_txs, nature_map, currency=currency)
+
+    return BudgetFlowResponse(
+        date_from=date_from.isoformat(),
+        date_to=date_to.isoformat(),
+        currency=currency.value,
+        income_sources=[
+            BudgetFlowIncomeSourceResponse(
+                category=source.category,
+                subcategory=source.subcategory,
+                amount=f"{source.amount.amount:.2f}",
+            )
+            for source in flow.income_sources
+        ],
+        expense_categories=[
+            BudgetFlowExpenseCategoryResponse(
+                category=category.category,
+                nature=category.nature.value if category.nature is not None else None,
+                amount=f"{category.amount.amount:.2f}",
+                subcategories=[
+                    BudgetFlowSubcategoryResponse(
+                        subcategory=subcategory.subcategory,
+                        amount=f"{subcategory.amount.amount:.2f}",
+                    )
+                    for subcategory in category.subcategories
+                ],
+            )
+            for category in flow.expense_categories
+        ],
+        summary=BudgetFlowSummaryResponse(
+            total_income=f"{flow.total_income.amount:.2f}",
+            total_expenses=f"{flow.total_expenses.amount:.2f}",
+            total_savings=f"{flow.total_savings.amount:.2f}",
+            total_outflows=f"{flow.total_outflows.amount:.2f}",
+            balance=f"{flow.balance.amount:.2f}",
+            remaining=f"{flow.remaining.amount:.2f}",
+            deficit=f"{flow.deficit.amount:.2f}",
         ),
         profile_id=ctx.profile_id,
     )

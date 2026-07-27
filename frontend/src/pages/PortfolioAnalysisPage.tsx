@@ -5,7 +5,8 @@ import { usePortfolios, useTrades, usePositions, useSnapshots, useAddSnapshot, u
 import { pricesApi } from '../lib/portfoliosApi'
 import { useCurrency } from '../context/CurrencyContext'
 import { useTheme } from '../context/ThemeContext'
-import PeriodPicker, { type PeriodSelection, resolveDates } from '../components/PeriodPicker'
+import PeriodPicker from '../components/PeriodPicker'
+import { type PeriodSelection, resolveDates } from '../lib/period'
 import type { PortfolioSnapshot, Instrument } from '../lib/portfoliosApi'
 
 function instLabel(instruments: Instrument[], symbol: string): string {

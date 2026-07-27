@@ -350,6 +350,143 @@ def compute_savings(
 
 
 # ---------------------------------------------------------------------------
+# Flux budgétaires réels sur une période
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class BudgetFlowIncomeSource:
+    category: str
+    subcategory: str | None
+    amount: Money
+
+
+@dataclass(frozen=True)
+class BudgetFlowSubcategory:
+    subcategory: str | None
+    amount: Money
+
+
+@dataclass(frozen=True)
+class BudgetFlowExpenseCategory:
+    category: str
+    nature: CategoryNature | None
+    amount: Money
+    subcategories: tuple[BudgetFlowSubcategory, ...]
+
+
+@dataclass(frozen=True)
+class BudgetFlow:
+    income_sources: tuple[BudgetFlowIncomeSource, ...]
+    expense_categories: tuple[BudgetFlowExpenseCategory, ...]
+    total_income: Money
+    total_expenses: Money
+    total_savings: Money
+    total_outflows: Money
+    balance: SignedMoney
+    remaining: Money
+    deficit: Money
+
+
+def budget_flow(
+    txs: list[Transaction],
+    nature_map: dict[str, str | None],
+    *,
+    currency: Currency,
+) -> BudgetFlow:
+    """Agrège des flux réels positifs, prêts à être représentés en Sankey."""
+    income_acc: dict[tuple[str, str | None], Decimal] = defaultdict(Decimal)
+    expense_acc: dict[str, Decimal] = defaultdict(Decimal)
+    subcategory_acc: dict[tuple[str, str | None], Decimal] = defaultdict(Decimal)
+
+    for tx in txs:
+        if tx.kind == TransactionKind.TRANSFER:
+            continue
+        if tx.kind == TransactionKind.INCOME:
+            income_acc[(tx.category, tx.subcategory)] += tx.amount.amount
+            continue
+
+        amount = abs(tx.amount.amount)
+        expense_acc[tx.category] += amount
+        subcategory_acc[(tx.category, tx.subcategory)] += amount
+
+    income_sources = tuple(
+        BudgetFlowIncomeSource(
+            category=category,
+            subcategory=subcategory,
+            amount=Money.from_str(f"{amount:.2f}", currency),
+        )
+        for (category, subcategory), amount in sorted(
+            income_acc.items(),
+            key=lambda item: (-item[1], item[0][0].casefold(), (item[0][1] or "").casefold()),
+        )
+    )
+
+    nature_order = {
+        CategoryNature.NEED: 0,
+        CategoryNature.WANT: 1,
+        CategoryNature.SAVING: 2,
+        None: 3,
+    }
+    expense_categories: list[BudgetFlowExpenseCategory] = []
+    for category, amount in expense_acc.items():
+        raw_nature = nature_map.get(category)
+        try:
+            nature = CategoryNature(raw_nature) if raw_nature is not None else None
+        except ValueError:
+            nature = None
+
+        subcategories = tuple(
+            BudgetFlowSubcategory(
+                subcategory=subcategory,
+                amount=Money.from_str(f"{sub_amount:.2f}", currency),
+            )
+            for (sub_category, subcategory), sub_amount in sorted(
+                subcategory_acc.items(),
+                key=lambda item: (-item[1], (item[0][1] or "").casefold()),
+            )
+            if sub_category == category
+        )
+        expense_categories.append(
+            BudgetFlowExpenseCategory(
+                category=category,
+                nature=nature,
+                amount=Money.from_str(f"{amount:.2f}", currency),
+                subcategories=subcategories,
+            )
+        )
+
+    expense_categories.sort(
+        key=lambda item: (
+            nature_order[item.nature],
+            -item.amount.amount,
+            item.category.casefold(),
+        )
+    )
+
+    total_income_value = sum(income_acc.values(), Decimal("0.00"))
+    total_outflows_value = sum(expense_acc.values(), Decimal("0.00"))
+    total_savings_value = sum(
+        item.amount.amount
+        for item in expense_categories
+        if item.nature == CategoryNature.SAVING
+    )
+    total_expenses_value = total_outflows_value - total_savings_value
+    balance_value = total_income_value - total_outflows_value
+
+    return BudgetFlow(
+        income_sources=income_sources,
+        expense_categories=tuple(expense_categories),
+        total_income=Money.from_str(f"{total_income_value:.2f}", currency),
+        total_expenses=Money.from_str(f"{total_expenses_value:.2f}", currency),
+        total_savings=Money.from_str(f"{total_savings_value:.2f}", currency),
+        total_outflows=Money.from_str(f"{total_outflows_value:.2f}", currency),
+        balance=SignedMoney.from_str(f"{balance_value:.2f}", currency),
+        remaining=Money.from_str(f"{max(balance_value, Decimal('0.00')):.2f}", currency),
+        deficit=Money.from_str(f"{max(-balance_value, Decimal('0.00')):.2f}", currency),
+    )
+
+
+# ---------------------------------------------------------------------------
 # Médiane mensuelle par catégorie (pour auto-budget)
 # ---------------------------------------------------------------------------
 
