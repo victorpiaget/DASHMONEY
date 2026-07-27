@@ -1,13 +1,14 @@
 import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
+import {
+  compareMonths,
+  resolveToMonthRange,
+  toYearMonth,
+  type PeriodSelection,
+  type Preset,
+} from '../lib/period'
 
 // ── Types exportés ─────────────────────────────────────────────────────────────
-
-export type Preset = '1M' | '3M' | '6M' | '1A' | '2A' | 'tout'
-
-export type PeriodSelection =
-  | { type: 'preset'; preset: Preset }
-  | { type: 'custom'; from: string; to: string } // format "YYYY-MM"
 
 // ── Constantes ─────────────────────────────────────────────────────────────────
 
@@ -24,53 +25,27 @@ const PRESETS: { key: Preset; label: string }[] = [
 
 // ── Utilitaires ────────────────────────────────────────────────────────────────
 
-function cmp(a: string, b: string) { return a < b ? -1 : a > b ? 1 : 0 }
-
-function toYM(year: number, month: number): string {
-  return `${year}-${String(month).padStart(2, '0')}`
-}
-
-function lastDayOfMonth(ym: string): string {
-  const [y, m] = ym.split('-').map(Number)
-  return `${ym}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`
-}
-
-function resolveToMonthRange(selection: PeriodSelection, minMonth: string): { from: string; to: string } {
-  const now = new Date()
-  const maxYM = toYM(now.getFullYear(), now.getMonth() + 1)
-  if (selection.type === 'custom') return { from: selection.from, to: selection.to }
-  if (selection.preset === 'tout') return { from: minMonth, to: maxYM }
-  const d = new Date()
-  if (selection.preset === '1M') d.setMonth(d.getMonth() - 1)
-  else if (selection.preset === '3M') d.setMonth(d.getMonth() - 3)
-  else if (selection.preset === '6M') d.setMonth(d.getMonth() - 6)
-  else if (selection.preset === '1A') d.setFullYear(d.getFullYear() - 1)
-  else if (selection.preset === '2A') d.setFullYear(d.getFullYear() - 2)
-  return { from: toYM(d.getFullYear(), d.getMonth() + 1), to: maxYM }
-}
-
-/** Convertit la sélection en dates ISO complètes pour les appels API */
-export function resolveDates(selection: PeriodSelection, openedOn: string): { from: string; to: string } {
-  const minMonth = openedOn.slice(0, 7)
-  const { from, to } = resolveToMonthRange(selection, minMonth)
-  return { from: `${from}-01`, to: lastDayOfMonth(to) }
-}
-
 // ── Composant ──────────────────────────────────────────────────────────────────
 
 interface PeriodPickerProps {
   selection: PeriodSelection
   onChange: (s: PeriodSelection) => void
   minMonth: string // "YYYY-MM"
+  exactPresetCount?: boolean
 }
 
-export default function PeriodPicker({ selection, onChange, minMonth }: PeriodPickerProps) {
+export default function PeriodPicker({
+  selection,
+  onChange,
+  minMonth,
+  exactPresetCount = false,
+}: PeriodPickerProps) {
   const now = new Date()
-  const maxMonth = toYM(now.getFullYear(), now.getMonth() + 1)
+  const maxMonth = toYearMonth(now.getFullYear(), now.getMonth() + 1)
   const maxYear = now.getFullYear()
   const minYear = parseInt(minMonth.slice(0, 4))
 
-  const resolved = resolveToMonthRange(selection, minMonth)
+  const resolved = resolveToMonthRange(selection, minMonth, exactPresetCount)
 
   const [open, setOpen] = useState(false)
   const [viewYear, setViewYear] = useState(() => parseInt(resolved.to.slice(0, 4)))
@@ -81,11 +56,6 @@ export default function PeriodPicker({ selection, onChange, minMonth }: PeriodPi
   const triggerRef = useRef<HTMLButtonElement>(null)
   const popoverRef = useRef<HTMLDivElement>(null)
   const [pos, setPos] = useState({ top: 0, right: 0 })
-
-  // Resync viewYear quand la sélection change de l'extérieur
-  useEffect(() => {
-    if (!open) setViewYear(parseInt(resolved.to.slice(0, 4)))
-  }, [resolved.to, open])
 
   // Fermer au clic extérieur (les deux refs)
   useEffect(() => {
@@ -110,7 +80,8 @@ export default function PeriodPicker({ selection, onChange, minMonth }: PeriodPi
       const r = triggerRef.current.getBoundingClientRect()
       setPos({ top: r.bottom + 8, right: window.innerWidth - r.right })
     }
-    setOpen((v) => !v)
+    if (!open) setViewYear(parseInt(resolved.to.slice(0, 4)))
+    setOpen(!open)
     setPickStart(null)
     setHover(null)
   }
@@ -121,16 +92,16 @@ export default function PeriodPicker({ selection, onChange, minMonth }: PeriodPi
     | 'p-start' | 'p-end' | 'p-range' | 'p-single' | 'default'
 
   const getState = (ym: string): CellState => {
-    if (cmp(ym, minMonth) < 0 || cmp(ym, maxMonth) > 0) return 'disabled'
+    if (compareMonths(ym, minMonth) < 0 || compareMonths(ym, maxMonth) > 0) return 'disabled'
 
     if (pickStart !== null) {
       const endYM =
-        hover && cmp(hover, minMonth) >= 0 && cmp(hover, maxMonth) <= 0 ? hover : pickStart
-      const [f, t] = cmp(pickStart, endYM) <= 0 ? [pickStart, endYM] : [endYM, pickStart]
+        hover && compareMonths(hover, minMonth) >= 0 && compareMonths(hover, maxMonth) <= 0 ? hover : pickStart
+      const [f, t] = compareMonths(pickStart, endYM) <= 0 ? [pickStart, endYM] : [endYM, pickStart]
       if (ym === f && ym === t) return 'p-single'
       if (ym === f) return 'p-start'
       if (ym === t) return 'p-end'
-      if (cmp(ym, f) > 0 && cmp(ym, t) < 0) return 'p-range'
+      if (compareMonths(ym, f) > 0 && compareMonths(ym, t) < 0) return 'p-range'
       return 'default'
     }
 
@@ -138,7 +109,7 @@ export default function PeriodPicker({ selection, onChange, minMonth }: PeriodPi
     if (ym === from && ym === to) return 'single'
     if (ym === from) return 'start'
     if (ym === to) return 'end'
-    if (cmp(ym, from) > 0 && cmp(ym, to) < 0) return 'in-range'
+    if (compareMonths(ym, from) > 0 && compareMonths(ym, to) < 0) return 'in-range'
     return 'default'
   }
 
@@ -170,7 +141,7 @@ export default function PeriodPicker({ selection, onChange, minMonth }: PeriodPi
     if (!pickStart) {
       setPickStart(ym)
     } else {
-      const [from, to] = cmp(pickStart, ym) <= 0 ? [pickStart, ym] : [ym, pickStart]
+      const [from, to] = compareMonths(pickStart, ym) <= 0 ? [pickStart, ym] : [ym, pickStart]
       onChange({ type: 'custom', from, to })
       setPickStart(null)
       setHover(null)
@@ -265,7 +236,7 @@ export default function PeriodPicker({ selection, onChange, minMonth }: PeriodPi
       <div className="px-3 py-3">
         <div className="grid grid-cols-4 gap-y-1">
           {Array.from({ length: 12 }, (_, i) => {
-            const ym = toYM(viewYear, i + 1)
+            const ym = toYearMonth(viewYear, i + 1)
             const state = getState(ym)
             const isDisabled = state === 'disabled'
             return (

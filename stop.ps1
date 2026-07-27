@@ -21,7 +21,7 @@ if (Test-Path $PID_FILE) {
     }
     Remove-Item $PID_FILE -Force
 } else {
-    Write-Host "  Pas de fichier .dev-pids — fallback sur les ports" -ForegroundColor DarkGray
+    Write-Host "  Pas de fichier .dev-pids - fallback sur les ports" -ForegroundColor DarkGray
 }
 
 # 2. Filet de securite : tue tout ce qui ecoute sur 8000 et 5173

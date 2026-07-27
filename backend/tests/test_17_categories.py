@@ -20,11 +20,16 @@ def test_list_categories_auto_seeds_defaults(client):
     r = client.get("/categories")
     assert r.status_code == 200, r.text
     items = r.json()
-    # Le repo seede des categories par defaut lors du premier appel � la liste ne peut pas etre vide
+    # Le repo seede des categories par defaut lors du premier appel � la liste ne peut pas etre vide
     assert len(items) > 0
     names = [c["name"] for c in items]
     # Quelques noms de categories attendus dans les defaults
     assert any("Logement" in n for n in names)
+    by_name = {c["name"]: c for c in items}
+    assert by_name["Logement & charges fixes"]["nature"] == "NEED"
+    assert by_name["Vie sociale & loisirs"]["nature"] == "WANT"
+    assert by_name["Épargne & investissements"]["nature"] == "SAVING"
+    assert by_name["Autre"]["nature"] is None
 
 
 def test_create_category(client):
@@ -119,3 +124,80 @@ def test_categories_require_auth(client):
     with TestClient(app) as anon:
         r = anon.get("/categories")
     assert r.status_code == 401, r.text
+
+
+# ---------------------------------------------------------------------------
+# Nature (NEED / WANT / SAVING / NULL)
+# ---------------------------------------------------------------------------
+
+def test_create_category_default_nature_is_null(client):
+    cat = _create_category(client, "Loisirs")
+    assert cat["nature"] is None
+
+
+def test_create_category_with_nature(client):
+    r = client.post("/categories", json={"name": "Restaurants", "nature": "WANT"})
+    assert r.status_code == 201, r.text
+    assert r.json()["nature"] == "WANT"
+
+
+def test_patch_category_nature(client):
+    cat = _create_category(client, "Loyer")
+    r = client.patch(f"/categories/{cat['id']}", json={"nature": "NEED"})
+    assert r.status_code == 200, r.text
+    assert r.json()["nature"] == "NEED"
+
+    listed = client.get("/categories").json()
+    found = next(c for c in listed if c["id"] == cat["id"])
+    assert found["nature"] == "NEED"
+
+
+def test_patch_category_clear_nature(client):
+    cat = _create_category(client, "Voyages")
+    client.patch(f"/categories/{cat['id']}", json={"nature": "WANT"})
+
+    r = client.patch(f"/categories/{cat['id']}", json={"clear_nature": True})
+    assert r.status_code == 200, r.text
+    assert r.json()["nature"] is None
+
+
+def test_patch_category_rename(client):
+    cat = _create_category(client, "Old name")
+    r = client.patch(f"/categories/{cat['id']}", json={"name": "New name"})
+    assert r.status_code == 200, r.text
+    assert r.json()["name"] == "New name"
+
+
+def test_patch_category_invalid_nature_rejected(client):
+    cat = _create_category(client, "X")
+    r = client.patch(f"/categories/{cat['id']}", json={"nature": "RANDOM"})
+    assert r.status_code == 422
+
+
+def test_patch_category_not_found(client):
+    r = client.patch(
+        "/categories/00000000-0000-0000-0000-000000000000",
+        json={"nature": "NEED"},
+    )
+    assert r.status_code == 404
+
+
+def test_patch_category_rename_conflict(client):
+    _create_category(client, "Existing")
+    cat = _create_category(client, "Other")
+    r = client.patch(f"/categories/{cat['id']}", json={"name": "Existing"})
+    assert r.status_code == 409
+
+
+def test_patch_category_requires_write(client, auth_headers_user2):
+    """User2 ne peut pas patcher une catégorie de user1 (pas d'accès au profil)."""
+    from fastapi.testclient import TestClient
+    from app.api.main import app
+
+    cat = _create_category(client, "Privée")
+
+    with TestClient(app) as c2:
+        c2.headers.update(auth_headers_user2)
+        r = c2.patch(f"/categories/{cat['id']}", json={"nature": "NEED"})
+    # Soit 404 (pas trouvée dans le scope user2), soit 403 (pas d'accès au profil cible).
+    assert r.status_code in (403, 404)

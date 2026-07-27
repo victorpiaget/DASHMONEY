@@ -7,6 +7,7 @@ from decimal import Decimal
 from collections import defaultdict
 
 from app.domain.budget_envelope import BudgetEnvelope
+from app.domain.category import CategoryNature
 from app.domain.money import Currency, Money
 from app.domain.signed_money import SignedMoney
 from app.domain.transaction import Transaction, TransactionKind
@@ -260,6 +261,301 @@ def budget_vs_actual(
     results.sort(key=lambda x: (
         0 if x.kind == TransactionKind.INCOME else 1,
         -abs(x.actual.amount),
+    ))
+    return results
+
+
+# ---------------------------------------------------------------------------
+# Buckets par nature de catégorie (NEED / WANT / SAVING / uncategorized)
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class BucketTotals:
+    needs: SignedMoney
+    wants: SignedMoney
+    savings: SignedMoney
+    uncategorized: SignedMoney
+
+
+def expense_buckets_by_nature(
+    txs: list[Transaction],
+    nature_map: dict[str, str | None],
+    *,
+    currency: Currency,
+) -> BucketTotals:
+    """Agrège les dépenses par bucket selon la nature de leur catégorie.
+
+    `nature_map` : {category_name: "NEED"|"WANT"|"SAVING"|None}
+    Une transaction dont la catégorie n'est pas dans `nature_map`, ou dont la
+    nature est NULL, tombe dans `uncategorized`.
+    Les TRANSFER et INCOME sont ignorés.
+    """
+    acc: dict[str, Decimal] = {
+        "NEED": Decimal("0"),
+        "WANT": Decimal("0"),
+        "SAVING": Decimal("0"),
+        "UNCAT": Decimal("0"),
+    }
+
+    for t in txs:
+        if t.kind != TransactionKind.EXPENSE:
+            continue
+        nature = nature_map.get(t.category)
+        if nature == "NEED":
+            acc["NEED"] += t.amount.amount
+        elif nature == "WANT":
+            acc["WANT"] += t.amount.amount
+        elif nature == "SAVING":
+            acc["SAVING"] += t.amount.amount
+        else:
+            acc["UNCAT"] += t.amount.amount
+
+    return BucketTotals(
+        needs=SignedMoney.from_str(f"{acc['NEED']:.2f}", currency),
+        wants=SignedMoney.from_str(f"{acc['WANT']:.2f}", currency),
+        savings=SignedMoney.from_str(f"{acc['SAVING']:.2f}", currency),
+        uncategorized=SignedMoney.from_str(f"{acc['UNCAT']:.2f}", currency),
+    )
+
+
+def expense_total_excluding_savings(buckets: BucketTotals, *, currency: Currency) -> SignedMoney:
+    """Total dépenses au sens strict : NEED + WANT + UNCAT.
+    Exclut SAVING qui est de l'épargne, pas une dépense."""
+    total = (
+        buckets.needs.amount
+        + buckets.wants.amount
+        + buckets.uncategorized.amount
+    )
+    return SignedMoney.from_str(f"{total:.2f}", currency)
+
+
+def compute_savings(
+    buckets: BucketTotals,
+    income_actual: SignedMoney,
+    *,
+    currency: Currency,
+) -> tuple[Money, Decimal]:
+    """Retourne (savings_actual_positif, savings_rate) à partir des buckets.
+
+    - savings_actual : valeur absolue du bucket SAVING (positive)
+    - savings_rate : savings_actual / income_actual, arrondi à 4 décimales,
+      0 si income_actual <= 0.
+    """
+    savings_pos = abs(buckets.savings.amount)
+    savings_money = Money.from_str(f"{savings_pos:.2f}", currency)
+    if income_actual.amount <= 0:
+        return savings_money, Decimal("0.0000")
+    rate = (savings_pos / income_actual.amount).quantize(Decimal("0.0001"))
+    return savings_money, rate
+
+
+# ---------------------------------------------------------------------------
+# Flux budgétaires réels sur une période
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class BudgetFlowIncomeSource:
+    category: str
+    subcategory: str | None
+    amount: Money
+
+
+@dataclass(frozen=True)
+class BudgetFlowSubcategory:
+    subcategory: str | None
+    amount: Money
+
+
+@dataclass(frozen=True)
+class BudgetFlowExpenseCategory:
+    category: str
+    nature: CategoryNature | None
+    amount: Money
+    subcategories: tuple[BudgetFlowSubcategory, ...]
+
+
+@dataclass(frozen=True)
+class BudgetFlow:
+    income_sources: tuple[BudgetFlowIncomeSource, ...]
+    expense_categories: tuple[BudgetFlowExpenseCategory, ...]
+    total_income: Money
+    total_expenses: Money
+    total_savings: Money
+    total_outflows: Money
+    balance: SignedMoney
+    remaining: Money
+    deficit: Money
+
+
+def budget_flow(
+    txs: list[Transaction],
+    nature_map: dict[str, str | None],
+    *,
+    currency: Currency,
+) -> BudgetFlow:
+    """Agrège des flux réels positifs, prêts à être représentés en Sankey."""
+    income_acc: dict[tuple[str, str | None], Decimal] = defaultdict(Decimal)
+    expense_acc: dict[str, Decimal] = defaultdict(Decimal)
+    subcategory_acc: dict[tuple[str, str | None], Decimal] = defaultdict(Decimal)
+
+    for tx in txs:
+        if tx.kind == TransactionKind.TRANSFER:
+            continue
+        if tx.kind == TransactionKind.INCOME:
+            income_acc[(tx.category, tx.subcategory)] += tx.amount.amount
+            continue
+
+        amount = abs(tx.amount.amount)
+        expense_acc[tx.category] += amount
+        subcategory_acc[(tx.category, tx.subcategory)] += amount
+
+    income_sources = tuple(
+        BudgetFlowIncomeSource(
+            category=category,
+            subcategory=subcategory,
+            amount=Money.from_str(f"{amount:.2f}", currency),
+        )
+        for (category, subcategory), amount in sorted(
+            income_acc.items(),
+            key=lambda item: (-item[1], item[0][0].casefold(), (item[0][1] or "").casefold()),
+        )
+    )
+
+    nature_order = {
+        CategoryNature.NEED: 0,
+        CategoryNature.WANT: 1,
+        CategoryNature.SAVING: 2,
+        None: 3,
+    }
+    expense_categories: list[BudgetFlowExpenseCategory] = []
+    for category, amount in expense_acc.items():
+        raw_nature = nature_map.get(category)
+        try:
+            nature = CategoryNature(raw_nature) if raw_nature is not None else None
+        except ValueError:
+            nature = None
+
+        subcategories = tuple(
+            BudgetFlowSubcategory(
+                subcategory=subcategory,
+                amount=Money.from_str(f"{sub_amount:.2f}", currency),
+            )
+            for (sub_category, subcategory), sub_amount in sorted(
+                subcategory_acc.items(),
+                key=lambda item: (-item[1], (item[0][1] or "").casefold()),
+            )
+            if sub_category == category
+        )
+        expense_categories.append(
+            BudgetFlowExpenseCategory(
+                category=category,
+                nature=nature,
+                amount=Money.from_str(f"{amount:.2f}", currency),
+                subcategories=subcategories,
+            )
+        )
+
+    expense_categories.sort(
+        key=lambda item: (
+            nature_order[item.nature],
+            -item.amount.amount,
+            item.category.casefold(),
+        )
+    )
+
+    total_income_value = sum(income_acc.values(), Decimal("0.00"))
+    total_outflows_value = sum(expense_acc.values(), Decimal("0.00"))
+    total_savings_value = sum(
+        item.amount.amount
+        for item in expense_categories
+        if item.nature == CategoryNature.SAVING
+    )
+    total_expenses_value = total_outflows_value - total_savings_value
+    balance_value = total_income_value - total_outflows_value
+
+    return BudgetFlow(
+        income_sources=income_sources,
+        expense_categories=tuple(expense_categories),
+        total_income=Money.from_str(f"{total_income_value:.2f}", currency),
+        total_expenses=Money.from_str(f"{total_expenses_value:.2f}", currency),
+        total_savings=Money.from_str(f"{total_savings_value:.2f}", currency),
+        total_outflows=Money.from_str(f"{total_outflows_value:.2f}", currency),
+        balance=SignedMoney.from_str(f"{balance_value:.2f}", currency),
+        remaining=Money.from_str(f"{max(balance_value, Decimal('0.00')):.2f}", currency),
+        deficit=Money.from_str(f"{max(-balance_value, Decimal('0.00')):.2f}", currency),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Médiane mensuelle par catégorie (pour auto-budget)
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class CategoryMedian:
+    category: str
+    subcategory: str | None
+    kind: TransactionKind
+    median_amount: Money
+    occurrences: int  # nombre de mois où la (cat, sub, kind) a au moins 1 tx
+
+
+def _median(values: list[Decimal]) -> Decimal:
+    if not values:
+        return Decimal("0.00")
+    s = sorted(values)
+    n = len(s)
+    mid = n // 2
+    if n % 2 == 1:
+        return s[mid]
+    return ((s[mid - 1] + s[mid]) / 2).quantize(Decimal("0.01"))
+
+
+def median_monthly_totals_by_category(
+    txs: list[Transaction],
+    *,
+    months: list[tuple[int, int]],
+    currency: Currency,
+    min_occurrences: int = 2,
+) -> list[CategoryMedian]:
+    """Pour chaque (catégorie, sous-catégorie, kind), calcule la médiane des
+    totaux mensuels absolus sur la fenêtre `months` (liste de tuples (year, month)).
+
+    Ne renvoie que les couples ayant au moins `min_occurrences` mois avec au
+    moins une transaction. Les TRANSFER sont ignorés.
+    """
+    months_set = set(months)
+    monthly: dict[tuple[str, str | None, TransactionKind], dict[tuple[int, int], Decimal]] = defaultdict(
+        lambda: defaultdict(Decimal)
+    )
+
+    for t in txs:
+        if t.kind == TransactionKind.TRANSFER:
+            continue
+        key_month = (t.date.year, t.date.month)
+        if key_month not in months_set:
+            continue
+        key = (t.category, t.subcategory, t.kind)
+        monthly[key][key_month] += t.amount.amount
+
+    results: list[CategoryMedian] = []
+    for (cat, sub, kind), month_totals in monthly.items():
+        occurrences = len(month_totals)
+        if occurrences < min_occurrences:
+            continue
+        abs_values = [abs(v) for v in month_totals.values()]
+        med = _median(abs_values)
+        results.append(CategoryMedian(
+            category=cat,
+            subcategory=sub,
+            kind=kind,
+            median_amount=Money.from_str(f"{med:.2f}", currency),
+            occurrences=occurrences,
+        ))
+
+    results.sort(key=lambda c: (
+        0 if c.kind == TransactionKind.INCOME else 1,
+        -c.median_amount.amount,
+        c.category.casefold(),
     ))
     return results
 

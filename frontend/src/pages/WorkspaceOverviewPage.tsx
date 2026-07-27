@@ -3,8 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useWorkspaceNetWorth, useWorkspaceNetWorthTimeseries, useMe } from '../hooks/useWorkspace'
 import { useProfile } from '../context/ProfileContext'
 import { useTheme } from '../context/ThemeContext'
-import PeriodPicker, { resolveDates } from '../components/PeriodPicker'
-import type { PeriodSelection } from '../components/PeriodPicker'
+import PeriodPicker from '../components/PeriodPicker'
+import { resolveDates, type PeriodSelection } from '../lib/period'
 import type { WorkspaceNetWorthPoint } from '../lib/workspaceApi'
 
 function fmt(eur: string, decimals = 0): string {

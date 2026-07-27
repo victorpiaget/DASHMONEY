@@ -11,7 +11,19 @@ from app.domain.budget_envelope import BudgetEnvelope
 from app.domain.money import Currency, Money
 from app.domain.signed_money import SignedMoney
 from app.domain.transaction import Transaction, TransactionKind
-from app.engine.budget import BudgetComparison, budget_synthesis, budget_vs_actual
+from app.engine.budget import (
+    BudgetComparison,
+    budget_flow,
+    budget_synthesis,
+    budget_vs_actual,
+    compute_savings,
+    expense_buckets_by_nature,
+    expense_total_excluding_savings,
+    expense_totals_by_category,
+    income_totals_by_category,
+    median_monthly_totals_by_category,
+    BucketTotals,
+)
 from app.identity.defaults import DEFAULT_PROFILE_ID, DEFAULT_PROFILE2_ID
 
 
@@ -123,6 +135,62 @@ class TestBudgetVsActual:
         assert len(result) == 1
         assert result[0].actual.amount == Decimal("0.00")
 
+    def test_transfer_excluded_from_expense_totals(self):
+        """Un Transfer ne doit pas apparaître dans expense_totals_by_category()."""
+        expense = _make_tx(
+            category="Vie quotidienne",
+            kind=TransactionKind.EXPENSE,
+            amount_str="-150.00",
+        )
+        transfer_neg = Transaction.create(
+            account_id="acc-1",
+            date=dt.date(2026, 3, 15),
+            sequence=1,
+            amount=SignedMoney.from_str("-500.00", EUR),
+            kind=TransactionKind.TRANSFER,
+            category="Transfert interne",
+        )
+        transfer_pos = Transaction.create(
+            account_id="acc-2",
+            date=dt.date(2026, 3, 15),
+            sequence=1,
+            amount=SignedMoney.from_str("500.00", EUR),
+            kind=TransactionKind.TRANSFER,
+            category="Transfert interne",
+        )
+
+        totals = expense_totals_by_category(
+            [expense, transfer_neg, transfer_pos], currency=EUR,
+        )
+        cats = {t.category for t in totals}
+        assert "Transfert interne" not in cats
+        assert "Vie quotidienne" in cats
+
+    def test_transfer_excluded_from_synthesis(self):
+        """Un Transfer ne doit ni gonfler income ni gonfler expense dans le total."""
+        income = _make_tx(category="Revenus", kind=TransactionKind.INCOME, amount_str="2800.00")
+        transfer_neg = Transaction.create(
+            account_id="acc-1",
+            date=dt.date(2026, 3, 15),
+            sequence=1,
+            amount=SignedMoney.from_str("-500.00", EUR),
+            kind=TransactionKind.TRANSFER,
+            category="Transfert interne",
+        )
+        transfer_pos = Transaction.create(
+            account_id="acc-2",
+            date=dt.date(2026, 3, 15),
+            sequence=1,
+            amount=SignedMoney.from_str("500.00", EUR),
+            kind=TransactionKind.TRANSFER,
+            category="Transfert interne",
+        )
+
+        comparisons = budget_vs_actual([], [income, transfer_neg, transfer_pos], currency=EUR)
+        s = budget_synthesis(comparisons, currency=EUR)
+        assert s.total_income_actual.amount == Decimal("2800.00")
+        assert s.total_expense_actual.amount == Decimal("0.00")
+
     def test_expense_overspent(self):
         env = _make_env(category="Vie quotidienne", kind=TransactionKind.EXPENSE, amount_str="500.00")
         tx = _make_tx(category="Vie quotidienne", kind=TransactionKind.EXPENSE, amount_str="-650.00")
@@ -133,6 +201,290 @@ class TestBudgetVsActual:
         # delta positif = dépassement pour les dépenses
         assert c.delta.amount == Decimal("150.00")
         assert c.percent == Decimal("130.00")
+
+
+class TestExpenseBucketsByNature:
+
+    def test_groups_by_nature(self):
+        nature_map = {
+            "Loyer": "NEED",
+            "Restaurants": "WANT",
+            "PEA": "SAVING",
+        }
+        txs = [
+            _make_tx(category="Loyer", kind=TransactionKind.EXPENSE, amount_str="-900.00"),
+            _make_tx(category="Restaurants", kind=TransactionKind.EXPENSE, amount_str="-150.00"),
+            _make_tx(category="PEA", kind=TransactionKind.EXPENSE, amount_str="-500.00"),
+        ]
+        result = expense_buckets_by_nature(txs, nature_map, currency=EUR)
+        assert result.needs.amount == Decimal("-900.00")
+        assert result.wants.amount == Decimal("-150.00")
+        assert result.savings.amount == Decimal("-500.00")
+        assert result.uncategorized.amount == Decimal("0.00")
+
+    def test_unknown_category_falls_into_uncategorized(self):
+        nature_map = {"Loyer": "NEED"}
+        txs = [
+            _make_tx(category="Loyer", kind=TransactionKind.EXPENSE, amount_str="-900.00"),
+            _make_tx(category="MysteryCat", kind=TransactionKind.EXPENSE, amount_str="-50.00"),
+        ]
+        result = expense_buckets_by_nature(txs, nature_map, currency=EUR)
+        assert result.needs.amount == Decimal("-900.00")
+        assert result.uncategorized.amount == Decimal("-50.00")
+
+    def test_null_nature_falls_into_uncategorized(self):
+        nature_map = {"Catégorie": None}
+        txs = [
+            _make_tx(category="Catégorie", kind=TransactionKind.EXPENSE, amount_str="-30.00"),
+        ]
+        result = expense_buckets_by_nature(txs, nature_map, currency=EUR)
+        assert result.uncategorized.amount == Decimal("-30.00")
+        assert result.needs.amount == Decimal("0.00")
+
+    def test_income_and_transfer_excluded(self):
+        nature_map = {"Salaire": "NEED", "Transfert": "NEED"}
+        income = _make_tx(category="Salaire", kind=TransactionKind.INCOME, amount_str="2500.00")
+        transfer = Transaction.create(
+            account_id="acc-1",
+            date=dt.date(2026, 3, 15),
+            sequence=1,
+            amount=SignedMoney.from_str("-500.00", EUR),
+            kind=TransactionKind.TRANSFER,
+            category="Transfert",
+        )
+        result = expense_buckets_by_nature([income, transfer], nature_map, currency=EUR)
+        assert result.needs.amount == Decimal("0.00")
+        assert result.uncategorized.amount == Decimal("0.00")
+
+    def test_total_expenses_excludes_savings(self):
+        nature_map = {
+            "Loyer": "NEED",
+            "Restaurants": "WANT",
+            "PEA": "SAVING",
+            "Inconnue": None,
+        }
+        txs = [
+            _make_tx(category="Loyer", kind=TransactionKind.EXPENSE, amount_str="-900.00"),
+            _make_tx(category="Restaurants", kind=TransactionKind.EXPENSE, amount_str="-150.00"),
+            _make_tx(category="PEA", kind=TransactionKind.EXPENSE, amount_str="-500.00"),
+            _make_tx(category="Inconnue", kind=TransactionKind.EXPENSE, amount_str="-30.00"),
+        ]
+        buckets = expense_buckets_by_nature(txs, nature_map, currency=EUR)
+        total = expense_total_excluding_savings(buckets, currency=EUR)
+        # NEED + WANT + UNCAT, sans SAVING
+        assert total.amount == Decimal("-1080.00")
+
+
+class TestComputeSavings:
+
+    def _make_buckets(self, savings_amount: str) -> BucketTotals:
+        z = SignedMoney.from_str("0.00", EUR)
+        return BucketTotals(
+            needs=z, wants=z, savings=SignedMoney.from_str(savings_amount, EUR), uncategorized=z,
+        )
+
+    def test_nominal(self):
+        buckets = self._make_buckets("-500.00")
+        income = SignedMoney.from_str("2500.00", EUR)
+        savings, rate = compute_savings(buckets, income, currency=EUR)
+        assert savings.amount == Decimal("500.00")
+        assert rate == Decimal("0.2000")
+
+    def test_zero_income_returns_zero_rate(self):
+        buckets = self._make_buckets("-500.00")
+        income = SignedMoney.from_str("0.00", EUR)
+        savings, rate = compute_savings(buckets, income, currency=EUR)
+        assert savings.amount == Decimal("500.00")
+        assert rate == Decimal("0.0000")
+
+    def test_negative_income_returns_zero_rate(self):
+        buckets = self._make_buckets("-100.00")
+        income = SignedMoney.from_str("-50.00", EUR)
+        _, rate = compute_savings(buckets, income, currency=EUR)
+        assert rate == Decimal("0.0000")
+
+    def test_no_savings(self):
+        buckets = self._make_buckets("0.00")
+        income = SignedMoney.from_str("2500.00", EUR)
+        savings, rate = compute_savings(buckets, income, currency=EUR)
+        assert savings.amount == Decimal("0.00")
+        assert rate == Decimal("0.0000")
+
+
+class TestBudgetFlow:
+
+    def test_aggregates_real_flows_and_preserves_subcategories(self):
+        txs = [
+            _make_tx(
+                category="Revenus",
+                subcategory="Salaire",
+                kind=TransactionKind.INCOME,
+                amount_str="2500.00",
+            ),
+            _make_tx(
+                category="Logement",
+                subcategory="Loyer",
+                kind=TransactionKind.EXPENSE,
+                amount_str="-900.00",
+            ),
+            _make_tx(
+                category="Vie sociale",
+                subcategory="Restaurants",
+                kind=TransactionKind.EXPENSE,
+                amount_str="-100.00",
+            ),
+            _make_tx(
+                category="Investissements",
+                subcategory="PEA",
+                kind=TransactionKind.EXPENSE,
+                amount_str="-400.00",
+            ),
+            _make_tx(
+                category="Mystère",
+                kind=TransactionKind.EXPENSE,
+                amount_str="-50.00",
+            ),
+        ]
+
+        result = budget_flow(
+            txs,
+            {
+                "Logement": "NEED",
+                "Vie sociale": "WANT",
+                "Investissements": "SAVING",
+            },
+            currency=EUR,
+        )
+
+        assert result.total_income.amount == Decimal("2500.00")
+        assert result.total_expenses.amount == Decimal("1050.00")
+        assert result.total_savings.amount == Decimal("400.00")
+        assert result.total_outflows.amount == Decimal("1450.00")
+        assert result.balance.amount == Decimal("1050.00")
+        assert result.remaining.amount == Decimal("1050.00")
+        assert result.deficit.amount == Decimal("0.00")
+        assert result.income_sources[0].subcategory == "Salaire"
+
+        logement = next(item for item in result.expense_categories if item.category == "Logement")
+        assert logement.nature.value == "NEED"
+        assert logement.subcategories[0].subcategory == "Loyer"
+        assert logement.subcategories[0].amount.amount == Decimal("900.00")
+
+        mystere = next(item for item in result.expense_categories if item.category == "Mystère")
+        assert mystere.nature is None
+
+    def test_deficit_balances_outflows_and_transfers_are_excluded(self):
+        txs = [
+            _make_tx(
+                category="Revenus",
+                kind=TransactionKind.INCOME,
+                amount_str="100.00",
+            ),
+            _make_tx(
+                category="Logement",
+                kind=TransactionKind.EXPENSE,
+                amount_str="-250.00",
+            ),
+            _make_tx(
+                category="Transfert interne",
+                kind=TransactionKind.TRANSFER,
+                amount_str="-1000.00",
+            ),
+        ]
+
+        result = budget_flow(txs, {"Logement": "NEED"}, currency=EUR)
+
+        assert result.total_income.amount == Decimal("100.00")
+        assert result.total_outflows.amount == Decimal("250.00")
+        assert result.balance.amount == Decimal("-150.00")
+        assert result.remaining.amount == Decimal("0.00")
+        assert result.deficit.amount == Decimal("150.00")
+        assert all(item.category != "Transfert interne" for item in result.expense_categories)
+
+
+class TestMedianMonthlyTotalsByCategory:
+
+    def _tx(self, *, category, amount, year, month, day=15, kind=TransactionKind.EXPENSE):
+        return Transaction.create(
+            account_id="acc",
+            date=dt.date(year, month, day),
+            sequence=1,
+            amount=SignedMoney.from_str(amount, EUR),
+            kind=kind,
+            category=category,
+        )
+
+    def test_excludes_categories_with_single_occurrence(self):
+        txs = [
+            self._tx(category="Loyer", amount="-900.00", year=2026, month=1),
+            self._tx(category="Loyer", amount="-900.00", year=2026, month=2),
+            self._tx(category="Loyer", amount="-900.00", year=2026, month=3),
+            self._tx(category="OneShot", amount="-50.00", year=2026, month=2),
+        ]
+        result = median_monthly_totals_by_category(
+            txs, months=[(2026, 1), (2026, 2), (2026, 3)], currency=EUR,
+        )
+        cats = [c.category for c in result]
+        assert "Loyer" in cats
+        assert "OneShot" not in cats
+
+    def test_median_odd_count(self):
+        txs = [
+            self._tx(category="Resto", amount="-100.00", year=2026, month=1),
+            self._tx(category="Resto", amount="-200.00", year=2026, month=2),
+            self._tx(category="Resto", amount="-300.00", year=2026, month=3),
+        ]
+        result = median_monthly_totals_by_category(
+            txs, months=[(2026, 1), (2026, 2), (2026, 3)], currency=EUR,
+        )
+        assert len(result) == 1
+        assert result[0].median_amount.amount == Decimal("200.00")
+        assert result[0].occurrences == 3
+
+    def test_median_even_count(self):
+        txs = [
+            self._tx(category="Courses", amount="-100.00", year=2026, month=1),
+            self._tx(category="Courses", amount="-300.00", year=2026, month=2),
+        ]
+        result = median_monthly_totals_by_category(
+            txs, months=[(2026, 1), (2026, 2)], currency=EUR,
+        )
+        assert result[0].median_amount.amount == Decimal("200.00")
+
+    def test_excludes_transfers(self):
+        txs = [
+            Transaction.create(
+                account_id="acc",
+                date=dt.date(2026, 1, 15),
+                sequence=1,
+                amount=SignedMoney.from_str("-500.00", EUR),
+                kind=TransactionKind.TRANSFER,
+                category="Transfert",
+            ),
+            Transaction.create(
+                account_id="acc",
+                date=dt.date(2026, 2, 15),
+                sequence=1,
+                amount=SignedMoney.from_str("-500.00", EUR),
+                kind=TransactionKind.TRANSFER,
+                category="Transfert",
+            ),
+        ]
+        result = median_monthly_totals_by_category(
+            txs, months=[(2026, 1), (2026, 2)], currency=EUR,
+        )
+        assert result == []
+
+    def test_aggregates_multiple_txs_in_same_month(self):
+        txs = [
+            self._tx(category="Resto", amount="-50.00", year=2026, month=1),
+            self._tx(category="Resto", amount="-50.00", year=2026, month=1, day=20),
+            self._tx(category="Resto", amount="-300.00", year=2026, month=2),
+        ]
+        result = median_monthly_totals_by_category(
+            txs, months=[(2026, 1), (2026, 2)], currency=EUR,
+        )
+        assert result[0].median_amount.amount == Decimal("200.00")  # médiane(100, 300) = 200
 
 
 class TestBudgetSynthesis:
@@ -263,6 +615,401 @@ class TestBudgetEnvelopesAPI:
         assert comp["planned"] == "600.00"
         assert comp["actual"] == "-500.00"
 
+    def test_comparison_income_consistent_when_only_subcategories(self, client):
+        """Synthesis.total_income_actual == somme des comparisons INCOME, même
+        quand les revenus n'ont qu'une sous-catégorie (jamais de ligne au niveau
+        catégorie root). Garde-fou pour le bug "Section Revenus vide"."""
+        import uuid as _uuid
+
+        acc_resp = client.post("/accounts", json={
+            "id": str(_uuid.uuid4()),
+            "name": "Compte revenus",
+            "account_type": "CHECKING",
+            "opening_balance": "0.00",
+            "currency": "EUR",
+            "opened_on": "2026-01-01",
+        })
+        acc_id = acc_resp.json()["id"]
+
+        client.post(f"/accounts/{acc_id}/transactions", json={
+            "date": "2026-03-05", "amount": "1500.00", "kind": "INCOME",
+            "category": "Revenus", "subcategory": "Salaire", "label": "salaire",
+        })
+        client.post(f"/accounts/{acc_id}/transactions", json={
+            "date": "2026-03-20", "amount": "575.65", "kind": "INCOME",
+            "category": "Revenus", "subcategory": "Bourses", "label": "bourse",
+        })
+
+        resp = client.get("/budget/comparison", params={"month": "2026-03"})
+        assert resp.status_code == 200
+        data = resp.json()
+
+        income_rows = [c for c in data["comparisons"] if c["kind"] == "INCOME"]
+        # Toutes les transactions ayant une subcategory, on n'attend que des
+        # lignes de niveau sous-catégorie
+        assert all(c["subcategory"] is not None for c in income_rows)
+        sum_income = sum(Decimal(c["actual"]) for c in income_rows)
+        assert sum_income == Decimal("2075.65")
+        assert data["synthesis"]["total_income_actual"] == "2075.65"
+
+    def test_comparison_savings_rate_in_synthesis(self, client):
+        """synthesis.savings_actual et savings_rate sont calculés depuis le bucket SAVING."""
+        import uuid as _uuid
+
+        acc_resp = client.post("/accounts", json={
+            "id": str(_uuid.uuid4()),
+            "name": "Compte savings",
+            "account_type": "CHECKING",
+            "opening_balance": "0.00",
+            "currency": "EUR",
+            "opened_on": "2026-01-01",
+        })
+        acc_id = acc_resp.json()["id"]
+
+        client.post("/categories", json={"name": "PEA", "nature": "SAVING"})
+        client.post(f"/accounts/{acc_id}/transactions", json={
+            "date": "2026-03-05", "amount": "2500.00", "kind": "INCOME",
+            "category": "Revenus", "subcategory": "Salaire", "label": "s",
+        })
+        client.post(f"/accounts/{acc_id}/transactions", json={
+            "date": "2026-03-12", "amount": "-500.00", "kind": "EXPENSE",
+            "category": "PEA", "label": "alim",
+        })
+
+        resp = client.get("/budget/comparison", params={"month": "2026-03"})
+        assert resp.status_code == 200, resp.text
+        s = resp.json()["synthesis"]
+        assert s["savings_actual"] == "500.00"
+        assert s["savings_rate"] == "0.2000"
+
+    def test_comparison_savings_rate_zero_when_no_income(self, client):
+        import uuid as _uuid
+
+        acc_resp = client.post("/accounts", json={
+            "id": str(_uuid.uuid4()),
+            "name": "Compte sans revenus",
+            "account_type": "CHECKING",
+            "opening_balance": "0.00",
+            "currency": "EUR",
+            "opened_on": "2026-01-01",
+        })
+        acc_id = acc_resp.json()["id"]
+        client.post("/categories", json={"name": "PEA", "nature": "SAVING"})
+        client.post(f"/accounts/{acc_id}/transactions", json={
+            "date": "2026-03-12", "amount": "-200.00", "kind": "EXPENSE",
+            "category": "PEA", "label": "alim",
+        })
+
+        resp = client.get("/budget/comparison", params={"month": "2026-03"})
+        s = resp.json()["synthesis"]
+        assert s["savings_actual"] == "200.00"
+        assert s["savings_rate"] == "0.0000"
+
+    def test_history_includes_savings(self, client):
+        import uuid as _uuid
+
+        acc_resp = client.post("/accounts", json={
+            "id": str(_uuid.uuid4()),
+            "name": "Compte hist savings",
+            "account_type": "CHECKING",
+            "opening_balance": "0.00",
+            "currency": "EUR",
+            "opened_on": "2025-01-01",
+        })
+        acc_id = acc_resp.json()["id"]
+        client.post("/categories", json={"name": "PEA", "nature": "SAVING"})
+
+        # 2 mois différents — vérifions juste la présence des champs
+        client.post(f"/accounts/{acc_id}/transactions", json={
+            "date": "2025-12-05", "amount": "2000.00", "kind": "INCOME",
+            "category": "Revenus", "label": "s",
+        })
+        client.post(f"/accounts/{acc_id}/transactions", json={
+            "date": "2025-12-15", "amount": "-400.00", "kind": "EXPENSE",
+            "category": "PEA", "label": "pea",
+        })
+
+        resp = client.get("/budget/history", params={"months": 6})
+        assert resp.status_code == 200
+        for m in resp.json()["months"]:
+            assert "savings_actual" in m
+            assert "savings_rate" in m
+
+    def test_categories_includes_nature(self, client):
+        import uuid as _uuid
+
+        acc_resp = client.post("/accounts", json={
+            "id": str(_uuid.uuid4()),
+            "name": "Compte cat-nature",
+            "account_type": "CHECKING",
+            "opening_balance": "0.00",
+            "currency": "EUR",
+            "opened_on": "2026-01-01",
+        })
+        acc_id = acc_resp.json()["id"]
+        client.post("/categories", json={"name": "Logement", "nature": "NEED"})
+        client.post(f"/accounts/{acc_id}/transactions", json={
+            "date": "2026-03-01", "amount": "-900.00", "kind": "EXPENSE",
+            "category": "Logement", "subcategory": "Loyer", "label": "loyer",
+        })
+
+        resp = client.get("/budget/categories")
+        data = resp.json()
+        logement = next(c for c in data["expense"] if c["category"] == "Logement")
+        assert logement["nature"] == "NEED"
+
+    def test_auto_budget_nominal(self, client):
+        """GET /budget/auto-budget retourne la médiane des N derniers mois pleins."""
+        import uuid as _uuid
+
+        acc_resp = client.post("/accounts", json={
+            "id": str(_uuid.uuid4()),
+            "name": "Compte auto-budget",
+            "account_type": "CHECKING",
+            "opening_balance": "0.00",
+            "currency": "EUR",
+            "opened_on": "2025-01-01",
+        })
+        acc_id = acc_resp.json()["id"]
+        client.post("/categories", json={"name": "Loyer", "nature": "NEED"})
+
+        # Mois -3, -2, -1 par rapport à aujourd'hui
+        today = dt.date.today()
+        recent_months: list[tuple[int, int]] = []
+        for i in range(1, 4):
+            y = today.year
+            m = today.month - i
+            while m <= 0:
+                m += 12
+                y -= 1
+            recent_months.append((y, m))
+
+        for (y, m), amount in zip(recent_months, ["-900.00", "-900.00", "-900.00"]):
+            client.post(f"/accounts/{acc_id}/transactions", json={
+                "date": f"{y}-{m:02d}-15",
+                "amount": amount,
+                "kind": "EXPENSE",
+                "category": "Loyer",
+                "label": "loyer",
+            })
+
+        resp = client.get("/budget/auto-budget", params={"months": 3})
+        assert resp.status_code == 200, resp.text
+        data = resp.json()
+        assert data["based_on_months"] == 3
+        loyer = next(s for s in data["suggestions"] if s["category"] == "Loyer")
+        assert loyer["median_amount"] == "900.00"
+        assert loyer["nature"] == "NEED"
+        assert loyer["occurrences"] == 3
+
+    def test_auto_budget_excludes_single_occurrence(self, client):
+        import uuid as _uuid
+
+        acc_resp = client.post("/accounts", json={
+            "id": str(_uuid.uuid4()),
+            "name": "Compte single",
+            "account_type": "CHECKING",
+            "opening_balance": "0.00",
+            "currency": "EUR",
+            "opened_on": "2025-01-01",
+        })
+        acc_id = acc_resp.json()["id"]
+
+        # Un seul mois passé
+        today = dt.date.today()
+        y = today.year
+        m = today.month - 1
+        while m <= 0:
+            m += 12
+            y -= 1
+        client.post(f"/accounts/{acc_id}/transactions", json={
+            "date": f"{y}-{m:02d}-15",
+            "amount": "-50.00",
+            "kind": "EXPENSE",
+            "category": "OneShot",
+            "label": "x",
+        })
+
+        resp = client.get("/budget/auto-budget", params={"months": 3})
+        assert resp.status_code == 200
+        cats = [s["category"] for s in resp.json()["suggestions"]]
+        assert "OneShot" not in cats
+
+    def test_comparison_buckets_by_nature(self, client):
+        """GET /budget/comparison expose les buckets needs/wants/savings/uncategorized
+        selon la nature des catégories. Le total dépenses exclut SAVING."""
+        import uuid as _uuid
+
+        acc_resp = client.post("/accounts", json={
+            "id": str(_uuid.uuid4()),
+            "name": "Compte buckets",
+            "account_type": "CHECKING",
+            "opening_balance": "0.00",
+            "currency": "EUR",
+            "opened_on": "2026-01-01",
+        })
+        acc_id = acc_resp.json()["id"]
+
+        # Créer 3 catégories typées + 1 sans nature
+        cats = {}
+        for name, nature in [
+            ("Loyer", "NEED"),
+            ("Resto", "WANT"),
+            ("PEA", "SAVING"),
+            ("Mystère", None),
+        ]:
+            r = client.post("/categories", json={"name": name, "nature": nature})
+            cats[name] = r.json()
+
+        # Transactions associées (les catégories des transactions sont des strings,
+        # le matching se fait sur le NOM de la catégorie)
+        for cat_name, amount in [
+            ("Loyer", "-900.00"),
+            ("Resto", "-120.00"),
+            ("PEA", "-500.00"),
+            ("Mystère", "-40.00"),
+        ]:
+            client.post(f"/accounts/{acc_id}/transactions", json={
+                "date": "2026-03-15",
+                "amount": amount,
+                "kind": "EXPENSE",
+                "category": cat_name,
+                "label": "tx",
+            })
+
+        resp = client.get("/budget/comparison", params={"month": "2026-03"})
+        assert resp.status_code == 200, resp.text
+        buckets = resp.json()["buckets"]
+        assert buckets["needs"] == "-900.00"
+        assert buckets["wants"] == "-120.00"
+        assert buckets["savings"] == "-500.00"
+        assert buckets["uncategorized"] == "-40.00"
+        # Total exclut savings : -900 + -120 + -40 = -1060
+        assert buckets["total_expenses"] == "-1060.00"
+
+    def test_flow_aggregates_only_requested_period(self, client):
+        import uuid as _uuid
+
+        acc_resp = client.post("/accounts", json={
+            "id": str(_uuid.uuid4()),
+            "name": "Compte flux",
+            "account_type": "CHECKING",
+            "opening_balance": "0.00",
+            "currency": "EUR",
+            "opened_on": "2026-01-01",
+        })
+        acc_id = acc_resp.json()["id"]
+        client.post("/categories", json={"name": "Logement flux", "nature": "NEED"})
+
+        for tx in [
+            {
+                "date": "2026-03-05",
+                "amount": "2500.00",
+                "kind": "INCOME",
+                "category": "Revenus",
+                "subcategory": "Salaire",
+                "label": "salaire",
+            },
+            {
+                "date": "2026-03-12",
+                "amount": "-900.00",
+                "kind": "EXPENSE",
+                "category": "Logement flux",
+                "subcategory": "Loyer",
+                "label": "loyer",
+            },
+            {
+                "date": "2026-04-12",
+                "amount": "-300.00",
+                "kind": "EXPENSE",
+                "category": "Hors période",
+                "label": "hors période",
+            },
+        ]:
+            response = client.post(f"/accounts/{acc_id}/transactions", json=tx)
+            assert response.status_code == 201, response.text
+
+        resp = client.get("/budget/flow", params={
+            "date_from": "2026-03-01",
+            "date_to": "2026-03-31",
+        })
+        assert resp.status_code == 200, resp.text
+        data = resp.json()
+
+        assert data["date_from"] == "2026-03-01"
+        assert data["date_to"] == "2026-03-31"
+        assert data["profile_id"] == DEFAULT_PROFILE_ID
+        assert data["summary"] == {
+            "total_income": "2500.00",
+            "total_expenses": "900.00",
+            "total_savings": "0.00",
+            "total_outflows": "900.00",
+            "balance": "1600.00",
+            "remaining": "1600.00",
+            "deficit": "0.00",
+        }
+        assert data["income_sources"] == [{
+            "category": "Revenus",
+            "subcategory": "Salaire",
+            "amount": "2500.00",
+        }]
+        assert len(data["expense_categories"]) == 1
+        assert data["expense_categories"][0]["category"] == "Logement flux"
+        assert data["expense_categories"][0]["nature"] == "NEED"
+        assert data["expense_categories"][0]["subcategories"] == [{
+            "subcategory": "Loyer",
+            "amount": "900.00",
+        }]
+
+    def test_flow_rejects_inverted_period(self, client):
+        resp = client.get("/budget/flow", params={
+            "date_from": "2026-04-01",
+            "date_to": "2026-03-31",
+        })
+        assert resp.status_code == 422
+        assert resp.json()["detail"] == "date_from must be before or equal to date_to"
+
+    def test_flow_isolated_between_profiles(self, client):
+        import uuid as _uuid
+        from fastapi.testclient import TestClient
+        from app.api.main import app
+        from app.identity.defaults import DEFAULT_USER2_EMAIL, DEFAULT_TEST_PASSWORD
+
+        acc_resp = client.post("/accounts", json={
+            "id": str(_uuid.uuid4()),
+            "name": "Compte flux privé",
+            "account_type": "CHECKING",
+            "opening_balance": "0.00",
+            "currency": "EUR",
+            "opened_on": "2026-01-01",
+        })
+        acc_id = acc_resp.json()["id"]
+        tx_resp = client.post(f"/accounts/{acc_id}/transactions", json={
+            "date": "2026-03-05",
+            "amount": "1234.00",
+            "kind": "INCOME",
+            "category": "Revenus privés",
+            "label": "privé",
+        })
+        assert tx_resp.status_code == 201, tx_resp.text
+
+        with TestClient(app) as user2_client:
+            login = user2_client.post("/auth/login", json={
+                "email": DEFAULT_USER2_EMAIL,
+                "password": DEFAULT_TEST_PASSWORD,
+            })
+            token = login.json()["access_token"]
+            user2_client.headers.update({"Authorization": f"Bearer {token}"})
+            resp = user2_client.get("/budget/flow", params={
+                "date_from": "2026-03-01",
+                "date_to": "2026-03-31",
+            })
+
+        assert resp.status_code == 200
+        assert resp.json()["profile_id"] == DEFAULT_PROFILE2_ID
+        assert resp.json()["income_sources"] == []
+        assert resp.json()["summary"]["total_income"] == "0.00"
+
     def test_comparison_invalid_month(self, client):
         resp = client.get("/budget/comparison", params={"month": "not-a-month"})
         assert resp.status_code == 422
@@ -271,6 +1018,16 @@ class TestBudgetEnvelopesAPI:
         """GET /budget/history retourne N mois avec synthèse."""
         import uuid as _uuid
 
+        today = dt.date.today()
+        recent_months: list[tuple[int, int]] = []
+        for offset in (3, 2, 1):
+            year = today.year
+            month = today.month - offset
+            while month <= 0:
+                month += 12
+                year -= 1
+            recent_months.append((year, month))
+
         # Compte + transactions sur 3 mois distincts
         acc_resp = client.post("/accounts", json={
             "id": str(_uuid.uuid4()),
@@ -278,17 +1035,17 @@ class TestBudgetEnvelopesAPI:
             "account_type": "CHECKING",
             "opening_balance": "0.00",
             "currency": "EUR",
-            "opened_on": "2025-10-01",
+            "opened_on": f"{recent_months[0][0]}-{recent_months[0][1]:02d}-01",
         })
         acc_id = acc_resp.json()["id"]
 
-        for date_str, amount, kind in [
-            ("2025-10-15", "2800.00", "INCOME"),
-            ("2025-11-15", "2900.00", "INCOME"),
-            ("2025-12-15", "-500.00", "EXPENSE"),
+        for (year, month), amount, kind in [
+            (recent_months[0], "2800.00", "INCOME"),
+            (recent_months[1], "2900.00", "INCOME"),
+            (recent_months[2], "-500.00", "EXPENSE"),
         ]:
             client.post(f"/accounts/{acc_id}/transactions", json={
-                "date": date_str,
+                "date": f"{year}-{month:02d}-15",
                 "amount": amount,
                 "kind": kind,
                 "category": "Test",

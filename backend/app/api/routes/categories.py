@@ -6,26 +6,30 @@ from app.api.deps import get_category_repo, get_request_context, get_write_conte
 from app.api.schemas.categories import (
     CategoryCreateRequest,
     CategoryResponse,
+    CategoryUpdateRequest,
     SubcategoryCreateRequest,
     SubcategoryResponse,
 )
+from app.domain.category import CategoryNature
 from app.identity.request_context import RequestContext
 
 router = APIRouter(prefix="/categories", tags=["categories"])
+
+
+def _row_to_response(row: dict) -> CategoryResponse:
+    return CategoryResponse(
+        id=row["id"],
+        name=row["name"],
+        nature=row.get("nature"),
+        subcategories=[SubcategoryResponse(id=s["id"], name=s["name"]) for s in row["subcategories"]],
+    )
 
 
 @router.get("", response_model=list[CategoryResponse])
 def list_categories(ctx: RequestContext = Depends(get_request_context)) -> list[CategoryResponse]:
     repo = get_category_repo()
     rows = repo.list(profile_id=ctx.profile_id)
-    return [
-        CategoryResponse(
-            id=r["id"],
-            name=r["name"],
-            subcategories=[SubcategoryResponse(id=s["id"], name=s["name"]) for s in r["subcategories"]],
-        )
-        for r in rows
-    ]
+    return [_row_to_response(r) for r in rows]
 
 
 @router.post("", response_model=CategoryResponse, status_code=201)
@@ -38,7 +42,38 @@ def create_category(
         row = repo.add_category(req.name, profile_id=ctx.profile_id)
     except ValueError as e:
         raise HTTPException(status_code=409, detail=str(e))
-    return CategoryResponse(id=row["id"], name=row["name"], subcategories=[])
+
+    if req.nature is not None:
+        row = repo.update_category(
+            row["id"],
+            nature=CategoryNature(req.nature),
+            profile_id=ctx.profile_id,
+        )
+
+    return _row_to_response(row)
+
+
+@router.patch("/{category_id}", response_model=CategoryResponse)
+def update_category(
+    category_id: str,
+    req: CategoryUpdateRequest,
+    ctx: RequestContext = Depends(get_write_context),
+) -> CategoryResponse:
+    repo = get_category_repo()
+    nature = CategoryNature(req.nature) if req.nature is not None else None
+    try:
+        row = repo.update_category(
+            category_id,
+            name=req.name,
+            nature=nature,
+            clear_nature=req.clear_nature,
+            profile_id=ctx.profile_id,
+        )
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Category not found")
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    return _row_to_response(row)
 
 
 @router.delete("/{category_id}", status_code=204)
